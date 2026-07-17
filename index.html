@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Manual Fútbol — Modular</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#04170c;font-family:'Segoe UI',Arial,sans-serif;height:100%;}
+  #game{display:block;width:100vw;height:100vh;background:#04170c;}
+
+  .hud{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;color:#fff;}
+  .scoreboard{position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(180deg,#111827ee,#0b0f19ee);border:1px solid #2b3550;
+    border-radius:10px;padding:8px 22px;display:flex;gap:16px;align-items:center;
+    font-weight:700;font-size:20px;letter-spacing:1px;box-shadow:0 6px 18px rgba(0,0,0,.5);}
+  .scoreboard .team{width:44px;text-align:center;font-size:15px;letter-spacing:.5px;}
+  .scoreboard .team.home{color:#5fa8ff;}
+  .scoreboard .team.away{color:#ff6b6b;}
+  .scoreboard .score{font-size:24px;min-width:70px;text-align:center;}
+  .scoreboard .clock{font-size:15px;color:#ffd166;min-width:56px;text-align:center;border-left:1px solid #33405c;padding-left:12px;}
+
+  .status{position:absolute;top:16px;right:16px;background:#00000088;border-radius:8px;
+    padding:6px 12px;font-size:12px;color:#9be89b;border:1px solid #223;}
+  .status.off{color:#ffb4b4;}
+
+  .msgbanner{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);
+    font-size:54px;font-weight:900;letter-spacing:3px;color:#fff;text-shadow:0 0 20px #000,0 4px 0 #000;
+    opacity:0;transition:opacity .25s, transform .25s;}
+  .msgbanner.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
+  .startscreen{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0d3b1e,#02120a 75%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:20;}
+  .startscreen h1{font-size:44px;margin:0 0 6px;letter-spacing:2px;text-shadow:0 4px 12px #000;}
+  .startscreen p{opacity:.8;margin:2px 0;font-size:14px;}
+  .startbtn{margin-top:22px;padding:14px 34px;font-size:18px;font-weight:700;color:#04170c;
+    background:linear-gradient(180deg,#9be89b,#5fbf6a);border:none;border-radius:8px;cursor:pointer;
+    box-shadow:0 6px 0 #2e7d34;}
+  .startbtn:active{transform:translateY(4px);box-shadow:0 2px 0 #2e7d34;}
+  .practicebtn{margin-top:14px;padding:12px 30px;font-size:15px;font-weight:700;color:#04170c;
+    background:linear-gradient(180deg,#ffd166,#e0a72e);border:none;border-radius:8px;cursor:pointer;
+    box-shadow:0 6px 0 #a8780f;letter-spacing:.5px;}
+  .practicebtn:active{transform:translateY(4px);box-shadow:0 2px 0 #a8780f;}
+  .practicebtn span{display:block;font-weight:400;font-size:10px;opacity:.8;margin-top:2px;}
+
+  .practiceHud{position:fixed;top:58px;right:16px;display:flex;gap:10px;z-index:15;pointer-events:auto;}
+  .practiceHudBtn{padding:10px 16px;font-size:13px;font-weight:700;color:#fff;background:#00000088;
+    border:1px solid #3a3;border-radius:8px;cursor:pointer;letter-spacing:.5px;box-shadow:0 4px 12px rgba(0,0,0,.4);}
+  .practiceHudBtn:active{transform:translateY(2px);}
+  .practiceHudBtn.menu{border-color:#556;}
+  .practiceHudBtn.reset{border-color:#e0a72e;color:#ffd166;}
+  .practiceLabel{position:fixed;top:16px;left:16px;background:#00000088;border:1px solid #3a3;
+    border-radius:8px;padding:8px 14px;font-size:12px;color:#9be89b;letter-spacing:.5px;z-index:15;}
+  .startgrid{display:flex;gap:36px;margin-top:26px;font-size:12px;opacity:.9;}
+  .startgrid div{background:#00000055;border:1px solid #2a2;border-radius:8px;padding:12px 16px;min-width:200px;}
+  .startgrid h3{margin:0 0 8px;color:#ffd166;font-size:13px;}
+  .modeSelect{display:flex;gap:14px;margin-top:22px;}
+  .modebtn{padding:10px 18px;font-size:14px;font-weight:700;color:#cfe;background:#00000055;
+    border:1px solid #2a2;border-radius:8px;cursor:pointer;letter-spacing:.5px;}
+  .modebtn span{display:block;font-weight:400;font-size:10px;opacity:.75;margin-top:2px;}
+  .modebtn.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;}
+  .modebtn.selected,.startbtn.selected,.practicebtn.selected{
+    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.45);}
+  .modeHint{max-width:640px;text-align:center;font-size:11px;opacity:.7;margin-top:14px;}
+  .pauseOverlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:30;
+    display:none;align-items:center;justify-content:center;pointer-events:auto;}
+  .pausePanel{background:linear-gradient(180deg,#111827ee,#0b0f19ee);border:1px solid #2b3550;
+    border-radius:12px;padding:28px 36px;min-width:280px;text-align:center;color:#fff;
+    box-shadow:0 10px 28px rgba(0,0,0,.55);}
+  .pausePanel h2{margin:0 0 18px;font-size:28px;letter-spacing:2px;color:#ffd166;}
+  .pauseOption{display:block;width:100%;margin:10px 0;padding:12px 18px;font-size:16px;font-weight:700;
+    color:#cfe;background:#00000055;border:1px solid #2a2;border-radius:8px;cursor:pointer;letter-spacing:.5px;}
+  .pauseOption.selected,.pauseOption.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;
+    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.45);}
+  .pauseOption:active{transform:translateY(2px);}
+  .padPanelWrap{margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .padPanel{background:#00000070;border:1px solid #2a2;border-radius:8px;padding:10px 16px;
+    font-size:12px;color:#9be89b;min-width:280px;text-align:left;line-height:1.6;}
+  .padPanel .miss{color:#ffb4b4;}
+  .padPanel .p1tag{color:#fff700;font-weight:700;}
+  .padPanel .p2tag{color:#ff9d00;font-weight:700;}
+  .swapbtn{padding:6px 14px;font-size:11px;color:#cfe;background:#00000055;border:1px solid #2a2;
+    border-radius:6px;cursor:pointer;}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="scoreboard" id="scoreboard">
+    <div class="team home">LOCAL</div>
+    <div class="score"><span id="scoreHome">0</span> - <span id="scoreAway">0</span></div>
+    <div class="team away">VISITA</div>
+    <div class="clock" id="clock">5:00</div>
+  </div>
+  <div class="status" id="padStatus">Teclado</div>
+  <div class="msgbanner" id="banner"></div>
+  <div class="msgbanner" id="goal-message" style="display:none;"></div>
+</div>
+
+<div class="practiceLabel" id="practiceLabel" style="display:none;">🎯 ARENA DE PRÁCTICA</div>
+<div class="practiceHud" id="practiceHud" style="display:none;">
+  <button class="practiceHudBtn reset" id="practiceResetBtn" type="button">↺ REINICIAR</button>
+  <button class="practiceHudBtn menu" id="practiceMenuBtn" type="button">☰ MENÚ</button>
+</div>
+
+<div class="startscreen" id="startScreen">
+  <h1>⚽ MANUAL FÚTBOL</h1>
+  <p>Cámara de transmisión · pases y tiros 100% manuales · físicas realistas</p>
+
+  <div class="modeSelect" id="modeSelect">
+    <button class="modebtn active" id="mode1pBtn" type="button">1 JUGADOR <span>(vos vs. la CPU)</span></button>
+    <button class="modebtn" id="mode2pBtn" type="button">2 JUGADORES <span>(mismo dispositivo)</span></button>
+  </div>
+
+  <div class="startgrid" id="startgridSolo">
+    <div>
+      <h3>TECLADO</h3>
+      WASD mueve y apunta (misma dirección)<br>
+      K tiro (mantené para más potencia)<br>
+      Cerca de un pase alto: K = cabezazo (por defecto) · P+K = volea/chilena (L2 manual)<br>
+      J pase raso · Q+J pared (uno-dos) · L filtrado · I centro<br>
+      Shift sprint · Q cambia al más cercano a la pelota (manual)<br>
+      Espacio entrada de pie · Ctrl barrida<br>
+      O rosca izquierda · P rosca derecha (mantener al patear)<br>
+      Q+O dragback: con la pelota, tirá el stick/WASD hacia tu espalda para pisarla y arrastrarla un poco hacia atrás<br>
+      Shift+O+WASD: toque largo (4.0 m) · O+WASD: toque corto (2.0 m) — balón en posesión<br>
+      Arquero: L salta (pelotas altas) · Espacio + WASD estirada hacia ese lado
+    </div>
+    <div>
+      <h3>JOYSTICK PS5</h3>
+      Stick Izq: mueve Y apunta (360°, misma dirección para todo)<br>
+      Stick Der: flick corto para elegir jugador en defensa (o redirigir la pared)<br>
+      ▢ Tiro · ✕ Pase · L1+✕ Pared (uno-dos) · △ Filtrado · ○ Centro<br>
+      R2 Sprint · L1+Stick Izq manda a correr · L1 sin balón cambia al más cercano<br>
+      Sin pelota: ▢ Entrada de pie · ○ Barrida<br>
+      R1 rosca izquierda ("colocado") · L2 rosca derecha ("3 dedos") — mantener al patear<br>
+      Pelota alta: ▢ = cabezazo · L2+▢ = volea (1–2m) o chilena (&gt;2m)<br>
+      Pelota alta: ▢ = cabezazo · L2+▢ = volea (1–2m) o chilena (&gt;2m)<br>
+      L1+R1 dragback: con la pelota, tirá el Stick Izq hacia tu espalda para pisarla y arrastrarla un poco hacia atrás<br>
+      R2+Stick Der: toque largo (4.0 m) · R1+Stick Der: toque corto (2.0 m) — el balón sigue en posesión<br>
+      Arquero: △ salta (pelotas altas) · ▢ + Stick Izq estirada hacia ese lado
+    </div>
+  </div>
+
+  <div class="startgrid" id="startgridDuo" style="display:none;">
+    <div>
+      <h3>JUGADOR 1 — LOCAL</h3>
+      Con joystick: igual que en 1 jugador (PS5 de arriba)<br>
+      Sin joystick, teclado: WASD mueve/apunta · K tiro · J pase · L filtrado · I centro · Shift sprint · Q cambiar · Espacio entrada · Ctrl barrida
+    </div>
+    <div>
+      <h3>JUGADOR 2 — VISITA</h3>
+      Con un segundo joystick: se asigna automáticamente, mismos controles que el joystick 1<br>
+      Sin segundo joystick, teclado: Flechas mueve/apunta · / tiro · . pase · , filtrado · ' centro · Shift der. sprint · ; cambiar · Enter entrada · Ctrl der. barrida
+    </div>
+  </div>
+
+  <div class="padPanelWrap" id="padPanelWrap" style="display:none;">
+    <div class="padPanel" id="padPanel">Buscando joysticks…</div>
+    <button class="swapbtn" id="swapPadBtn" type="button">🔄 Intercambiar Jugador 1 / Jugador 2</button>
+  </div>
+
+  <p class="modeHint" id="modeHint">Conectá uno o dos mandos antes de jugar. IMPORTANTE: el navegador recién detecta cada mando después de que le apretás algún botón o movés un stick — hacelo con los dos antes de darle a JUGAR y fijate que ambos aparezcan en el panel de arriba.</p>
+
+  <button class="startbtn" id="startBtn">JUGAR</button>
+  <button class="practicebtn" id="practiceBtn" type="button">🎯 ARENA DE PRÁCTICA <span>cámara en tercera persona, remates libres sin rival</span></button>
+</div>
+
+<div class="pauseOverlay" id="pauseOverlay">
+  <div class="pausePanel">
+    <h2>PAUSA</h2>
+    <button class="pauseOption selected" id="pauseContinueBtn" type="button">Continuar</button>
+    <button class="pauseOption" id="pauseRestartBtn" type="button">Reiniciar Partido</button>
+    <button class="pauseOption" id="pauseMenuBtn" type="button">Volver al Menú</button>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>

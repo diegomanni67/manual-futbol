@@ -1712,7 +1712,7 @@ function forceProximityPossessionCheck(){
     if(ball.isContested && !isBallContestedSeekAllowed(p)) continue;
     if(isManualMode && isCpuPlayer(p) && !canCpuReceivePass(p)) continue;
     const dist = getDistance(p, ball);
-    console.log('Ball State:', ball.state, 'Dist:', dist, 'CanCollect:', p.canCollectBall);
+    // console.log('Ball State:', ball.state, 'Dist:', dist, 'CanCollect:', p.canCollectBall);
     if(dist < 1.0 && dist < bestDist){
       bestDist = dist;
       best = p;
