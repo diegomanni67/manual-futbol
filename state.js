@@ -129,11 +129,14 @@ export const DRIBBLE_DIST_LERP = 0.2;         // suavizado al cambiar de distanc
 export const EFFORT_AI_FREEZE_DURATION = 0.3; // 300ms: freeze defensivo ante proyeccion del offset
 export const EFFORT_SPRINT_NORMAL_OFFSET = 0.3; // offset de conduccion normal tras convergencia
 export const EFFORT_OFFSET_DRAG_LERP = 0.06;  // freno suave: la pelota se arrastra hacia el jugador
+export const EFFORT_DETACHED_BALL_LERP = 0.22; // suavizado del offset pelota-jugador durante R2 (sin teletransporte)
+export const EFFORT_EXIT_VEL_BLEND = 0.18;     // segundos de blend de velocidad al salir del esfuerzo/finta
 export const DRIBBLE_FAKE_DURATION = 0.5;     // 500ms de offset de amague
 export const DRIBBLE_STEAL_RADIUS = 0.4;      // radio de robo sobre la posicion del balon
 export const DRIBBLE_CONTROL_SLACK = 0.25;    // tolerancia extra de control en conduccion extendida
 export const MAN_MARK_MIN_DIST = 1.5;         // distancia minima de marcaje pasivo al portador rival
 export const MAN_MARK_ACTIVATE_DIST = 14;     // radio maximo para activar marcaje pasivo (DEF/MID)
+export const TEAMMATE_SUPPORT_MIN_DIST = 3.4; // distancia minima de apoyo cuando un companero tiene la pelota
 
 // --- Distancias legacy (referencia; ya no sueltan la pelota a 'free') ---
 export const DIST_R1 = DRIBBLE_DIST_R1;
@@ -165,6 +168,8 @@ export const EFFORT_TOUCH_ANIM_LONG = 0.28;     // animacion mas larga / postura
 export const EFFORT_TOUCH_ANIM_SHORT = 0.20;    // animacion rapida y sutil (toque corto)
 export const IGNORE_POSSESSION_T = 0.2;         // 200ms: nadie puede reposeer tras effort touch / fake shot
 export const EFFORT_REPOSSESS_COOLDOWN = SELF_TOUCH_COLLECT_BLOCK; // sincronizado con canCollectBlockT
+
+export const STATE_SPRINT_CHASE = 'sprint_chase'; // effort touch: autopase + sprint sin pelota hasta captura
 
 // --- GIRO CON PELOTA (toque de acomodo) ---
 // Si el jugador conduce y cambia bruscamente de direccion, no sale corriendo de inmediato: primero
@@ -445,24 +450,45 @@ export function getDribbleDirection(p){
   return {x: Math.cos(p.facing), y: Math.sin(p.facing)};
 }
 
+export function isEffortTouchR2Active(p){
+  return isPlayerSprintChasing(p);
+}
+
+export function isPlayerSprintChasing(p){
+  return !!(p && p.state === STATE_SPRINT_CHASE);
+}
+
+export function enterSprintChaseState(p){
+  if(!p) return;
+  p.state = STATE_SPRINT_CHASE;
+  p.iaSeeking = true;
+  p.manualCancelActive = false;
+  p.decisionTimer = 9999;
+}
+
+export function clearSprintChaseState(p){
+  if(!p) return;
+  if(p.state === STATE_SPRINT_CHASE) p.state = 'idle';
+  p.iaSeeking = false;
+  p.targetPosition = null;
+  p.landingTime = 0;
+  p.seekAerial = false;
+  p.iaSeekingBrake = false;
+  if(ball.possessedBy === p.id) ball.possessedBy = null;
+}
+
+export function computeEffortPassPower(p, targetDist){
+  const passMult = KICK_VELOCITY_MULT * PASS_VELOCITY_MULT;
+  const sprintSp = getPlayerMaxSprintVelocity(p);
+  const distRatio = clamp(targetDist / DRIBBLE_DIST_R2, 0.25, 1);
+  const desiredSpeed = clamp(sprintSp * lerp(0.68, 0.96, distRatio), 10, passMult * 22);
+  const raw = (desiredSpeed / passMult - 10) / 32;
+  return clamp(raw, 0.06, AUTOPASE_POWER_THRESHOLD - 0.012);
+}
+
 export function updateDribbleDistance(p, dt){
   if(!p || ball.owner !== p) return;
   const def = getDefaultDribbleDistance(p);
-
-  // Sprint con balón post effort touch: offset se arrastra suavemente hacia 0.3 m
-  if(p.isEffortSprinting){
-    p.targetDribbleDistance = EFFORT_SPRINT_NORMAL_OFFSET;
-    const dragT = 1 - Math.pow(1 - EFFORT_OFFSET_DRAG_LERP, dt * 60);
-    p.currentDribbleDistance = lerp(p.currentDribbleDistance, p.targetDribbleDistance, dragT);
-    if(p.effortSprintDir) p.dribbleKickDir = p.effortSprintDir;
-    if(p.dribbleExtendT > 0) p.dribbleExtendT = Math.max(0, p.dribbleExtendT - dt);
-    if(p.currentDribbleDistance <= EFFORT_SPRINT_NORMAL_OFFSET + 0.06){
-      clearEffortSprintState(p);
-      if(ball.lastAction === 'effort') ball.lastAction = null;
-      p.dribbleKickDir = null;
-    }
-    return;
-  }
 
   if(p.dribbleExtendT <= 0 && ball.lastAction !== 'effort' && ball.lastAction !== 'feint'){
     p.targetDribbleDistance = def;
@@ -734,10 +760,80 @@ export function getEffortChaseOwner(){
   return allPlayers.find(pl => pl.id === ball.effortDetach.ownerId) || null;
 }
 
+// Dueño logico de la pelota (owner en conduccion o autor de effort/fake en vuelo).
+export function getBallLogicalOwner(){
+  if(ball.owner) return ball.owner;
+  if(ball.possessedBy){
+    return allPlayers.find(pl => pl.id === ball.possessedBy) || null;
+  }
+  const effortOwner = getEffortChaseOwner();
+  if(effortOwner) return effortOwner;
+  if(ball.feintDetach?.ownerId){
+    return allPlayers.find(pl => pl.id === ball.feintDetach.ownerId) || null;
+  }
+  return null;
+}
+
+export function canTakeBallFromOwner(taker, owner){
+  if(!taker || !owner || owner === taker) return true;
+  return owner.team !== taker.team;
+}
+
+export function isCpuPassTarget(p){
+  if(!p) return false;
+  const targetId = p.team === 'home' ? Game.passTargetHome : Game.passTargetAway;
+  return targetId === p.id;
+}
+
+export function isCpuBlockedFromTeammateLooseBall(p){
+  if(!p || !isCpuPlayer || !isCpuPlayer(p)) return false;
+  if(isCpuPassTarget(p)) return false;
+  const carrier = ball.owner;
+  if(carrier && carrier.team === p.team && carrier.id !== p.id) return true;
+  if(isEffortTouchPendingReclaim() && p.team === ball.lastTouchTeam && ball.possessedBy) return true;
+  for(const mate of allPlayers){
+    if(mate.team !== p.team || mate.id === p.id) continue;
+    if(ball.possessedBy === mate.id) return true;
+    if(isPlayerSprintChasing(mate) || isPostTouchChasing(mate)) return true;
+    if(ball.owner === mate) return true;
+    if(isControlledByHuman && isControlledByHuman(mate) && dist2D(mate, ball) + 0.15 < dist2D(p, ball)) return true;
+  }
+  return false;
+}
+
+export function syncHumanTeamControlOnPossession(p){
+  if(!p || !isHumanTeam || !isHumanTeam(p.team)) return;
+  if(isControlledByHuman && isControlledByHuman(p)) return;
+  if(p.team === 'home') setControlled(p);
+  else if(Game.twoPlayerMode) setControlled2(p);
+}
+
+export function getTeammateSupportTarget(p, carrier){
+  const base = p.targetSlotWorld();
+  const pushX = base.x + p.attackDir() * 8;
+  let targetX = pushX;
+  let targetY = clamp(base.y + (carrier.y - CENTER.y) * -0.25, 4, FIELD_W - 4);
+  const dx = targetX - carrier.x;
+  const dy = targetY - carrier.y;
+  const d = Math.hypot(dx, dy);
+  if(d > 0.01 && d < TEAMMATE_SUPPORT_MIN_DIST){
+    const scale = TEAMMATE_SUPPORT_MIN_DIST / d;
+    targetX = carrier.x + dx * scale;
+    targetY = carrier.y + dy * scale;
+  }
+  return {
+    x: clamp(targetX, 4, FIELD_L - 4),
+    y: clamp(targetY, 4, FIELD_W - 4),
+  };
+}
+
 export function isTeammateBlockedFromEffortChase(p){
-  if(!p || !isEffortChaseBlockActive()) return false;
-  if(p.id === ball.effortDetach.ownerId) return false;
-  return p.team === ball.effortDetach.team;
+  if(!p || !ball.possessedBy) return false;
+  if(p.id === ball.possessedBy) return false;
+  const owner = allPlayers.find(pl => pl.id === ball.possessedBy);
+  if(!owner || p.team !== owner.team) return false;
+  if(ball.state === BALL_STATE.LOOSE_BALL) return false;
+  return true;
 }
 
 export function updateEffortChaseBlock(dt){
@@ -956,10 +1052,10 @@ export function resetTechnicalActionFlags(p){
   p.isEffortTouching = false;
   p.isFakeShooting = false;
   p.effortTouchAnim = null;
+  clearSprintChaseState(p);
   clearEffortSprintState(p);
   p.fakeShotChaseLockT = 0;
   p.effortChaseTarget = null;
-  if(ball.effortDetach && ball.effortDetach.ownerId === p.id) ball.effortDetach = null;
   if(ball.feintDetach && ball.feintDetach.ownerId === p.id) ball.feintDetach = null;
   clearForcedChaseState(p);
   syncTechnicallyBusy(p);
@@ -995,6 +1091,7 @@ export function checkProximityPossession(dt){
     if(ball.isContested && !isBallContestedSeekAllowed(p)) continue;
     if(isManualMode && isCpuPlayer(p) && !canCpuSeekLooseBall(p) && !canCpuReceivePass(p)) continue;
     if(isTeammateBlockedFromEffortChase(p)) continue;
+    if(isCpuBlockedFromTeammateLooseBall(p)) continue;
     if(isThrowInTakerBlocked(p)) continue;
     if(isPlayerStaggered(p) || isPlayerStunned(p)) continue;
 
@@ -1018,7 +1115,9 @@ export function checkProximityPossession(dt){
   const winner = ghostCandidate || best;
   if(!winner) return;
   const possessSource = isGoalkeeper(winner) ? inferGkPossessionSource(winner) : null;
-  winner.takePossession(possessSource, !!ghostCandidate);
+  if(winner.takePossession(possessSource, !!ghostCandidate)){
+    syncHumanTeamControlOnPossession(winner);
+  }
 }
 
 
@@ -1048,7 +1147,8 @@ export function isPlayerForcedChasing(p){
 }
 
 export function getPostTouchRecoverDist(p){
-  return (isPostTouchChasing(p) || isChaseOwner(p)) ? FORCED_CHASE_RECOVER_DIST : CHASE_POSSESS_DIST;
+  return (isPostTouchChasing(p) || isChaseOwner(p) || isPlayerSprintChasing(p))
+    ? FORCED_CHASE_RECOVER_DIST : CHASE_POSSESS_DIST;
 }
 
 export function isPlayerStunned(p){
@@ -1104,6 +1204,7 @@ export function isTacklePossessionPending(){
 
 export function grantTacklePossession(tackler, victim){
   if(!tackler) return;
+  if(victim && victim.team === tackler.team) return;
   if(victim && isGkHandsImmune(victim)) return;
   clearEffortChaseLock(true);
   clearBallLock();
@@ -1130,7 +1231,7 @@ export function grantTacklePossession(tackler, victim){
   const a = tackler.tackleAnim;
   if(a) applyTackleCarryInertia(tackler, a);
 
-  setTimeout(() => {
+    setTimeout(() => {
     if(token !== tacklePossessToken) return;
     const t = allPlayers.find(pl => pl.id === tackler.id);
     if(!t) return;
@@ -1151,6 +1252,7 @@ export function grantTacklePossession(tackler, victim){
     t.touchAnim = {t: 0, dur: CONTROL_TOUCH_DUR, leg: t.foot};
     t.tackleCooldown = TACKLE_COOLDOWN * 0.5;
     Game.pendingTacklePossession = null;
+    syncHumanTeamControlOnPossession(t);
   }, TACKLE_POSSESS_DELAY_MS);
 }
 
@@ -1220,8 +1322,9 @@ export function startForcedChase(p, ballRef){
   p.sprinting = true;
 }
 
-export function clearForcedChaseState(p){
+export function clearForcedChaseState(p, moveDir){
   if(!p || !isPostTouchChasing(p)) return;
+  beginEffortTouchExitBlend(p, moveDir);
   p.state = 'idle';
   p.decisionTimer = Math.random() * 0.4;
   p.sprinting = false;
@@ -1268,6 +1371,8 @@ export function forceProximityPossessionCheck(){
   let best = null, bestDist = 1.0;
   for(const p of allPlayers){
     if(!p.canCollectBall) continue;
+    if(isCpuBlockedFromTeammateLooseBall(p)) continue;
+    if(isTeammateBlockedFromEffortChase(p)) continue;
     if(ball.isContested && !isBallContestedSeekAllowed(p)) continue;
     if(isManualMode && isCpuPlayer(p) && !canCpuReceivePass(p)) continue;
     const dist = getDistance(p, ball);
@@ -1278,6 +1383,7 @@ export function forceProximityPossessionCheck(){
     }
   }
   if(!best) return;
+  if(ball.owner && !canTakeBallFromOwner(best, ball.owner)) return;
   ball.owner = best;
   ball.state = BALL_STATE.IN_POSSESSION;
   ball.lastAction = null;
@@ -1293,6 +1399,7 @@ export function forceProximityPossessionCheck(){
   ball.curveFactor = 0;
   if(isGoalkeeper(best)) initGkPossessionType(best, inferGkPossessionSource(best));
   else clearGkPossessionType(best);
+  syncHumanTeamControlOnPossession(best);
 }
 
 export function clearTeammateInterferenceForTechnicalAction(p){
@@ -1333,7 +1440,10 @@ export function canApplyEffortTouch(p){
   if(!p) return false;
   if(p.releaseCooldown > 0) return false;
   if(isBallLocked() && Game.ballLockOwnerId !== p.id) return false;
+  if(ball.owner === p) return true;
   if(isChaseOwner(p)) return true;
+  const passTargetId = p.team === 'home' ? Game.passTargetHome : Game.passTargetAway;
+  if((passTargetId === p.id || ball.possessedBy === p.id) && ball.lastTouchedBy === p.id && !ball.owner) return true;
   return dist2D(p, ball) < FORCED_CHASE_RECOVER_DIST + 0.15;
 }
 
@@ -1486,6 +1596,7 @@ export function reclaimFeintPossession(p){
   ball.highKick = false;
   ball.highKickType = null;
   dribblingBinding();
+  syncHumanTeamControlOnPossession(p);
   return true;
 }
 
@@ -1615,20 +1726,84 @@ export function getPlayerMaxSprintVelocity(p){
   return getPlayerMoveSpeedBase(p) * 1.42;
 }
 
-export function clearEffortSprintState(p){
+export function beginEffortTouchExitBlend(p, moveDir){
   if(!p) return;
+  const sp = Math.hypot(p.vx, p.vy);
+  if(sp < 0.45) return;
+  p.effortExitBlendT = EFFORT_EXIT_VEL_BLEND;
+  if(moveDir && Math.hypot(moveDir.x, moveDir.y) > 0.05){
+    const m = Math.hypot(moveDir.x, moveDir.y);
+    p.effortExitMoveDir = {x: moveDir.x / m, y: moveDir.y / m};
+  } else {
+    p.effortExitMoveDir = {x: p.vx / sp, y: p.vy / sp};
+  }
+}
+
+export function applyEffortExitVelocityBlend(p, dt, moveDir, moveMag, maxSpeed){
+  if(!p || p.effortExitBlendT <= 0) return false;
+  p.effortExitBlendT = Math.max(0, p.effortExitBlendT - dt);
+  let targetVX = 0, targetVY = 0;
+  if(moveMag > 0.05){
+    targetVX = (moveDir.x / moveMag) * maxSpeed;
+    targetVY = (moveDir.y / moveMag) * maxSpeed;
+  }
+  const blendT = clamp(dt * 14, 0, 1);
+  p.vx = lerp(p.vx, targetVX, blendT);
+  p.vy = lerp(p.vy, targetVY, blendT);
+  if(p.effortExitBlendT <= 0) p.effortExitMoveDir = null;
+  return true;
+}
+
+export function getEffortBoundPlayer(){
+  if(!ball.effortDetach || ball.lastAction !== 'effort' || ball.owner !== null) return null;
+  if(ball.state !== BALL_STATE.FREE) return null;
+  return getEffortChaseOwner();
+}
+
+export function isEffortBallBoundToPlayer(p){
+  const owner = getEffortBoundPlayer();
+  return !!(owner && p && owner.id === p.id);
+}
+
+export function isEffortTouchPendingReclaim(){
+  return !!(ball.possessedBy && ball.owner === null &&
+    ball.state === BALL_STATE.FREE);
+}
+
+export function isEffortTouchR1Active(p){
+  return false;
+}
+
+export function finalizeEffortTouchR2(p){
+  return false;
+}
+
+export function shouldAutoReclaimEffortTouchR2(p){
+  return false;
+}
+
+export function updateEffortTouchR2Transition(p, dt){
+  return false;
+}
+
+export function recoverEffortTouchPossession(p){
+  return false;
+}
+
+export function isEffortRecoveryChase(p){
+  return false;
+}
+
+export function clearEffortSprintState(p, moveDir){
+  if(!p) return;
+  beginEffortTouchExitBlend(p, moveDir);
   p.isEffortSprinting = false;
-  p.isEffortTouchR1Active = false;
   p.isEffortTouching = false;
   p.maxSprintVelocity = 0;
   p.maxVelocity = 0;
   p.effortSprintDir = null;
   p.effortChaseTarget = null;
   syncTechnicallyBusy(p);
-}
-
-export function isEffortTouchR1Active(p){
-  return !!(p && p.isEffortTouchR1Active);
 }
 
 export function isFakeShotRecoveryChase(p){
@@ -1667,42 +1842,7 @@ export function recoverFakeShotPossession(p){
   p.dribbleExtendT = 0;
   bindDribbleBallPosition(p);
   completeFakeShot(p);
-  return true;
-}
-
-export function isEffortRecoveryChase(p){
-  if(isEffortTouchR1Active(p)) return false;
-  return !!(p && p.isEffortSprinting && ball.owner === null &&
-    ball.effortDetach && ball.effortDetach.ownerId === p.id);
-}
-
-export function recoverEffortTouchPossession(p){
-  if(!p || isEffortTouchR1Active(p)) return false;
-  if(ball.owner !== null) return false;
-  if(!ball.effortDetach || ball.effortDetach.ownerId !== p.id) return false;
-  if(dist2D(p, ball) >= CHASE_POSSESS_DIST) return false;
-  if(p.effortTouchCooldown > 0) return false;
-  if(!p.canCollectBall && p.canCollectBlockT > 0) return false;
-
-  ball.owner = p;
-  ball.state = BALL_STATE.IN_POSSESSION;
-  ball.lastAction = null;
-  ball.vx = 0;
-  ball.vy = 0;
-  ball.vz = 0;
-  ball.curveFactor = 0;
-  const dribbleSpeed = p.normalDribbleSpeed || getPlayerMoveSpeedBase(p) * 0.91;
-  clearEffortSprintState(p);
-  p.maxVelocity = dribbleSpeed;
-  clearEffortChaseLock(true);
-  clearForcedChaseState(p);
-  const defDist = getDefaultDribbleDistance(p);
-  p.currentDribbleDistance = defDist;
-  p.targetDribbleDistance = defDist;
-  p.dribbleKickDir = null;
-  p.dribbleExtendT = 0;
-  bindDribbleBallPosition(p);
-  finishExtendedDribbleAnim(p);
+  syncHumanTeamControlOnPossession(p);
   return true;
 }
 
@@ -1763,6 +1903,7 @@ export function setBallStateInPossession(p, possessSource){
   if(isGoalKickReadyState() && isGoalkeeper(p)) return false;
   if(isBallLocked() && p.id !== Game.ballLockOwnerId) return false;
   if(!playerInStrictControlRange(p)) return false;
+  if(ball.owner && ball.owner !== p && !canTakeBallFromOwner(p, ball.owner)) return false;
   if(ball.owner && ball.owner !== p) clearGkPossessionType(ball.owner);
   const prevOwner = ball.owner;
   const reclaimingLock = isBallLocked() && p.id === Game.ballLockOwnerId;
@@ -1776,6 +1917,7 @@ export function setBallStateInPossession(p, possessSource){
   if(reclaimingLock) clearBallLock();
   ball.lastTouchedBy = p.id;
   ball.lastAction = null;
+  if(ball.possessedBy === p.id) ball.possessedBy = null;
   clearThrowInBlockIfOtherPlayer(p);
   clearChasingState(p);
   clearInterceptionSeek(p);
@@ -1796,13 +1938,15 @@ export function setBallStateInPossession(p, possessSource){
     if(p.isPowerLocked) tryExecuteBufferedActionOnPossession(p);
     else resetActionBuffer(p);
   }
+  syncHumanTeamControlOnPossession(p);
   return true;
 }
 
 // Unica fuente valida de posicion mientras la pelota esta en conduccion (pegada al pie o en manos del arquero).
 export function dribblingBinding(){
   if(isBindingSuspended()) return;
-  if(ball.lastAction === 'effort' || ball.lastAction === 'feint') return;
+  if(ball.lastAction === 'feint') return;
+  if(ball.lastAction === 'effort' && !ball.owner) return;
   if(ball.state !== BALL_STATE.IN_POSSESSION) return;
   const p = ball.owner;
   if(!p || p.possessionType === GK_POSSESS_FREE){
@@ -1833,7 +1977,7 @@ export function bindBallToOwner(){
 }
 
 export function updateBallPosition(ballRef, p){
-  if(ball.state === BALL_STATE.FREE && ball.lastAction === 'effort') return;
+  if(ball.state === BALL_STATE.FREE && ball.lastAction === 'effort' && !ball.owner) return;
   dribblingBinding();
 }
 
@@ -2013,13 +2157,6 @@ export function updateBallLoop(dt){
     return;
   }
   if(ball.state === BALL_STATE.DEAD_BALL && !Game.goalRoll) return;
-  if(ball.state === BALL_STATE.GOAL_CELEBRATION && !Game.goalRoll) return;
-  if(ball.state === BALL_STATE.WAITING_FOR_RETRIEVAL || isBallOutOfPlay()){
-    applyBallPhysics(ball, dt);
-    updateEffortChaseBlock(dt);
-    updateBallLock(dt);
-    return;
-  }
   if(ball.state === BALL_STATE.GOAL_CELEBRATION && !Game.goalRoll) return;
   if(ball.state === BALL_STATE.WAITING_FOR_RETRIEVAL || isBallOutOfPlay()){
     applyBallPhysics(ball, dt);
@@ -2994,6 +3131,7 @@ export class Ball{
     this.shotStyle=null;      // 'normal' | 'placed' | 'trivela'
     this.rollAngle=0;
     this.passOrigin=null; // punto desde donde se pateo el ultimo PASE limpio (no tackle/rebote): sirve para no robar el cursor en pases cortos
+    this.possessedBy=null; // id del jugador con posesion logica durante autopase / effort touch
     this.highKick=false; // true solo tras un tiro o un centro (pase alto): activa la fisica aerea extra
     this.highKickType=null; // 'shot' | 'cross': que configuracion de AERIAL_PHYSICS usar
     this.state = BALL_STATE.FREE;
@@ -3124,13 +3262,14 @@ export class Player{
     this.effortTouchCooldown = 0; // cooldown compartido entre effort touch largo y corto
     this.effortTouchAnim = null;  // {t, dur, leg:1|-1, type:'long'|'short'} — postura distinta por tipo
     this.isDribbling = false;     // true mientras conduce; se corta en effort touch / fake shot
-    this.isEffortSprinting = false; // sprint de recuperacion tras effort touch (R1/R2)
-    this.isEffortTouchR1Active = false; // R1: conduccion extendida con owner intacto
+    this.isEffortSprinting = false; // legacy: fake shot / recovery sprint
     this.maxSprintVelocity = 0;   // velocidad maxima sin pelota (sprint absoluto)
     this.maxVelocity = 0;         // tope de velocidad activo (sprint o conduccion)
     this.normalDribbleSpeed = 0;  // velocidad normal de conduccion (con pelota)
     this.effortSprintDir = null;  // vector normalizado del stick der. al toque
-    this.effortChaseTarget = null; // punto fijo hacia el que corre durante la recuperacion
+    this.effortChaseTarget = null; // legacy: ya no se usa como destino fijo en R2
+    this.effortExitBlendT = 0;    // blend de velocidad al salir del esfuerzo/finta
+    this.effortExitMoveDir = null;
     this.effortTouchDefenderFreezeT = 0; // freeze IA defensiva post effort touch (rival)
     this.effortTouchCooldown = 0; // cooldown compartido entre effort touch largo y corto
     this.effortTouchAnim = null;  // {t, dur, leg:1|-1, type:'long'|'short'} — postura distinta por tipo
@@ -3317,6 +3456,8 @@ export function placeKickoff(kickingTeam){
     p.isAttackingBall = false;
     p.effortTouchDefenderFreezeT = 0;
     p.dribbleKickDir = null;
+    p.effortExitBlendT = 0;
+    p.effortExitMoveDir = null;
     p.dribbleExtendT = 0;
     clearEffortSprintState(p);
     const defDist = getDefaultDribbleDistance(p);

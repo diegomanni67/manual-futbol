@@ -6,9 +6,9 @@ import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_
 
 import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_TIMEOUT_MS, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, TACKLE_COOLDOWN, activateBallLock, activateIgnorePossession, allPlayers, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clearBallLock } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, fakeShotOwnerId, gameState, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isEffortTouchR1Active, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, prevButtonsByPad } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, prevButtonsByPad } from './state.js';
 
-import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, movePlayer, nearestToBall, norm, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, recoverEffortTouchPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction } from './state.js';
+import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, movePlayer, nearestToBall, norm, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction } from './state.js';
 
 import {
   assignPassTargetFromKick, bestWallPassTarget, isAirDuelContestant, isPassTargetPlayer,
@@ -19,7 +19,7 @@ import {
   OFFENSIVE_RUN_GOAL_WEIGHT, WALLRUN_MAX_DURATION,
 } from './gameplay.js';
 
-import { startGKDive, tryDefensiveTackleInput } from './physics.js';
+import { startGKDive, tryDefensiveTackleInput, checkBallCapture } from './physics.js';
 
 /* ============================================================
    INPUT: TECLADO + MOUSE + GAMEPAD (mapeo estilo EA FC alternativo)
@@ -716,7 +716,9 @@ const InputManager = {
   },
 
   processEffortTouch(p, input, padIndex, scheme){
-    if(p.effortTouchCooldown > 0) return false;
+    const ownAutopassChase = ball.possessedBy === p.id && !ball.owner;
+    const chainingOwnEffort = isChaseOwner(p) || ownAutopassChase;
+    if(p.effortTouchCooldown > 0 && !chainingOwnEffort) return false;
     const cmd = detectEffortTouchInput(p, input, padIndex, scheme);
     if(!cmd) return false;
     interruptPlayerStateForTechnicalAction(p);
@@ -1125,28 +1127,28 @@ function fakeShot(p, moveDir){
   return true;
 }
 
-// Persecucion forzada post-toque: sin IA ni decisionTree — unico vector hacia ball.position al 110%.
-function updateForcedChase(p, dt){
-  if(isEffortTouchR1Active(p)) return false;
+// Persecucion forzada post-toque: input prioritario; pelota ligada al jugador durante R2.
+function updateForcedChase(p, dt, input){
+  if(isPlayerSprintChasing(p)) return false;
   if(ball.isContested && !isBallContestedSeekAllowed(p)){
-    clearForcedChaseState(p);
+    clearForcedChaseState(p, input?.move);
     return false;
   }
   if(!isPostTouchChasing(p)) return false;
   if(isPlayerStunned(p) || isPlayerStaggered(p)){
-    clearForcedChaseState(p);
+    clearForcedChaseState(p, input?.move);
     return false;
   }
 
   if(ball.effortDetach && ball.effortDetach.ownerId !== p.id && ball.state !== BALL_STATE.LOOSE_BALL){
-    clearForcedChaseState(p);
+    clearForcedChaseState(p, input?.move);
     return false;
   }
 
   clearPlayerAIState(p);
 
   if(ball.state === BALL_STATE.IN_POSSESSION && ball.owner === p){
-    clearForcedChaseState(p);
+    clearForcedChaseState(p, input?.move);
     return true;
   }
   if(ball.state !== BALL_STATE.FREE && ball.state !== BALL_STATE.LOOSE_BALL) return false;
@@ -1158,28 +1160,31 @@ function updateForcedChase(p, dt){
   }
 
   const d = dist2D(p, ball);
-  if(ball.feintDetach && ball.effortDetach.ownerId === p.id){
-    // fake shot: re-posesion en resolveCollisions() (0.5m + fakeShotCooldown)
-  } else if(ball.effortDetach && ball.effortDetach.ownerId === p.id){
-    // Re-posesion: resolveCollisions() via recoverEffortTouchPossession()
-  } else if(d < FORCED_CHASE_RECOVER_DIST && p.releaseCooldown <= 0 && !p.pendingAction && !isPossessionIgnored()){
-    const possessSource = isGoalkeeper(p) ? inferGkPossessionSource(p) : null;
-    p.tackleCooldown = TACKLE_COOLDOWN * 0.75;
-    p.touchCooldown = 0.12;
-    p.charging = null;
-    if(assignBallPossession(p, possessSource)){
-      ball.lastTouchTeam = p.team;
-    }
+  if(!p.pendingAction && d < getPostTouchRecoverDist(p) && p.releaseCooldown <= 0 && !isPossessionIgnored()){
+    if(checkBallCapture(p)) return true;
+  }
+
+  const inp = input || {move:{x:0,y:0}, sprint:true};
+  const moveMag = Math.hypot(inp.move?.x || 0, inp.move?.y || 0);
+  if(moveMag > 0.05){
+    movePlayer(p, dt, inp.move, inp.sprint !== false, false, {forcedChase: true, manualChase: true});
     return true;
   }
 
+  const effortDir = ball.effortDetach && ball.effortDetach.ownerId === p.id && p.effortSprintDir;
   const lockFeint = ball.feintDetach && ball.feintDetach.ownerId === p.id && p.fakeShotChaseLockT > 0 && p.effortChaseTarget;
-  const lockEffort = ball.effortDetach && ball.effortDetach.ownerId === p.id && p.effortChaseTarget;
-  const dx = (lockFeint || lockEffort) ? p.effortChaseTarget.x - p.x : ball.x - p.x;
-  const dy = (lockFeint || lockEffort) ? p.effortChaseTarget.y - p.y : ball.y - p.y;
+  const dx = lockFeint ? p.effortChaseTarget.x - p.x : ball.x - p.x;
+  const dy = lockFeint ? p.effortChaseTarget.y - p.y : ball.y - p.y;
   const td = Math.hypot(dx, dy);
-  const md = td > 0.01 ? {x: dx/td, y: dy/td} : {x: p.dir.x, y: p.dir.y};
-  movePlayer(p, dt, md, false, false, {forcedChase: true});
+  let md;
+  if(td > 0.01){
+    md = {x: dx / td, y: dy / td};
+  } else if(effortDir){
+    md = p.effortSprintDir;
+  } else {
+    md = {x: p.dir.x, y: p.dir.y};
+  }
+  movePlayer(p, dt, md, true, false, {forcedChase: true});
   return true;
 }
 
@@ -1193,7 +1198,7 @@ function updateChasing(p, dt, input){
     clearChasingState(p);
     return false;
   }
-  if(isPlayerForcedChasing(p)) return updateForcedChase(p, dt);
+  if(isPlayerForcedChasing(p)) return updateForcedChase(p, dt, input);
 
   if(ball.effortDetach && ball.effortDetach.ownerId !== p.id && ball.state !== BALL_STATE.LOOSE_BALL){
     clearChasingState(p);
@@ -1210,22 +1215,9 @@ function updateChasing(p, dt, input){
   if(isManualAction(p)) clearPlayerAIState(p);
 
   const d = dist2D(p, ball);
-
-  // Posesion automatica solo al contacto estricto (< 0.8m) tras fake shot / chasing legacy
   const recoverDist = getPostTouchRecoverDist(p);
-  if(ball.feintDetach && ball.feintDetach.ownerId === p.id){
-    // fake shot: re-posesion en resolveCollisions() (0.5m + fakeShotCooldown)
-  } else if(ball.effortDetach && ball.effortDetach.ownerId === p.id){
-    // effort touch: re-posesion en resolveCollisions() (0.5m + cooldown)
-  } else if(!p.pendingAction && d < recoverDist && p.releaseCooldown <= 0 && !isPossessionIgnored()){
-    const possessSource = isGoalkeeper(p) ? inferGkPossessionSource(p) : null;
-    p.tackleCooldown = TACKLE_COOLDOWN * 0.75;
-    p.touchCooldown = 0.12;
-    p.charging = null;
-    if(assignBallPossession(p, possessSource)){
-      ball.lastTouchTeam = p.team;
-    }
-    return true;
+  if(!p.pendingAction && d < recoverDist && p.releaseCooldown <= 0 && !isPossessionIgnored()){
+    if(checkBallCapture(p)) return true;
   }
 
   const manualChase = isManualAction(p);
@@ -1251,122 +1243,43 @@ function resolveSelfTouchDirection(inputDir, p){
   return {x: Math.cos(p.facing), y: Math.sin(p.facing)};
 }
 
-// EFFORT TOUCH R1: offset 2m con posesion intacta (sin loose ball).
-function effortTouchR1(p, stickDir){
-  const targetDist = DRIBBLE_DIST_R1;
-  const resolvedDir = applyExtendedDribbleTouch(p, stickDir, targetDist, 'effort');
-  ball.passOrigin = {x: p.x, y: p.y};
-  ball.state = BALL_STATE.IN_POSSESSION;
-  ball.owner = p;
-  activateBallLock(p);
+// Effort touch unificado: autopase direccionado + STATE_SPRINT_CHASE (R1 corto / R2 largo).
+function triggerEffort(p, power, stickDir, type){
+  if(ball.owner !== p || isGkHandsPossession(p)) return false;
 
-  p.isEffortTouchR1Active = true;
-  p.isEffortTouching = true;
-  syncTechnicallyBusy(p);
-  p.isEffortSprinting = true;
-  p.maxSprintVelocity = getPlayerMaxSprintVelocity(p);
-  p.maxVelocity = p.maxSprintVelocity;
-  p.effortSprintDir = resolvedDir;
-  p.vx = resolvedDir.x * p.maxSprintVelocity;
-  p.vy = resolvedDir.y * p.maxSprintVelocity;
-  p.sprinting = true;
+  const dir = resolveSelfTouchDirection(stickDir, p);
+  const targetDist = type === 'short' ? DRIBBLE_DIST_R1 : DRIBBLE_DIST_R2;
 
-  applyEffortTouchDefenderFreeze(p, targetDist, resolvedDir);
-
-  p.effortTouchCooldown = EFFORT_TOUCH_COOLDOWN;
-  p.touchCooldown = 0.12;
-
-  const legLead = Math.sin(p.animPhase) >= 0 ? 1 : -1;
-  p.effortTouchAnim = {t:0, dur: EFFORT_TOUCH_ANIM_SHORT, leg:legLead, type:'short'};
-  p.touchAnim = null;
-  return true;
-}
-
-// EFFORT TOUCH R2: balon suelto + impulso (stick der.), sprint maximo y persecucion bloqueada.
-function effortTouchR2(p, stickDir){
-  const targetDist = DRIBBLE_DIST_R2;
-
-  p.facing = Math.atan2(stickDir.y, stickDir.x);
-  p.lastAim = stickDir;
+  p.facing = Math.atan2(dir.y, dir.x);
+  p.lastAim = dir;
   syncPlayerDir(p);
-  p.dribbleKickDir = stickDir;
-  p.targetDribbleDistance = targetDist;
-  p.currentDribbleDistance = targetDist;
-  p.isDribbling = true;
 
-  clearBallLock();
-  ball.passOrigin = {x: p.x, y: p.y};
-  ball.state = BALL_STATE.FREE;
-  ball.owner = null;
-  ball.lastAction = 'effort';
-  ball.lastTouchedBy = p.id;
-  ball.lastTouchTeam = p.team;
-  ball.curveFactor = 0;
-  ball.groundFrictionMult = 1;
-  ball.highKick = false;
-  ball.highKickType = null;
-  ball.feintDetach = null;
-  ball.effortRollSoftT = 0;
+  applyEffortTouchDefenderFreeze(p, targetDist, dir);
+  executeKick(p, 'pass', dir, power, 0);
+  ball.possessedBy = p.id;
+  enterSprintChaseState(p);
 
-  ball.x = p.x + stickDir.x * 0.35;
-  ball.y = p.y + stickDir.y * 0.35;
-  ball.z = BALL_RADIUS;
-  const burst = targetDist * EFFORT_TOUCH_BURST_MULT;
-  const clamped = clampSelfTouchVelocity(stickDir.x * burst, stickDir.y * burst);
-  ball.vx = clamped.vx;
-  ball.vy = clamped.vy;
-  ball.vz = 0;
-  ball.initialSpeed = clamped.speed;
-
-  ball.effortDetach = {
-    ownerId: p.id,
-    team: p.team,
-    blockT: EFFORT_CHASE_TEAMMATE_BLOCK,
-  };
-  PrivateChaseEvents.emit(p.id, 'effort');
-  activateSelfTouchCollectBlock(p);
-  activateIgnorePossession();
-
-  p.normalDribbleSpeed = getPlayerMoveSpeedBase(p) * 0.91;
-  p.maxSprintVelocity = getPlayerMaxSprintVelocity(p);
-  p.maxVelocity = p.maxSprintVelocity;
   p.isEffortTouching = true;
   syncTechnicallyBusy(p);
-  p.isEffortSprinting = true;
-  p.effortChaseTarget = {
-    x: ball.x + stickDir.x * targetDist,
-    y: ball.y + stickDir.y * targetDist,
-  };
-  p.effortSprintDir = stickDir;
-
-  const tdx = p.effortChaseTarget.x - p.x;
-  const tdy = p.effortChaseTarget.y - p.y;
-  const td = Math.hypot(tdx, tdy);
-  const chaseDir = td > 0.01 ? {x: tdx / td, y: tdy / td} : stickDir;
-  p.vx = chaseDir.x * p.maxSprintVelocity;
-  p.vy = chaseDir.y * p.maxSprintVelocity;
-  p.sprinting = true;
-
-  startForcedChase(p, ball);
-  applyEffortTouchDefenderFreeze(p, targetDist, stickDir);
-
   p.effortTouchCooldown = EFFORT_TOUCH_COOLDOWN;
-  p.dribbleExtendT = EFFORT_TOUCH_COOLDOWN;
   p.touchCooldown = 0.12;
 
+  const animDur = type === 'short' ? EFFORT_TOUCH_ANIM_SHORT : EFFORT_TOUCH_ANIM_LONG;
   const legLead = Math.sin(p.animPhase) >= 0 ? 1 : -1;
-  p.effortTouchAnim = {t:0, dur: EFFORT_TOUCH_ANIM_LONG, leg:legLead, type:'long'};
+  p.effortTouchAnim = {t:0, dur: animDur, leg:legLead, type: type === 'short' ? 'short' : 'long'};
   p.touchAnim = null;
   return true;
 }
 
 function effortTouch(p, dir, type){
   if(!p || p.effortTouchCooldown > 0 || !canApplyEffortTouch(p)) return false;
+  if(ball.owner !== p) return false;
 
   clearTeammateInterferenceForTechnicalAction(p);
   const stickDir = resolveSelfTouchDirection(dir, p);
-  if(type === 'short') return effortTouchR1(p, stickDir);
-  return effortTouchR2(p, stickDir);
+  const targetDist = type === 'short' ? DRIBBLE_DIST_R1 : DRIBBLE_DIST_R2;
+  const power = computeEffortPassPower(p, targetDist);
+  return triggerEffort(p, power, stickDir, type);
 }
 
 // cuenta regresiva del windup post-solte (fase 2 de PREPARANDO_ACCION): cuando termina, ejecuta
@@ -1751,7 +1664,7 @@ function canBufferPendingAction(p){
   if(isBallAtPlayerFeet(p)) return false;
   if(ball.owner && ball.owner.team !== p.team) return false;
   if(dist2D(p, ball) < AIR_BUFFER_RADIUS) return true;
-  if(isPlayerChasing(p) || isChaseOwner(p)) return true;
+  if(isPlayerChasing(p) || isChaseOwner(p) || isPlayerSprintChasing(p)) return true;
   if(p.iaSeeking) return true;
   if(isPassTargetPlayer(p, p.team)) return true;
   return false;
@@ -2350,5 +2263,5 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   }
 }
 
-export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, effortTouchR1, effortTouchR2, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, resetActionBuffer, clearPendingAction, hasPendingAction, isBallAtPlayerFeet, isBallLooseForPendingAction, canBufferPendingAction, canChargePendingAction, lockPendingActionBuffer, startPendingActionCharge, armPendingFirstTimeAction, heldPendingActionButton, releasedPendingActionButton, tryLooseBallOffensiveInput, pendingActionToAerialButton, updatePendingActionInput, executeBufferedPendingAction, tryExecuteBufferedActionOnPossession, executePendingActionAtContact, updatePendingActionPhysics, canAerialContact, isBallAerialLoose, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
+export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, resetActionBuffer, clearPendingAction, hasPendingAction, isBallAtPlayerFeet, isBallLooseForPendingAction, canBufferPendingAction, canChargePendingAction, lockPendingActionBuffer, startPendingActionCharge, armPendingFirstTimeAction, heldPendingActionButton, releasedPendingActionButton, tryLooseBallOffensiveInput, pendingActionToAerialButton, updatePendingActionInput, executeBufferedPendingAction, tryExecuteBufferedActionOnPossession, executePendingActionAtContact, updatePendingActionPhysics, canAerialContact, isBallAerialLoose, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
 

@@ -23,9 +23,9 @@ import { AERIAL_PHYSICS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_MIN_Z, AIR_CONTACT_RADIUS
 
 import { Game, IA_BALL_MOVING_MIN, IA_LANDING_JOG_FACTOR, IA_LANDING_TIMING_MARGIN, IA_LANDING_WAIT_DIST, IA_SEEKING_RADIUS, IA_SEEKING_SLOW_DIST, INTERCEPTION_REACT_MAX, INTERCEPTION_REACT_MIN, LONGPASS_SWITCH_LOCK_MS, MAN_MARK_ACTIVATE_DIST, MAN_MARK_MIN_DIST, NEAREST_PLAYER_UPDATE_INTERVAL, PBOX_D, PBOX_HALFW, PENDING_ACTION_EXECUTE_RADIUS, PrivateChaseEvents, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_FORCE_MULT, SET_PIECE_POWER_MAX_MS, SET_PIECE_TIMER_DURATION, SET_PIECE_UNSTICK_DIST, STAGGERED_DURATION, STUMBLE_DURATION, STUN_IMPACT_DURATION, TACKLE_COOLDOWN, THROW_IN_ANIM_RELEASE, THROW_IN_ANIM_WINDUP, THROW_IN_APPROACH_DIST, THROW_IN_FORCE, THROW_IN_HAND_Z, THROW_IN_LINE_Y, allPlayers, applyBallLateralCurve, applyStaggered, applyStun, assignBallPossession, awayTeam } from './state.js';
 
-import { ball, canvas, clamp, clearBallLock, clearChasingState, clearEffortChaseLock, clearEffortSprintState, clearForcedChaseState, clearGkPossessionType, clearPlayerAIState, dist2D, fakeShotOwnerId, finalizeBallFrame, gameState, getChaseInterceptTarget, getDefaultDribbleDistance, getEffortChaseOwner, homeTeam, inferGkPossessionSource, initGkPossessionType, interruptForcedChaseForAction, isBallContestedRival, isBallContestedSeekAllowed, isBallDead, isBallLocked, isBallSetPieceFrozen, isBallWaitingForRetrieval, isChaseOwner, isEffortTouchDefenderFrozen, isEffortTouchR1Active, isExtendedDribbleActive, isFakeShotActive, isGkBallCollidable, isGkFeetPossession, isGkGrabBlockedForSetPiece, isGkHandsImmune, isGkHandsPossession, isGkKickInProgress, isGoalKickReadyState, isGoalkeeper } from './state.js';
+import { ball, canvas, clamp, clearBallLock, clearChasingState, clearEffortChaseLock, clearEffortSprintState, clearForcedChaseState, clearGkPossessionType, clearPlayerAIState, dist2D, fakeShotOwnerId, finalizeBallFrame, gameState, getBallLogicalOwner, getChaseInterceptTarget, getDefaultDribbleDistance, getEffortChaseOwner, homeTeam, inferGkPossessionSource, initGkPossessionType, interruptForcedChaseForAction, isBallContestedRival, isBallContestedSeekAllowed, isBallDead, isBallLocked, isBallSetPieceFrozen, isBallWaitingForRetrieval, isChaseOwner, isEffortTouchDefenderFrozen, isExtendedDribbleActive, isFakeShotActive, isGkBallCollidable, isGkFeetPossession, isGkGrabBlockedForSetPiece, isGkHandsImmune, isGkHandsPossession, isGkKickInProgress, isGoalKickReadyState, isGoalkeeper, isPlayerSprintChasing } from './state.js';
 
-import { isManualAction, isManualMode, isPlayerChasing, isPlayerForcedChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isTacklePossessionPending, isTeammateBlockedFromEffortChase, isThrowInPossessionBlocked, isThrowInTakerBlocked, lerp, norm, playerInControlRange, playerInStrictControlRange, practiceGK, projScale, recoverEffortTouchPossession, recoverFakeShotPossession, resetDribbleDistance, resolveInputCurve, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, startForcedChase, syncPlayerDir, updateBallContested, updateEffortTouchDefenderFreeze, updateGkHandsTimer, updateGkPossessionTransitions, updateIgnorePossession, userWantsPossessionAction } from './state.js';
+import { isManualAction, isManualMode, isPlayerChasing, isPlayerForcedChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isTacklePossessionPending, isTeammateBlockedFromEffortChase, isThrowInPossessionBlocked, isThrowInTakerBlocked, lerp, norm, playerInControlRange, playerInStrictControlRange, practiceGK, projScale, recoverFakeShotPossession, resetDribbleDistance, resolveInputCurve, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, startForcedChase, syncPlayerDir, updateBallContested, updateEffortTouchDefenderFreeze, updateGkHandsTimer, updateGkPossessionTransitions, updateIgnorePossession, userWantsPossessionAction, isCpuBlockedFromTeammateLooseBall, getTeammateSupportTarget, syncHumanTeamControlOnPossession, canTakeBallFromOwner, isEffortTouchPendingReclaim, clearSprintChaseState } from './state.js';
 
 import {
   SetPieceManager,
@@ -524,10 +524,6 @@ function resolveCollisions(){
     }
   }
   checkDribbleStealCollisions();
-  if(ball.effortDetach && ball.owner === null){
-    const owner = getEffortChaseOwner();
-    if(owner && !isEffortTouchR1Active(owner)) recoverEffortTouchPossession(owner);
-  }
   if(ball.feintDetach && ball.owner === null){
     const owner = allPlayers.find(pl => pl.id === ball.feintDetach.ownerId) || null;
     if(owner) recoverFakeShotPossession(owner);
@@ -627,6 +623,7 @@ function canCpuSeekLooseBall(p){
   if(!checkInterceptionEligibility()) return false;
   if(p.interceptionReactT > 0) return false;
   if(isTeammateBlockedFromEffortChase(p)) return false;
+  if(isCpuBlockedFromTeammateLooseBall(p)) return false;
   if(isPlayerStunned(p) || isPlayerStaggered(p)) return false;
   if(isThrowInTakerBlocked(p)) return false;
   return true;
@@ -689,6 +686,7 @@ function updatePossession(dt){
   if(Game.setPieceMode && !Game.isBallInPlay) return;
   if(Game.deadBall || Game.isDeadBall || Game.outOfPlay) return;
   if(isTacklePossessionPending()) return;
+  if(isEffortTouchPendingReclaim()) return;
   resetCpuAttackingBallOnHumanPossession();
   if(ball.state === BALL_STATE.IN_POSSESSION){
     const owner = ball.owner;
@@ -714,6 +712,7 @@ function updatePossession(dt){
       if(ball.isContested && !isBallContestedSeekAllowed(p)) continue;
       if(isManualMode && isCpuPlayer(p) && !canCpuSeekLooseBall(p) && !canCpuReceivePass(p)) continue;
       if(isTeammateBlockedFromEffortChase(p)) continue;
+      if(isCpuBlockedFromTeammateLooseBall(p)) continue;
       if(isThrowInTakerBlocked(p)) continue;
       if(isPlayerStaggered(p) || isPlayerStunned(p)) continue;
       if(p.releaseCooldown>0) continue;
@@ -730,6 +729,7 @@ function updatePossession(dt){
       if(assignBallPossession(best, possessSource)){
         ball.lastTouchTeam = best.team;
         clearInterceptionSeek(best);
+        syncHumanTeamControlOnPossession(best);
       }
     }
   }
@@ -750,7 +750,7 @@ function setPassTarget(team, player){
   if(team==='home') Game.passTargetHome = player ? player.id : null;
   else Game.passTargetAway = player ? player.id : null;
   if(!player) return;
-  if(isPlayerChasing(player) || isChaseOwner(player)) return;
+  if((isPlayerChasing(player) || isChaseOwner(player)) && !isPlayerSprintChasing(player)) return;
   player.iaSeeking = true;
   player.manualCancelActive = false;
   applyReceptionSeekTarget(player, true);
@@ -760,7 +760,7 @@ function applyReceptionSeekTarget(p, forPassTarget){
   if(isTeammateBlockedFromEffortChase(p)) return;
   if(isPlayerForcedChasing(p)) return;
   if(p.state === 'chasing' && isManualAction(p)) return;
-  if(isPlayerChasing(p) || isChaseOwner(p)) return;
+  if((isPlayerChasing(p) || isChaseOwner(p)) && !isPlayerSprintChasing(p)) return;
   const seek = getReceptionSeekTarget(forPassTarget);
   p.targetPosition = {x: seek.x, y: seek.y};
   p.landingTime = seek.tLand;
@@ -1021,7 +1021,12 @@ function refreshIASeekingState(p){
     clearPlayerAIState(p);
     return true;
   }
-  if(isPlayerChasing(p) || isChaseOwner(p)){
+  if(isPlayerChasing(p) || isChaseOwner(p) || isPlayerSprintChasing(p)){
+    if(isPlayerSprintChasing(p)){
+      p.iaSeeking = true;
+      applyReceptionSeekTarget(p, true);
+      return true;
+    }
     clearPlayerAIState(p);
     return true;
   }
@@ -1087,7 +1092,9 @@ function refreshIASeekingState(p){
 
 // Mueve al jugador hacia targetPosition con velocidad normal (via movePlayer), sin teletransporte.
 // Si la recepcion es aerea, ajusta el ritmo para llegar al landingPoint cuando pique la pelota.
-function moveTowardSeekTarget(p, dt, target, sprint){
+function moveTowardSeekTarget(p, dt, target, sprint, opts){
+  opts = opts || {};
+  const sprintChase = opts.sprintChase || isPlayerSprintChasing(p);
   if(isPlayerForcedChasing(p)) return;
   if(p.state === 'chasing' && isManualAction(p)) return;
   if(!target) return;
@@ -1095,7 +1102,7 @@ function moveTowardSeekTarget(p, dt, target, sprint){
   const dx = target.x - p.x, dy = target.y - p.y;
   const d = Math.hypot(dx, dy);
   let moveMag = d > 0.15 ? 1 : 0;
-  let useSprint = sprint && d > 2.2;
+  let useSprint = (sprint || sprintChase) && d > 2.2;
 
   if(p.seekAerial && p.landingTime > 0.15){
     const trotSpeed = p.maxSpeedBase * 0.72;
@@ -1114,12 +1121,12 @@ function moveTowardSeekTarget(p, dt, target, sprint){
     } else if(timeToArrive > tLand + IA_LANDING_TIMING_MARGIN){
       useSprint = true;
     }
-  } else if(d < IA_SEEKING_SLOW_DIST){
+  } else if(d < IA_SEEKING_SLOW_DIST && !sprintChase){
     p.iaSeekingBrake = true;
   }
 
   const md = moveMag > 0.05 ? {x: dx/d, y: dy/d} : {x: 0, y: 0};
-  movePlayer(p, dt, md, useSprint, false);
+  movePlayer(p, dt, md, useSprint || sprintChase, false, sprintChase ? {sprintChase: true} : null);
   p.iaSeekingBrake = false;
 }
 
@@ -1128,6 +1135,17 @@ function updatePlayerAI(p, dt, input, team){
   if(isPlayerForcedChasing(p)) return false;
   if(isTeammateBlockedFromEffortChase(p)) return false;
   if(p.state === 'chasing' && isManualAction(p)) return false;
+
+  if(isPlayerSprintChasing(p)){
+    const moveMag = Math.hypot(input.move?.x || 0, input.move?.y || 0);
+    if(moveMag > 0.05 && !input.heldManualCancel){
+      movePlayer(p, dt, input.move, true, false, {sprintChase: true});
+    } else {
+      applyReceptionSeekTarget(p, true);
+      moveTowardSeekTarget(p, dt, p.targetPosition, true, {sprintChase: true});
+    }
+    return true;
+  }
 
   const passTarget = isPassTargetPlayer(p, team);
   const looseMoving = isLooseMovingBall();
@@ -1186,6 +1204,10 @@ function updateHumanMovement(p, dt, input, team){
     clearChasingState(p);
   }
 
+  if(isPlayerSprintChasing(p) && (p.charging || p.pendingKick || p.isChargingShot || p.pendingAction || userWantsPossessionAction(input))){
+    clearSprintChaseState(p);
+  }
+
   // Accion del usuario interrumpe la persecucion post-toque antes de imponer movimiento automatico
   if(isPostTouchChasing(p) && (p.charging || p.pendingKick || p.isChargingShot || p.pendingAction || userWantsPossessionAction(input))){
     interruptForcedChaseForAction(p);
@@ -1193,7 +1215,7 @@ function updateHumanMovement(p, dt, input, team){
 
   // Post-toque: sin IA ni decisionTree — unico vector hacia ball.position
   if(isPostTouchChasing(p)){
-    if(updateForcedChase(p, dt)) return;
+    if(updateForcedChase(p, dt, input)) return;
   }
 
   if(ballLoose && ball.state === BALL_STATE.FREE && isChaseOwner(p)){
@@ -1268,7 +1290,29 @@ function isTeamNearestSeeker(p){
 function seekBall(p, dt){
   if(isControlledByHuman(p)) return false;
 
+  const logicalOwner = getBallLogicalOwner();
+  if(logicalOwner && logicalOwner.team === p.team && logicalOwner.id !== p.id){
+    p.isAttackingBall = false;
+    clearInterceptionSeek(p);
+    if(isControlledByHuman(logicalOwner)){
+      moveToward(p, dt, getTeammateSupportTarget(p, logicalOwner), false);
+    } else {
+      updateCpuPositioning(p, dt);
+    }
+    return false;
+  }
+
   const carrier = ball.owner;
+  if(carrier && carrier.team === p.team){
+    p.isAttackingBall = false;
+    clearInterceptionSeek(p);
+    if(isControlledByHuman(carrier)){
+      moveToward(p, dt, getTeammateSupportTarget(p, carrier), false);
+    } else {
+      updateCpuPositioning(p, dt);
+    }
+    return false;
+  }
   // La IA tiene prohibido perseguir a un jugador que tiene la pelota
   if(carrier && carrier.team !== p.team){
     enforceCpuNoCarrierChase(p, carrier);
@@ -1317,6 +1361,11 @@ function updateCpuPositioning(p, dt){
   const oppHasBall = ball.owner && ball.owner.team !== p.team;
 
   if(teamHasBall){
+    const carrier = ball.owner;
+    if(carrier && carrier !== p){
+      moveToward(p, dt, getTeammateSupportTarget(p, carrier), false);
+      return;
+    }
     moveToward(p, dt, p.targetSlotWorld(), false);
     return;
   }
@@ -1538,11 +1587,8 @@ function aiDecide(p, dt){
     } else {
       p.runTarget = null;
     }
-    // apoyo generico: moverse a espacio de ataque
-    const base = p.targetSlotWorld();
-    const pushX = base.x + p.attackDir()*8;
-    const targetY = clamp(base.y + (carrier.y - CENTER.y)*-0.25, 4, FIELD_W-4);
-    moveToward(p, dt, {x:pushX, y:targetY}, false);
+    // apoyo generico: moverse a espacio de ataque sin encimarse al portador
+    moveToward(p, dt, getTeammateSupportTarget(p, carrier), false);
     return;
   }
   p.runTarget = null; // fuera de fase de ataque de su equipo: cancela cualquier desmarque en curso

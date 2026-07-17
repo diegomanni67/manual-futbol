@@ -4,7 +4,7 @@ import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_H
 
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DISTANCE, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 
-import { angDiff, awayTeam, ball, bindBallToOwner, clamp, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearPlayerAIState, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isEffortRecoveryChase, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isPaused, isPlayerChasing, isPlayerStaggered, isPlayerStunned, isScoredGoalSequenceActive, isThrowInBallState, lerp, setGameState, setIsCelebrationMode, setIsPaused } from './state.js';
+import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearSprintChaseState, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession } from './state.js';
 
 import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition } from './state.js';
 
@@ -20,9 +20,8 @@ import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisio
 // updateBallPosition (usa p.facing/p.dir, no el vector de velocidad directamente).
 function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mass){
   const prevVX = p.vx, prevVY = p.vy;
-  const effortRecovery = isEffortRecoveryChase(p);
   const fakeShotRecovery = isFakeShotRecoveryChase(p);
-  const looseTouchSprint = effortRecovery || isFakeShotLooseChase(p);
+  const looseTouchSprint = isFakeShotLooseChase(p);
   const effortSprint = looseTouchSprint || !!(p.isEffortSprinting && ball.owner === p);
   const dribbling = !effortSprint && ball.owner === p && (!isGoalkeeper(p) || isGkFeetPossession(p));
   const agility = dribbling ? AGILITY_WITH_BALL : AGILITY_NO_BALL;
@@ -97,6 +96,55 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
   return {prevVX, prevVY};
 }
 
+// Captura por proximidad: misma regla para todos; dueño logico (possessedBy / feintDetach) ignora distancia.
+export function checkBallCapture(p, opts = {}){
+  if(!p || ball.owner === p) return false;
+  if(ball.owner !== null) return false;
+  if(ball.state !== BALL_STATE.FREE && ball.state !== BALL_STATE.LOOSE_BALL) return false;
+  if(ball.z >= 1.15) return false;
+
+  const forceEnd = !!opts.forceEnd;
+  const isLogicalOwner = ball.possessedBy === p.id ||
+    isChaseOwner(p) ||
+    !!(ball.feintDetach && ball.feintDetach.ownerId === p.id);
+  const instantLogicalReclaim = isLogicalOwner &&
+    (forceEnd || !p.effortTouchAnim);
+
+  if(!forceEnd && !isLogicalOwner){
+    if(p.releaseCooldown > 0 || p.pendingAction) return false;
+  }
+  if(isPlayerStunned(p) || isPlayerStaggered(p)) return false;
+  if(isCpuBlockedFromTeammateLooseBall(p) || isTeammateBlockedFromEffortChase(p)) return false;
+  if(!instantLogicalReclaim && dist2D(p, ball) >= getPostTouchRecoverDist(p)) return false;
+  if(isPossessionIgnored() && !forceEnd && !instantLogicalReclaim) return false;
+
+  if(forceEnd && isLogicalOwner){
+    p.canCollectBall = true;
+    p.canCollectBlockT = 0;
+    p.releaseCooldown = 0;
+    ball.ignorePossessionT = 0;
+  }
+
+  if(ball.feintDetach && ball.feintDetach.ownerId === p.id){
+    return recoverFakeShotPossession(p);
+  }
+
+  if(!p.canCollectBall) return false;
+  if(p.releaseCooldown > 0 || p.pendingAction) return false;
+
+  const possessSource = isGoalkeeper(p) ? inferGkPossessionSource(p) : null;
+  p.tackleCooldown = TACKLE_COOLDOWN * 0.75;
+  p.touchCooldown = 0.12;
+  p.charging = null;
+  if(p.takePossession(possessSource)){
+    clearSprintChaseState(p);
+    syncHumanTeamControlOnPossession(p);
+    if(isPostTouchChasing(p)) clearChasingState(p);
+    return true;
+  }
+  return false;
+}
+
 function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   opts = opts || {};
   if(p.isThrowingIn || p.throwInAnim){
@@ -111,6 +159,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   }
   const manualChase = !!opts.manualChase;
   const forcedChase = !!opts.forcedChase;
+  const sprintChase = !!opts.sprintChase || isPlayerSprintChasing(p);
   // lock aereo: sin desplazamiento mientras dura la animacion de contacto
   if(p.airLock && p.airLock.t < p.airLock.dur){
     p.vx = 0;
@@ -131,16 +180,15 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   const moveMag0 = Math.hypot(moveDir.x, moveDir.y);
   let moveMag = moveMag0;
   let wantMove = moveMag > 0.05;
-  const effortRecovery = isEffortRecoveryChase(p);
   const fakeShotRecovery = isFakeShotRecoveryChase(p);
-  const looseTouchSprint = effortRecovery || isFakeShotLooseChase(p);
+  const looseTouchSprint = isFakeShotLooseChase(p);
   const effortSprint = looseTouchSprint || !!(p.isEffortSprinting && ball.owner === p);
-  const chasing = isPlayerChasing(p);
+  const chasing = isPlayerChasing(p) || sprintChase;
   p.sprinting = (sprint || effortSprint) && wantMove; // usado por updateBallPosition (trote vs sprint)
 
-  // Convergencia: sin stick, correr hacia la pelota extendida
+  // Convergencia post-fake shot: punto fijo solo para feintDetach.
   let activeMoveDir = moveDir;
-  const chaseLockTarget = (effortRecovery || fakeShotRecovery) && p.effortChaseTarget;
+  const chaseLockTarget = fakeShotRecovery && p.effortChaseTarget;
   if(chaseLockTarget){
     const dx = p.effortChaseTarget.x - p.x, dy = p.effortChaseTarget.y - p.y;
     const td = Math.hypot(dx, dy);
@@ -179,10 +227,12 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   }
 
   let maxSpeed = getPlayerMoveSpeedBase(p) * (sprint?1.42:1.0) * (jockey?0.55:1.0);
-  if(forcedChase) maxSpeed = getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT;
-  if(effortRecovery || fakeShotRecovery) maxSpeed = p.maxVelocity || p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
-  else if(effortSprint) maxSpeed = p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
-  else if(ball.owner===p && !forcedChase) maxSpeed *= 0.91;
+  if(sprintChase){
+    maxSpeed = getPlayerMaxSprintVelocity(p);
+  } else if(forcedChase) maxSpeed = getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT;
+  if(fakeShotRecovery) maxSpeed = p.maxVelocity || p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
+  else if(!sprintChase && effortSprint) maxSpeed = p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
+  else if(ball.owner===p && !forcedChase && !sprintChase) maxSpeed *= 0.91;
   if(isGkHandsPossession(p)) maxSpeed *= 0.68;
   if(p.stumble) maxSpeed *= 0.3; // tropezando tras perder un duelo: se mueve mucho mas lento un instante
   // PREPARANDO_ACCION: cargando la barra de pase/tiro, o en el windup posterior a soltar el boton
@@ -196,6 +246,10 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   const mass = p.weightFactor || 1;
   const sprintActive = sprint || effortSprint;
   const {prevVX, prevVY} = updateMovement(p, dt, activeMoveDir, moveMag, wantMove, maxSpeed, sprintActive, mass);
+
+  if(p.effortExitBlendT > 0){
+    applyEffortExitVelocityBlend(p, dt, activeMoveDir, moveMag, maxSpeed);
+  }
 
   // --- INCLINACION DEL CUERPO (para la animacion, ver drawNormalPose): se calcula a partir de la
   // aceleracion real de este frame proyectada sobre la orientacion del jugador (adelante/atras y
@@ -323,6 +377,8 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   p.moveInputDir = wantMove
     ? {x: activeMoveDir.x * moveMag, y: activeMoveDir.y * moveMag}
     : {x: 0, y: 0};
+
+  checkBallCapture(p);
 }
 
 /* ============================================================
@@ -440,7 +496,7 @@ function resolveStandTackle(p, a){
 
   const victim = ball.owner;
   if(victim && isGkHandsImmune(victim)) return;
-  if(victim && victim.team === p.team) return;
+  if(victim && !canTakeBallFromOwner(p, victim)) return;
   if(dist2D(p, ball) > TACKLE_RADIUS) return;
 
   a.resolved = true;
@@ -497,7 +553,7 @@ function slideTackle(p, a, prog){
 
   const victim = ball.owner;
   if(victim && isGkHandsImmune(victim)) return;
-  if(victim && victim.team === p.team) return;
+  if(victim && !canTakeBallFromOwner(p, victim)) return;
 
   a.resolved = true;
   a.success = true;
