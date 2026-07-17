@@ -4,9 +4,9 @@ export { CONTROL_TOUCH_DUR } from './state.js';
 
 import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_RADIUS, AIR_BICYCLE_MIN_Z, AIR_BUFFER_RADIUS, AIR_CONTACT_RADIUS, AIR_DRAG, AIR_HEADER_MAX_Z, AIR_HEADER_MIN_Z, AIR_LOCK_DURATION, AIR_STRIKE_TABLE, AIR_VOLLEY_L2_MAX_Z, AIR_VOLLEY_L2_MIN_Z, AIR_VOLLEY_MAX_Z, AIR_VOLLEY_MIN_Z, AUTOPASE_POWER_THRESHOLD, BALL_AERIAL_MIN_Z, BALL_RADIUS, BALL_STATE, Ball, CENTER, CROSS_MARKER_LIFE, DIRECTION_PRIORITY, DISTANCE_PRIORITY, DIST_FAKE, DRIBBLE_DIST_R1, DRIBBLE_DIST_R2, EFFORT_CHASE_TEAMMATE_BLOCK, EFFORT_ROLL_SOFT_DURATION, EFFORT_RS_MIN, EFFORT_TOUCH_ANIM_LONG, EFFORT_TOUCH_ANIM_SHORT, EFFORT_TOUCH_BURST_MULT, EFFORT_TOUCH_COOLDOWN, EFFORT_TOUCH_MAX_VELOCITY, FEINT_TOUCH_MAX_VELOCITY, FIELD_L, FIELD_W, FORCED_CHASE_RECOVER_DIST } from './state.js';
 
-import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_TIMEOUT_MS, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, TACKLE_COOLDOWN, activateBallLock, activateIgnorePossession, allPlayers, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clearBallLock } from './state.js';
+import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_TIMEOUT_MS, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, TACKLE_COOLDOWN, activateBallLock, activateIgnorePossession, allPlayers, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clearBallLock, effortRsState } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, prevButtonsByPad } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, lockPlayerSwitchForEffort, prevButtonsByPad } from './state.js';
 
 import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, movePlayer, nearestToBall, norm, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction } from './state.js';
 
@@ -522,8 +522,27 @@ function getManualRunDirection(p){
   return getOffensiveRunDirection(p);
 }
 
+function isEffortRightStickIntent(team, padIndex){
+  const p = team === 'home' ? controlledPlayer() : controlledPlayer2();
+  if(!p || !canApplyEffortTouch(p)) return false;
+  const pad = getPadAt(padIndex);
+  if(!pad) return false;
+  const rxRaw = pad.axes[2]||0, ryRaw = pad.axes[3]||0;
+  const rx = Math.abs(rxRaw)<RS_DEAD? 0 : rxRaw;
+  const ry = Math.abs(ryRaw)<RS_DEAD? 0 : ryRaw;
+  const mag = Math.hypot(rx, ry);
+  const stKey = 'e'+p.id;
+  if(!effortRsState[stKey]) effortRsState[stKey] = {prevMag:0};
+  const effortSt = effortRsState[stKey];
+  const rsFlick = mag >= EFFORT_RS_MIN && effortSt.prevMag < EFFORT_RS_MIN;
+  const heldR2 = pad.buttons[7] && pad.buttons[7].value>0.15;
+  const heldR1 = pad.buttons[5] && (pad.buttons[5].pressed || pad.buttons[5].value>0.5);
+  return rsFlick && (heldR1 || heldR2);
+}
+
 function handleRightStickSwitch(dt, team, padIndex){
   if(gameState==='practice') return; // en la Arena de Practica hay un solo jugador util: no tiene sentido cambiar de cursor
+  if(isPlayerSwitchLockedForEffort(team)) return;
   const st = rsState[team];
   if(st.lockout>0) st.lockout -= dt;
   const pad = getPadAt(padIndex);
@@ -540,6 +559,13 @@ function handleRightStickSwitch(dt, team, padIndex){
     return;
   }
 
+  // Effort touch (R1/R2 + flick RS): el input de direccion no debe disparar cambio de jugador.
+  if(isEffortRightStickIntent(team, padIndex)){
+    st.prevMag = mag;
+    st.lockout = RS_FLICK_LOCKOUT;
+    return;
+  }
+
   // un "flick" es que el stick pase de reposo a bien estirado de un frame a otro
   if(mag>=RS_FLICK_MIN && st.prevMag<RS_FLICK_MIN && st.lockout<=0){
     const dir = {x: rx/mag, y: -ry/mag}; // mismo criterio de ejes que el stick izquierdo
@@ -553,6 +579,7 @@ function handleRightStickSwitch(dt, team, padIndex){
 }
 
 function selectPlayerByFlick(dir, team){
+  if(isPlayerSwitchLockedForEffort(team)) return;
   const isHome = team==='home';
   const cur = isHome ? controlledPlayer() : controlledPlayer2();
   if(!cur || isPlayerAssignmentLocked(cur)) return;
@@ -1268,6 +1295,7 @@ function triggerEffort(p, power, stickDir, type){
   const legLead = Math.sin(p.animPhase) >= 0 ? 1 : -1;
   p.effortTouchAnim = {t:0, dur: animDur, leg:legLead, type: type === 'short' ? 'short' : 'long'};
   p.touchAnim = null;
+  lockPlayerSwitchForEffort(p);
   return true;
 }
 

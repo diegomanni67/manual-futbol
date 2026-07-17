@@ -801,6 +801,40 @@ export function isCpuBlockedFromTeammateLooseBall(p){
   return false;
 }
 
+export function isEffortTouchActive(p){
+  return !!(p && (p.isEffortTouching || p.effortTouchAnim));
+}
+
+export function lockPlayerSwitchForEffort(p){
+  if(!p) return;
+  if(p.team === 'home') Game.effortSwitchLockPlayerHome = p.id;
+  else Game.effortSwitchLockPlayerAway = p.id;
+}
+
+export function clearPlayerSwitchLockForEffort(team){
+  if(team === 'home') Game.effortSwitchLockPlayerHome = null;
+  else Game.effortSwitchLockPlayerAway = null;
+}
+
+export function isPlayerSwitchLockedForEffort(team){
+  const playerId = team === 'home' ? Game.effortSwitchLockPlayerHome : Game.effortSwitchLockPlayerAway;
+  if(!playerId) return false;
+  const p = allPlayers.find(pl => pl.id === playerId);
+  if(!p){
+    clearPlayerSwitchLockForEffort(team);
+    return false;
+  }
+  if(ball.owner === p){
+    clearPlayerSwitchLockForEffort(team);
+    return false;
+  }
+  if(!p.effortTouchAnim){
+    clearPlayerSwitchLockForEffort(team);
+    return false;
+  }
+  return true;
+}
+
 export function syncHumanTeamControlOnPossession(p){
   if(!p || !isHumanTeam || !isHumanTeam(p.team)) return;
   if(isControlledByHuman && isControlledByHuman(p)) return;
@@ -3614,6 +3648,8 @@ export const Game = {
   twoPlayerMode:false,   // true: jugador 2 controla al equipo VISITA con otro joystick (o teclado alternativo)
   controlledId2: null,
   manualOverrideUntil2: 0,
+  effortSwitchLockPlayerHome: null, // id: bloquea cambio por RS mientras dura effort touch
+  effortSwitchLockPlayerAway: null,
   p1PadIndex: null,
   p2PadIndex: null,
   padsLocked: false,   // una vez arranca el partido en modo 2P, la asignacion de mandos queda fija (no se reordena sola)
@@ -3678,6 +3714,8 @@ export function resetMatchForStart(){
   Game.isGoalScored = false;
   Game.manualOverrideUntil = 0;
   Game.manualOverrideUntil2 = 0;
+  Game.effortSwitchLockPlayerHome = null;
+  Game.effortSwitchLockPlayerAway = null;
   Game.banner = null;
   Game.bannerUntil = 0;
   Game.isChargingShot = false;
