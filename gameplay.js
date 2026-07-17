@@ -1,6 +1,6 @@
 "use strict";
 
-import { updateHumanControl, readInput, snapshotKeys, remapMoveForCamera, handleRightStickSwitch } from './state.js';
+import { updateHumanControl, readInput, snapshotKeys, remapMoveForCamera, handleRightStickSwitch, isUIModeActive } from './state.js';
 import {
   assignInputSources, updateFakeShotState, isBallAerialLoose,
   KB_P1_SOLO, KB_P1_SHARED, KB_P2, updateSelfTouchCollectBlock,
@@ -21,11 +21,11 @@ import { forcePossessionLoss, isBallInValidGoalBox, onGoal, isBallOutsideFieldLi
 
 import { AERIAL_PHYSICS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_MIN_Z, AIR_CONTACT_RADIUS, AIR_DRAG, AIR_DUEL_MANUAL_L2_LOSE_PENALTY, AIR_DUEL_RADIUS, AIR_HEADER_MAX_Z, AIR_HEADER_MIN_Z, AIR_HEADER_RIVAL_NEAR_DIST, AIR_HEADER_RIVAL_PROX_PENALTY, AIR_MANUAL_RIVAL_NEAR_DIST, AIR_MANUAL_RIVAL_PROX_PENALTY, AIR_SPAM_SIM_STEP, AIR_SPAM_WINDOW_MS, AIR_VOLLEY_MAX_Z, AIR_VOLLEY_MIN_Z, AUTOPASE_POWER_THRESHOLD, BALL_AERIAL_MIN_Z, BALL_RADIUS, BALL_STATE, CAM, CENTER, CTRL_RADIUS, DRIBBLE_STEAL_RADIUS, FIELD_L, FIELD_W, GK_BALL_BOUNCE, GK_BALL_HITBOX_RADIUS, GK_CATCH_CHANCE, GK_DIVE_SPEED, GK_INTERCEPTION_RADIUS, GK_MAX_REACH_Z, GK_MIN_SHOT_SPEED, GK_SAVE_RADIUS, GLOBAL_TIME_SCALE, GOAL_HALF, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GRAVITY, physicsConfig } from './state.js';
 
-import { Game, IA_BALL_MOVING_MIN, IA_LANDING_JOG_FACTOR, IA_LANDING_TIMING_MARGIN, IA_LANDING_WAIT_DIST, IA_SEEKING_RADIUS, IA_SEEKING_SLOW_DIST, INTERCEPTION_REACT_MAX, INTERCEPTION_REACT_MIN, LONGPASS_SWITCH_LOCK_MS, MAN_MARK_ACTIVATE_DIST, MAN_MARK_MIN_DIST, NEAREST_PLAYER_UPDATE_INTERVAL, PBOX_D, PBOX_HALFW, PENDING_ACTION_EXECUTE_RADIUS, PrivateChaseEvents, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_FORCE_MULT, SET_PIECE_POWER_MAX_MS, SET_PIECE_TIMER_DURATION, SET_PIECE_UNSTICK_DIST, STAGGERED_DURATION, STUMBLE_DURATION, STUN_IMPACT_DURATION, TACKLE_COOLDOWN, THROW_IN_ANIM_RELEASE, THROW_IN_ANIM_WINDUP, THROW_IN_APPROACH_DIST, THROW_IN_FORCE, THROW_IN_HAND_Z, THROW_IN_LINE_Y, allPlayers, applyBallLateralCurve, applyStaggered, applyStun, assignBallPossession, awayTeam, updateGlobalReinstatementCooldown } from './state.js';
+import { Game, IA_BALL_MOVING_MIN, IA_LANDING_JOG_FACTOR, IA_LANDING_TIMING_MARGIN, IA_LANDING_WAIT_DIST, IA_SEEKING_RADIUS, IA_SEEKING_SLOW_DIST, INTERCEPTION_REACT_MAX, INTERCEPTION_REACT_MIN, LONGPASS_SWITCH_LOCK_MS, MAN_MARK_ACTIVATE_DIST, MAN_MARK_MIN_DIST, NEAREST_PLAYER_UPDATE_INTERVAL, PBOX_D, PBOX_HALFW, PENDING_ACTION_EXECUTE_RADIUS, PrivateChaseEvents, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_FORCE_MULT, SET_PIECE_POWER_MAX_MS, SET_PIECE_TIMER_DURATION, SET_PIECE_UNSTICK_DIST, STAGGERED_DURATION, STUMBLE_DURATION, STUN_IMPACT_DURATION, TACKLE_COOLDOWN, THROW_IN_ANIM_RELEASE, THROW_IN_ANIM_WINDUP, THROW_IN_APPROACH_DIST, THROW_IN_FORCE, THROW_IN_HAND_Z, THROW_IN_LINE_Y, ZONE_MARK_RADIUS, allPlayers, applyBallLateralCurve, applyStaggered, applyStun, assignBallPossession, awayTeam, updateGlobalReinstatementCooldown } from './state.js';
 
 import { ball, canvas, clamp, clearAirSpamUiState, clearBallLock, clearChasingState, clearEffortChaseLock, clearEffortSprintState, clearForcedChaseState, clearGkPossessionType, clearPlayerAIState, dist2D, fakeShotOwnerId, finalizeBallFrame, gameState, getBallAirGravity, getBallLogicalOwner, getChaseInterceptTarget, getDefaultDribbleDistance, getEffortChaseOwner, getPlayerMoveSpeedBase, homeTeam, inferGkPossessionSource, initGkPossessionType, interruptForcedChaseForAction, isBallContestedRival, isBallContestedSeekAllowed, isBallDead, isBallLocked, isBallSetPieceFrozen, isBallWaitingForRetrieval, isChaseOwner, isEffortTouchDefenderFrozen, isExtendedDribbleActive, isFakeShotActive, isGkBallCollidable, isGkFeetPossession, isGkGrabBlockedForSetPiece, isGkHandsImmune, isGkHandsPossession, isGkKickInProgress, isGoalKickReadyState, isGoalkeeper, isPlayerSprintChasing, setAirSpamWindowUiActive, applyBallAirHorizontalDrag } from './state.js';
 
-import { isManualAction, isManualMode, isPlayerChasing, isPlayerForcedChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isTacklePossessionPending, isTeammateBlockedFromEffortChase, isThrowInPossessionBlocked, isThrowInTakerBlocked, lerp, norm, playerInControlRange, playerInStrictControlRange, practiceGK, projScale, recoverFakeShotPossession, resetDribbleDistance, resolveInputCurve, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, startForcedChase, syncPlayerDir, updateBallContested, updateEffortTouchDefenderFreeze, updateGkHandsTimer, updateGkPossessionTransitions, updateIgnorePossession, userWantsPossessionAction, isCpuBlockedFromTeammateLooseBall, getTeammateSupportTarget, syncHumanTeamControlOnPossession, canTakeBallFromOwner, isEffortTouchPendingReclaim, clearSprintChaseState } from './state.js';
+import { isManualAction, isManualMode, isPlayerChasing, isPlayerForcedChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isTacklePossessionPending, isTeammateBlockedFromEffortChase, isThrowInPossessionBlocked, isThrowInTakerBlocked, lerp, norm, playerInControlRange, playerInStrictControlRange, practiceGK, projScale, recoverFakeShotPossession, resetDribbleDistance, resolveInputCurve, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, startForcedChase, syncPlayerDir, updateBallContested, updateEffortTouchDefenderFreeze, updateGkHandsTimer, updateGkPossessionTransitions, updateIgnorePossession, userWantsPossessionAction, isCpuBlockedFromTeammateLooseBall, getTeammateSupportTarget, syncHumanTeamControlOnPossession, canTakeBallFromOwner, isEffortTouchPendingReclaim, clearSprintChaseState, applyKickoffOccupationTarget, updateKickoffOccupationTimer } from './state.js';
 
 import {
   SetPieceManager,
@@ -599,30 +599,125 @@ function resetCpuAttackingBallOnHumanPossession(){
 
 function shouldCpuMarkCarrier(p, carrier){
   if(!p || !carrier || p.team === carrier.team) return false;
-  if(p.role !== 'DEF' && p.role !== 'MID') return false;
+  if(!isZoneMarkingPlayer(p)) return false;
   return dist2D(p, carrier) < MAN_MARK_ACTIVATE_DIST;
+}
+
+function isZoneMarkingPlayer(p){
+  if(!p || p.role === 'GK') return false;
+  if(p.role === 'DEF') return true;
+  return p.posRole === 'CDM' || p.posRole === 'CM' || p.posRole === 'CAM';
+}
+
+function getTeamSquad(team){
+  return team === 'home' ? homeTeam : awayTeam;
+}
+
+function getDefensiveLineX(team){
+  const defs = getTeamSquad(team).filter(pl => pl.role === 'DEF');
+  if(!defs.length) return null;
+  const avgSlot = defs.reduce((sum, pl) => sum + pl.targetSlotWorld().x, 0) / defs.length;
+  const carrier = ball.owner;
+  if(carrier && carrier.team !== team){
+    return clamp(lerp(avgSlot, carrier.x, 0.18), 5, FIELD_L - 5);
+  }
+  return avgSlot;
+}
+
+function maintainDefensiveLine(target, p, lineX){
+  if(p.role !== 'DEF' || lineX == null) return target;
+  return {
+    x: lerp(target.x, lineX, 0.62),
+    y: target.y,
+  };
+}
+
+function getZoneGapCoverTarget(p, anchor){
+  const rivals = allPlayers.filter(opp => opp.team !== p.team);
+  let best = anchor;
+  let bestScore = -Infinity;
+  const samples = [
+    {x:0, y:0}, {x:0.55, y:0.45}, {x:0.55, y:-0.45},
+    {x:-0.35, y:0.65}, {x:-0.35, y:-0.65}, {x:0.25, y:0.85},
+    {x:0.25, y:-0.85}, {x:-0.5, y:0},
+  ];
+  for(const s of samples){
+    const cx = clamp(anchor.x + s.x * ZONE_MARK_RADIUS, 5, FIELD_L - 5);
+    const cy = clamp(anchor.y + s.y * ZONE_MARK_RADIUS, 5, FIELD_W - 5);
+    let openness = 999;
+    for(const opp of rivals){
+      openness = Math.min(openness, dist2D(opp, {x:cx, y:cy}));
+    }
+    const anchorBlend = 1 - dist2D(anchor, {x:cx, y:cy}) / (ZONE_MARK_RADIUS * 1.2);
+    const score = openness * 1.4 + anchorBlend * 2.5;
+    if(score > bestScore){
+      bestScore = score;
+      best = {x: cx, y: cy};
+    }
+  }
+  return maintainDefensiveLine(best, p, getDefensiveLineX(p.team));
+}
+
+function getZoneInterceptTarget(p, rival, anchor){
+  const goalX = p.ownGoalX();
+  const gdx = goalX - rival.x;
+  const gdy = anchor.y - rival.y;
+  const gd = Math.hypot(gdx, gdy) || 1;
+  const nx = gdx / gd;
+  const ny = gdy / gd;
+  let tx = rival.x + nx * MAN_MARK_MIN_DIST;
+  let ty = rival.y + ny * MAN_MARK_MIN_DIST;
+  const distToRival = dist2D(p, rival);
+  if(distToRival < MAN_MARK_MIN_DIST){
+    const awayD = Math.max(distToRival, 0.01);
+    tx = rival.x + ((p.x - rival.x) / awayD) * MAN_MARK_MIN_DIST;
+    ty = rival.y + ((p.y - rival.y) / awayD) * MAN_MARK_MIN_DIST;
+  }
+  const target = {
+    x: clamp(lerp(tx, anchor.x, 0.22), 5, FIELD_L - 5),
+    y: clamp(lerp(ty, anchor.y, 0.28), 5, FIELD_W - 5),
+  };
+  return maintainDefensiveLine(target, p, getDefensiveLineX(p.team));
+}
+
+function findClosestZoneMarkerToRival(rival, team){
+  let best = null;
+  let bestDist = Infinity;
+  for(const mate of getTeamSquad(team)){
+    if(!isZoneMarkingPlayer(mate)) continue;
+    const anchor = mate.targetSlotWorld();
+    if(dist2D(rival, anchor) > ZONE_MARK_RADIUS) continue;
+    const d = dist2D(mate, rival);
+    if(d < bestDist){
+      bestDist = d;
+      best = mate;
+    }
+  }
+  return best;
+}
+
+function getZoneMarkingTarget(p, carrier){
+  const anchor = p.targetSlotWorld();
+  if(!isZoneMarkingPlayer(p)) return anchor;
+  const rivals = allPlayers.filter(opp => opp.team === p.team ? false : dist2D(opp, anchor) <= ZONE_MARK_RADIUS);
+  if(!rivals.length){
+    return getZoneGapCoverTarget(p, anchor);
+  }
+  const priorityRival = rivals.reduce((a, b) => {
+    const scoreA = (carrier === a ? 3 : 0) + (ZONE_MARK_RADIUS - dist2D(a, anchor)) * 0.1;
+    const scoreB = (carrier === b ? 3 : 0) + (ZONE_MARK_RADIUS - dist2D(b, anchor)) * 0.1;
+    return scoreA >= scoreB ? a : b;
+  });
+  const marker = findClosestZoneMarkerToRival(priorityRival, p.team);
+  if(marker === p){
+    return getZoneInterceptTarget(p, priorityRival, anchor);
+  }
+  return getZoneGapCoverTarget(p, anchor);
 }
 
 // Marcaje pasivo: mantiene MAN_MARK_MIN_DIST del portador, retrocede si el rival avanza.
 function getManMarkingTarget(p, carrier){
-  const goalX = p.ownGoalX();
-  const base = p.targetSlotWorld();
-  const gdx = goalX - carrier.x;
-  const gdy = base.y - carrier.y;
-  const gd = Math.hypot(gdx, gdy) || 1;
-  const nx = gdx / gd, ny = gdy / gd;
-  let tx = carrier.x + nx * MAN_MARK_MIN_DIST;
-  let ty = carrier.y + ny * MAN_MARK_MIN_DIST;
-  const distToCarrier = dist2D(p, carrier);
-  if(distToCarrier < MAN_MARK_MIN_DIST){
-    const awayD = Math.max(distToCarrier, 0.01);
-    tx = carrier.x + ((p.x - carrier.x) / awayD) * MAN_MARK_MIN_DIST;
-    ty = carrier.y + ((p.y - carrier.y) / awayD) * MAN_MARK_MIN_DIST;
-  }
-  return {
-    x: clamp(lerp(tx, base.x, 0.25), 5, FIELD_L - 5),
-    y: clamp(lerp(ty, base.y, 0.3), 5, FIELD_W - 5),
-  };
+  return getZoneInterceptTarget(p, carrier, p.targetSlotWorld());
 }
 
 function updateCpuManMarking(p, dt, carrier){
@@ -874,25 +969,30 @@ function canCpuReceivePass(p){
   return isPassTargetPlayer(p, p.team) && wasLastTouchByHuman();
 }
 
-// Posicion defensiva base (slot de formacion) o marcaje pasivo frente al portador humano.
+// Posicion defensiva con marcaje zonal: cubrir huecos en zona de 15m o interceptar al rival mas cercano.
 function getPassiveDefensiveTarget(p){
-  const base = p.targetSlotWorld();
   const carrier = ball.owner;
-  if(carrier && carrier.team !== p.team && isControlledByHuman(carrier)){
-    if(shouldCpuMarkCarrier(p, carrier)) return getManMarkingTarget(p, carrier);
+  if(carrier && carrier.team !== p.team){
+    if(isZoneMarkingPlayer(p)){
+      return getZoneMarkingTarget(p, carrier);
+    }
+    const base = p.targetSlotWorld();
     const goalX = p.ownGoalX();
     const blockX = clamp(lerp(carrier.x, goalX, 0.38), 5, FIELD_L - 5);
     const blockY = lerp(base.y, carrier.y, 0.4);
     return {x: blockX, y: clamp(blockY, 5, FIELD_W - 5)};
   }
-  return base;
+  if(isZoneMarkingPlayer(p)){
+    return getZoneGapCoverTarget(p, p.targetSlotWorld());
+  }
+  return p.targetSlotWorld();
 }
 
 function getPassivePassLaneTarget(p){
-  const base = p.targetSlotWorld();
+  const base = getPassiveDefensiveTarget(p);
   const carrier = ball.owner;
-  if(!carrier || carrier.team === p.team || !isControlledByHuman(carrier)) return base;
-  return {x: base.x, y: clamp(lerp(base.y, carrier.y, 0.28), 5, FIELD_W - 5)};
+  if(!carrier || carrier.team === p.team) return base;
+  return {x: base.x, y: clamp(lerp(base.y, carrier.y, 0.22), 5, FIELD_W - 5)};
 }
 
 function updateCpuPassiveGoalkeeper(p, dt){
@@ -1366,10 +1466,35 @@ function updateCpuPositioning(p, dt){
   if(teamHasBall){
     const carrier = ball.owner;
     if(carrier && carrier !== p){
-      moveToward(p, dt, getTeammateSupportTarget(p, carrier), false);
+      let support = getTeammateSupportTarget(p, carrier);
+      if(p.posRole === 'ST' && carrier.posRole === 'CAM'){
+        if(!p.runTarget || p.runTimer <= 0){
+          p.runTimer = 0.7 + Math.random() * 0.8;
+          p.runTarget = findWideRunTarget(p, carrier);
+        }
+        p.runTimer -= dt;
+        if(p.runTarget){
+          support = applyKickoffOccupationTarget(p, p.runTarget);
+          moveToward(p, dt, support, dist2D(p, support) > 2.4);
+          return;
+        }
+      } else if((p.posRole === 'CM' || p.posRole === 'CAM') && p !== carrier){
+        if(!p.runTarget || p.runTimer <= 0){
+          p.runTimer = 0.65 + Math.random() * 0.75;
+          p.runTarget = findBetweenLinesRunTarget(p, carrier);
+        }
+        p.runTimer -= dt;
+        if(p.runTarget && Math.random() < 0.55){
+          support = applyKickoffOccupationTarget(p, p.runTarget);
+          moveToward(p, dt, support, dist2D(p, support) > 2.6);
+          return;
+        }
+      }
+      support = applyKickoffOccupationTarget(p, support);
+      moveToward(p, dt, support, false);
       return;
     }
-    moveToward(p, dt, p.targetSlotWorld(), false);
+    moveToward(p, dt, applyKickoffOccupationTarget(p, p.targetSlotWorld()), false);
     return;
   }
   if(oppHasBall){
@@ -1378,7 +1503,7 @@ function updateCpuPositioning(p, dt){
       updateCpuManMarking(p, dt, carrier);
       return;
     }
-    if(p.role === 'DEF'){
+    if(p.role === 'DEF' || isZoneMarkingPlayer(p)){
       moveToward(p, dt, getPassiveDefensiveTarget(p), false);
     } else if(p.role === 'MID'){
       moveToward(p, dt, getPassivePassLaneTarget(p), false);
@@ -1387,8 +1512,10 @@ function updateCpuPositioning(p, dt){
     }
     return;
   }
-  if(p.role === 'DEF' || p.role === 'MID'){
+  if(p.role === 'DEF' || isZoneMarkingPlayer(p)){
     moveToward(p, dt, getPassiveDefensiveTarget(p), false);
+  } else if(p.role === 'MID'){
+    moveToward(p, dt, getPassivePassLaneTarget(p), false);
   } else {
     moveToward(p, dt, p.targetSlotWorld(), false);
   }
@@ -1574,9 +1701,29 @@ function aiDecide(p, dt){
 
   if(teamHasBall && ball.owner && ball.owner.team===p.team){
     const carrier = ball.owner;
-    // desmarque: los delanteros (y a veces un mediocampista) buscan activamente espacio en ataque
-    // para ofrecer una linea de pase, en vez de esperar parados en su posicion de formacion
-    if(p.role==='FWD' || (p.role==='MID' && p.slot.x>40 && Math.random()<0.015)){
+    if(p.posRole === 'ST' && carrier.posRole === 'CAM'){
+      if(!p.runTarget || p.runTimer<=0){
+        p.runTimer = 0.75 + Math.random()*0.85;
+        p.runTarget = findWideRunTarget(p, carrier);
+      }
+      p.runTimer -= dt;
+      if(p.runTarget){
+        const d = dist2D(p, p.runTarget);
+        moveToward(p, dt, applyKickoffOccupationTarget(p, p.runTarget), d>2.2);
+        return;
+      }
+    } else if((p.posRole === 'CM' || (p.posRole === 'CAM' && p !== carrier)) && p !== carrier){
+      if(!p.runTarget || p.runTimer<=0){
+        p.runTimer = 0.65 + Math.random()*0.8;
+        p.runTarget = findBetweenLinesRunTarget(p, carrier);
+      }
+      p.runTimer -= dt;
+      if(p.runTarget && Math.random() < 0.6){
+        const d = dist2D(p, p.runTarget);
+        moveToward(p, dt, applyKickoffOccupationTarget(p, p.runTarget), d>2.4);
+        return;
+      }
+    } else if(p.role==='FWD' || (p.role==='MID' && p.slot.x>40 && Math.random()<0.015)){
       if(!p.runTarget || p.runTimer<=0){
         p.runTimer = 0.8 + Math.random()*0.9;
         p.runTarget = findRunTarget(p, carrier);
@@ -1584,14 +1731,13 @@ function aiDecide(p, dt){
       p.runTimer -= dt;
       if(p.runTarget){
         const d = dist2D(p, p.runTarget);
-        moveToward(p, dt, p.runTarget, d>2.2);
+        moveToward(p, dt, applyKickoffOccupationTarget(p, p.runTarget), d>2.2);
         return;
       }
     } else {
       p.runTarget = null;
     }
-    // apoyo generico: moverse a espacio de ataque sin encimarse al portador
-    moveToward(p, dt, getTeammateSupportTarget(p, carrier), false);
+    moveToward(p, dt, applyKickoffOccupationTarget(p, getTeammateSupportTarget(p, carrier)), false);
     return;
   }
   p.runTarget = null; // fuera de fase de ataque de su equipo: cancela cualquier desmarque en curso
@@ -1605,17 +1751,13 @@ function aiDecide(p, dt){
       updateCpuManMarking(p, dt, carrier);
     } else if(isManualMode){
       p.aiMode = 'positioning';
-      const base = p.targetSlotWorld();
-      const retreatX = base.x - p.attackDir()*6;
-      moveToward(p, dt, {x:retreatX, y: lerp(base.y, ball.y, 0.25)}, false);
+      moveToward(p, dt, getPassiveDefensiveTarget(p), false);
     } else if(isSeeker){
       p.aiMode = 'seeking';
       moveToward(p, dt, ball, true);
     } else {
       p.aiMode = 'positioning';
-      const base = p.targetSlotWorld();
-      const retreatX = base.x - p.attackDir()*6;
-      moveToward(p, dt, {x:retreatX, y: lerp(base.y, ball.y, 0.25)}, false);
+      moveToward(p, dt, getPassiveDefensiveTarget(p), false);
     }
     return;
   }
@@ -1660,6 +1802,64 @@ function findRunTarget(p, carrier){
   }
   return best;
 }
+
+// Desmarque diagonal hacia banda cuando el CAM tiene la pelota (estira centrales rivales)
+function findWideRunTarget(p, carrier){
+  const dir = p.attackDir();
+  const wideSign = p.slot.y <= CENTER.y ? -1 : 1;
+  const forwardDist = 11 + Math.random() * 7;
+  const lateralDist = 7 + Math.random() * 6;
+  const options = [
+    {fx: 1.0, ly: 1.0},
+    {fx: 0.85, ly: 1.25},
+    {fx: 0.7, ly: 0.75},
+  ];
+  let best = null;
+  let bestScore = -Infinity;
+  for(const opt of options){
+    const cx = clamp(p.x + dir * forwardDist * opt.fx, 6, FIELD_L - 6);
+    const cy = clamp(p.y + wideSign * lateralDist * opt.ly, 5, FIELD_W - 5);
+    let openness = 999;
+    for(const opp of allPlayers){
+      if(opp.team === p.team) continue;
+      openness = Math.min(openness, dist2D(opp, {x: cx, y: cy}));
+    }
+    const progress = (cx - p.x) * dir;
+    const distFromCarrier = dist2D({x: cx, y: cy}, carrier);
+    const score = openness * 1.8 + progress * 0.55 - Math.max(0, 5 - distFromCarrier) * 0.7;
+    if(score > bestScore){
+      bestScore = score;
+      best = {x: cx, y: cy};
+    }
+  }
+  return best;
+}
+
+// Desdoblamiento entre lineas: mediocampistas atacan el hueco entre defensa y medios rivales
+function findBetweenLinesRunTarget(p, carrier){
+  const dir = p.attackDir();
+  const forwardDist = 8 + Math.random() * 6;
+  const lateralShift = (Math.random() - 0.5) * 8;
+  let best = null;
+  let bestScore = -Infinity;
+  for(let i = 0; i < 5; i++){
+    const cx = clamp(p.x + dir * (forwardDist + i * 1.6), 6, FIELD_L - 6);
+    const cy = clamp(p.slot.y + lateralShift + (Math.random() - 0.5) * 5, 5, FIELD_W - 5);
+    let openness = 999;
+    for(const opp of allPlayers){
+      if(opp.team === p.team) continue;
+      openness = Math.min(openness, dist2D(opp, {x: cx, y: cy}));
+    }
+    const progress = (cx - p.x) * dir;
+    const lanePenalty = Math.abs(cy - carrier.y) < 2.5 ? 2.5 : 0;
+    const score = openness * 1.5 + progress * 0.65 - lanePenalty;
+    if(score > bestScore){
+      bestScore = score;
+      best = {x: cx, y: cy};
+    }
+  }
+  return best;
+}
 function steerCarrier(p, dt){
   // conduce la pelota hacia el arco rival, evitando salirse de la cancha
   const goalX = p.oppGoalX();
@@ -1675,10 +1875,11 @@ function cpuMoveUsesSprint(p, target, sprintHint){
 }
 
 function moveToward(p, dt, target, sprint){
-  const dx=target.x-p.x, dy=target.y-p.y;
+  const adjusted = applyKickoffOccupationTarget(p, target);
+  const dx=adjusted.x-p.x, dy=adjusted.y-p.y;
   const d=Math.hypot(dx,dy);
   const md = d>0.15? {x:dx/d,y:dy/d} : {x:0,y:0};
-  const useSprint = cpuMoveUsesSprint(p, target, sprint);
+  const useSprint = cpuMoveUsesSprint(p, adjusted, sprint);
   movePlayer(p, dt, md, useSprint, false);
 }
 
@@ -1839,6 +2040,7 @@ function runGameplaySim(dt, rawDt){
   updateThrowInSystem(dt);
   updateSetPieceManager(dt);
   updateKickoffManager(dt);
+  updateKickoffOccupationTimer(dt);
   const koTaker = getKickoffTaker();
   if(koTaker && koTaker.kickoffAnim) updateKickoffManeuver(koTaker, dt);
   updateInterceptionReactions(dt);
@@ -1889,18 +2091,22 @@ function runGameplaySim(dt, rawDt){
 
   updateAirSpamDuelSystem(dt);
   updateGlobalReinstatementCooldown(dt);
-  const p1SharesKeyboard = Game.twoPlayerMode && Game.p1PadIndex===null && Game.p2PadIndex===null;
-  const p1Scheme = p1SharesKeyboard ? KB_P1_SHARED : KB_P1_SOLO;
-  const input1 = readInput(Game.p1PadIndex, p1Scheme, 'p1');
-  input1.move = remapMoveForCamera(input1.move);
-  handleRightStickSwitch(dt, 'home', Game.p1PadIndex);
-  updateHumanControl(dt, input1, 'home', Game.p1PadIndex, p1Scheme);
+  if(!isUIModeActive()){
+    const p1SharesKeyboard = Game.twoPlayerMode && Game.p1PadIndex===null && Game.p2PadIndex===null;
+    const p1Scheme = p1SharesKeyboard ? KB_P1_SHARED : KB_P1_SOLO;
+    const input1 = readInput(Game.p1PadIndex, p1Scheme, 'p1');
+    input1.move = remapMoveForCamera(input1.move);
+    handleRightStickSwitch(dt, 'home', Game.p1PadIndex);
+    updateHumanControl(dt, input1, 'home', Game.p1PadIndex, p1Scheme);
 
-  if(Game.twoPlayerMode){
-    const input2 = readInput(Game.p2PadIndex, KB_P2, 'p2');
-    input2.move = remapMoveForCamera(input2.move);
-    handleRightStickSwitch(dt, 'away', Game.p2PadIndex);
-    updateHumanControl(dt, input2, 'away', Game.p2PadIndex, KB_P2);
+    if(Game.twoPlayerMode){
+      const input2 = readInput(Game.p2PadIndex, KB_P2, 'p2');
+      input2.move = remapMoveForCamera(input2.move);
+      handleRightStickSwitch(dt, 'away', Game.p2PadIndex);
+      updateHumanControl(dt, input2, 'away', Game.p2PadIndex, KB_P2);
+    }
+  } else {
+    snapshotKeys();
   }
 
   updateNearestPlayerSelection(dt);

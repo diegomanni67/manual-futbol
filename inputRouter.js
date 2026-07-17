@@ -1,7 +1,7 @@
 "use strict";
 
 import { Game, gameState, isPaused, resetInputEdgeDetection } from './state.js';
-import { getInputKeyState } from './input.js';
+import { getInputKeyState, axisOrZero, resetGamepadState } from './input.js';
 
 /** Menú de UI activo — prioridad sobre PlayerController / MatchEngine. */
 export const UI_MENU = {
@@ -11,25 +11,46 @@ export const UI_MENU = {
   PAUSE: 'pause',
 };
 
+/** Modo de input del motor — UI_NAVIGATION no depende de matchState ni Game.running. */
+export const INPUT_MODE = {
+  GAMEPLAY: 'gameplay',
+  UI_NAVIGATION: 'ui_navigation',
+};
+
+export let inputMode = INPUT_MODE.UI_NAVIGATION;
+
 const MENU_NAV_COOLDOWN_MS = 200;
 const PAUSE_TOGGLE_COOLDOWN_MS = 350;
-const PAUSE_MENU_STICK_DEAD = 0.5;
+const MENU_STICK_DEAD = 0.35;
+
+const INPUT_LAYER_PRIORITY = {
+  [UI_MENU.PAUSE]: 300,
+  [UI_MENU.FORMAT]: 200,
+  [UI_MENU.MAIN]: 200,
+};
 
 const KB_UI_UP = ['ArrowUp', 'KeyW'];
 const KB_UI_DOWN = ['ArrowDown', 'KeyS'];
 const KB_UI_CONFIRM = ['Enter', 'NumpadEnter'];
 const KB_UI_CANCEL = ['Escape', 'Backspace'];
 
+/** Stack de capas de input (top = mayor prioridad). */
+const inputListenerStack = [];
+
 let activeMenu = UI_MENU.NONE;
 let navCooldown = 0;
 let pauseToggleCooldown = 0;
 let lastMenuLoopTs = null;
+
+/** true cuando una capa UI consume el input (menús / pausa). */
+export let isUIModeActive = false;
 
 const prevUIPad = { up: false, down: false, confirm: false, cancel: false, start: false };
 
 /** Callbacks registrados desde main.js (UI_Controller). */
 const handlers = {
   getFirstPad: () => null,
+  clearInputBuffer: () => {},
   focusMain: () => {},
   focusFormat: () => {},
   focusPause: () => {},
@@ -52,12 +73,64 @@ const handlers = {
   refreshPauseVisual: () => {},
 };
 
+function layerIdForMenu(menu){
+  return `ui:${menu}`;
+}
+
+function syncUIModeFlag(){
+  isUIModeActive = inputListenerStack.some(l => l.consume) || isPaused || !!Game.paused || inputMode === INPUT_MODE.UI_NAVIGATION;
+  Game.uiModeActive = isUIModeActive;
+  Game.uiActive = isUIModeActive || activeMenu !== UI_MENU.NONE;
+  Game.uiNavigationActive = inputMode === INPUT_MODE.UI_NAVIGATION;
+}
+
+export function enableUINavigationMode(){
+  inputMode = INPUT_MODE.UI_NAVIGATION;
+  syncUIModeFlag();
+}
+
+export function disableUINavigationMode(){
+  inputMode = INPUT_MODE.GAMEPLAY;
+  syncUIModeFlag();
+}
+
+function pushInputLayer(menu){
+  const id = layerIdForMenu(menu);
+  const idx = inputListenerStack.findIndex(l => l.id === id);
+  if(idx >= 0) inputListenerStack.splice(idx, 1);
+  inputListenerStack.push({
+    id,
+    menu,
+    priority: INPUT_LAYER_PRIORITY[menu] ?? 100,
+    consume: true,
+  });
+  inputListenerStack.sort((a, b) => b.priority - a.priority);
+  syncUIModeFlag();
+}
+
+function popInputLayer(id, opts = {}){
+  const idx = inputListenerStack.findIndex(l => l.id === id);
+  if(idx < 0) return;
+  inputListenerStack.splice(idx, 1);
+  syncUIModeFlag();
+  if(!opts.skipFlush) flushInputEvents();
+}
+
+export function getTopInputLayer(){
+  return inputListenerStack[0] ?? null;
+}
+
+export function shouldConsumeGameplayInput(){
+  const top = getTopInputLayer();
+  return !!(top && top.consume) || isUIModeActive;
+}
+
 export function initInputRouter(h){
   Object.assign(handlers, h);
 }
 
 export function isUIActive(){
-  return activeMenu !== UI_MENU.NONE;
+  return isUIModeActive || activeMenu !== UI_MENU.NONE;
 }
 
 export function getActiveUIMenu(){
@@ -76,11 +149,13 @@ function flushUIPadState(){
   prevUIPad.start = false;
 }
 
-/** Limpia bordes de teclado/gamepad para evitar eventos fantasma al abrir/cerrar UI. */
+/** Limpia bordes de teclado/gamepad y buffers de acción al abrir/cerrar UI. */
 export function flushInputEvents(){
   resetInputEdgeDetection();
-  flushUIPadState();
-  navCooldown = MENU_NAV_COOLDOWN_MS;
+  resetGamepadState();
+  syncMenuGamepadBaseline(handlers.getFirstPad());
+  if(typeof handlers.clearInputBuffer === 'function') handlers.clearInputBuffer();
+  navCooldown = 0;
   pauseToggleCooldown = PAUSE_TOGGLE_COOLDOWN_MS;
 }
 
@@ -95,32 +170,69 @@ function focusForMenu(menu){
 
 export function setUIMenu(menu){
   if(activeMenu === menu) return;
+  if(activeMenu !== UI_MENU.NONE){
+    popInputLayer(layerIdForMenu(activeMenu), { skipFlush: true });
+  }
   activeMenu = menu;
-  Game.uiActive = menu !== UI_MENU.NONE;
+  if(menu !== UI_MENU.NONE){
+    enableUINavigationMode();
+    pushInputLayer(menu);
+    focusForMenu(menu);
+  } else {
+    disableUINavigationMode();
+    syncUIModeFlag();
+  }
   flushInputEvents();
-  if(menu !== UI_MENU.NONE) focusForMenu(menu);
+}
+
+function padBtnDown(pad, idx){
+  const b = pad?.buttons?.[idx];
+  return !!(b && (b.pressed || b.value > 0.5));
+}
+
+/** Niveles actuales de D-pad, stick izquierdo (eje Y) y hat axes. */
+export function readMenuNavLevels(pad){
+  if(!pad) return { up:false, down:false, confirm:false, cancel:false, start:false };
+  const stickY = axisOrZero(pad.axes[1] || 0);
+  const hatY = pad.axes[7] ?? pad.axes[9] ?? 0;
+  const hatUp = hatY < -0.5;
+  const hatDown = hatY > 0.5;
+  const up = padBtnDown(pad, 12) || stickY < -MENU_STICK_DEAD || hatUp;
+  const down = padBtnDown(pad, 13) || stickY > MENU_STICK_DEAD || hatDown;
+  return {
+    up,
+    down,
+    confirm: padBtnDown(pad, 0),
+    cancel: padBtnDown(pad, 1),
+    start: padBtnDown(pad, 9),
+  };
+}
+
+/** Sincroniza prevUIPad con el estado real del mando (sin disparar bordes fantasma). */
+export function syncMenuGamepadBaseline(pad){
+  const levels = readMenuNavLevels(pad);
+  prevUIPad.up = levels.up;
+  prevUIPad.down = levels.down;
+  prevUIPad.confirm = levels.confirm;
+  prevUIPad.cancel = levels.cancel;
+  prevUIPad.start = levels.start;
 }
 
 export function readMenuPadEdges(pad){
-  if(!pad) return { up: false, down: false, confirm: false, cancel: false, start: false };
-  const stickY = pad.axes[1] || 0;
-  const up = !!(pad.buttons[12] && pad.buttons[12].pressed) || stickY < -PAUSE_MENU_STICK_DEAD;
-  const down = !!(pad.buttons[13] && pad.buttons[13].pressed) || stickY > PAUSE_MENU_STICK_DEAD;
-  const confirm = !!(pad.buttons[0] && pad.buttons[0].pressed);
-  const cancel = !!(pad.buttons[1] && pad.buttons[1].pressed);
-  const start = !!(pad.buttons[9] && pad.buttons[9].pressed);
+  if(!pad) return { up:false, down:false, confirm:false, cancel:false, start:false };
+  const levels = readMenuNavLevels(pad);
   const edges = {
-    up: up && !prevUIPad.up,
-    down: down && !prevUIPad.down,
-    confirm: confirm && !prevUIPad.confirm,
-    cancel: cancel && !prevUIPad.cancel,
-    start: start && !prevUIPad.start,
+    up: levels.up && !prevUIPad.up,
+    down: levels.down && !prevUIPad.down,
+    confirm: levels.confirm && !prevUIPad.confirm,
+    cancel: levels.cancel && !prevUIPad.cancel,
+    start: levels.start && !prevUIPad.start,
   };
-  prevUIPad.up = up;
-  prevUIPad.down = down;
-  prevUIPad.confirm = confirm;
-  prevUIPad.cancel = cancel;
-  prevUIPad.start = start;
+  prevUIPad.up = levels.up;
+  prevUIPad.down = levels.down;
+  prevUIPad.confirm = levels.confirm;
+  prevUIPad.cancel = levels.cancel;
+  prevUIPad.start = levels.start;
   return edges;
 }
 
@@ -146,36 +258,52 @@ function mergeEdges(a, b){
   };
 }
 
-function navigateList(edges, getFocus, setFocus, count, refresh){
+function navigateList(pad, kbEdges, getFocus, setFocus, count, refresh){
   if(navCooldown > 0) return;
-  if(edges.up){
+  const levels = readMenuNavLevels(pad);
+  const up = levels.up || kbEdges.up;
+  const down = levels.down || kbEdges.down;
+  if(up && !down){
     setFocus(stepOption(getFocus(), -1, count));
     navCooldown = MENU_NAV_COOLDOWN_MS;
     refresh();
-  } else if(edges.down){
+  } else if(down && !up){
     setFocus(stepOption(getFocus(), 1, count));
     navCooldown = MENU_NAV_COOLDOWN_MS;
     refresh();
   }
 }
 
+function handleMenuConfirm(menu, pad, edges, onConfirm){
+  if(!edges.confirm) return;
+  syncMenuGamepadBaseline(pad);
+  onConfirm();
+  flushInputEvents();
+}
+
+function resolveActiveMenu(){
+  return getTopInputLayer()?.menu ?? activeMenu;
+}
+
+/** UI_Controller: capa superior del stack — consume input (no propaga a gameplay). */
 function routeToUI(rawDt){
   navCooldown = Math.max(0, navCooldown - rawDt * 1000);
   const pad = handlers.getFirstPad();
   const padEdges = readMenuPadEdges(pad);
   const kbEdges = readKeyboardMenuEdges();
   const edges = mergeEdges(padEdges, kbEdges);
+  const menu = resolveActiveMenu();
 
-  if(activeMenu === UI_MENU.MAIN){
-    navigateList(edges, handlers.getMainFocus, handlers.setMainFocus, handlers.mainOptionCount, handlers.refreshMainVisual);
-    if(edges.confirm) handlers.onMainConfirm(handlers.getMainFocus());
-  } else if(activeMenu === UI_MENU.FORMAT){
-    navigateList(edges, handlers.getFormatFocus, handlers.setFormatFocus, handlers.formatOptionCount, handlers.refreshFormatVisual);
-    if(edges.confirm) handlers.onFormatConfirm(handlers.getFormatFocus());
+  if(menu === UI_MENU.MAIN){
+    navigateList(pad, kbEdges, handlers.getMainFocus, handlers.setMainFocus, handlers.mainOptionCount, handlers.refreshMainVisual);
+    handleMenuConfirm(menu, pad, edges, () => handlers.onMainConfirm(handlers.getMainFocus()));
+  } else if(menu === UI_MENU.FORMAT){
+    navigateList(pad, kbEdges, handlers.getFormatFocus, handlers.setFormatFocus, handlers.formatOptionCount, handlers.refreshFormatVisual);
+    handleMenuConfirm(menu, pad, edges, () => handlers.onFormatConfirm(handlers.getFormatFocus()));
     if(edges.cancel) handlers.onFormatCancel();
-  } else if(activeMenu === UI_MENU.PAUSE){
-    navigateList(edges, handlers.getPauseFocus, handlers.setPauseFocus, handlers.pauseOptionCount, handlers.refreshPauseVisual);
-    if(edges.confirm) handlers.onPauseConfirm(handlers.getPauseFocus());
+  } else if(menu === UI_MENU.PAUSE){
+    navigateList(pad, kbEdges, handlers.getPauseFocus, handlers.setPauseFocus, handlers.pauseOptionCount, handlers.refreshPauseVisual);
+    handleMenuConfirm(menu, pad, edges, () => handlers.onPauseConfirm(handlers.getPauseFocus()));
     if(edges.cancel) handlers.onPauseConfirm(0);
     if(edges.start){
       flushInputEvents();
@@ -198,14 +326,21 @@ function routeGameplayPauseToggle(rawDt){
 }
 
 /**
- * Enruta input según estado global:
- * UI activa → UI_Controller; si no → gameplay (toggle pausa en partido).
+ * Enruta input según el stack de capas:
+ * UI activa → UI_Controller (hijack, sin propagación a PlayerController / matchState).
  */
 export function routeInput(rawDt){
-  if(isUIActive() || isPaused || Game.paused){
+  const menuOpen = activeMenu !== UI_MENU.NONE;
+  const uiBlocksGameplay = shouldConsumeGameplayInput() || menuOpen;
+
+  if(uiBlocksGameplay){
+    if(activeMenu === UI_MENU.NONE && (isPaused || Game.paused)){
+      setUIMenu(UI_MENU.PAUSE);
+    }
     routeToUI(rawDt);
     return 'ui';
   }
+
   routeGameplayPauseToggle(rawDt);
   return 'game';
 }

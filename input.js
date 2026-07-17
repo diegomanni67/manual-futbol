@@ -6,7 +6,7 @@ import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_
 
 import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, ACTION_BUFFER_GROUND_PASS, ACTION_BUFFER_LOBBED_PASS, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
 
 import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isKickoffTaker, isKickoffWaiting, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, lockKickInputs, movePlayer, nearestToBall, norm, cleanupKickoffState, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction, maintainKickoffPlacement } from './state.js';
 
@@ -28,8 +28,11 @@ const Keys = {};
 window.addEventListener('keydown', e=>{ Keys[e.code]=true; });
 window.addEventListener('keyup', e=>{ Keys[e.code]=false; });
 
-window.addEventListener('gamepadconnected', ()=>{ assignInputSources(); });
+window.addEventListener('gamepadconnected', ()=>{ assignInputSources(); if(typeof _onGamepadConnectUI === 'function') _onGamepadConnectUI(); });
 window.addEventListener('gamepaddisconnected', ()=>{ assignInputSources(); });
+
+let _onGamepadConnectUI = null;
+export function setGamepadConnectUIHandler(fn){ _onGamepadConnectUI = fn; }
 
 // IMPORTANTE: la deteccion de mandos NUNCA debe filtrar por pad.id (nombre/fabricante).
 // Xbox, PlayStation, genericos, o lo que reporte Parsec: todos entran aca por igual.
@@ -131,6 +134,26 @@ function getPadAt(index){
   if(index===null || index===undefined) return null;
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   return pads[index] || null;
+}
+
+/** Primer mando util para navegación de menú (estándar preferido). */
+function getFirstNavigationGamepad(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  if(Game.p1PadIndex != null){
+    const p1 = pads[Game.p1PadIndex];
+    if(p1) return p1;
+  }
+  for(let i=0;i<pads.length;i++){
+    if(isStandardPad(pads[i])) return pads[i];
+  }
+  for(let i=0;i<pads.length;i++){
+    if(pads[i]) return pads[i];
+  }
+  return null;
+}
+
+function padButtonDown(btn){
+  return !!(btn && (btn.pressed || btn.value > 0.5));
 }
 const DEAD = 0.22;
 function axisOrZero(v){ return Math.abs(v)<DEAD? 0 : v; }
@@ -540,10 +563,41 @@ function isEffortRightStickIntent(team, padIndex){
   return rsFlick && (heldR1 || heldR2);
 }
 
+function isGameplayInputBlocked(){
+  return isUIModeActive();
+}
+
+/** Fail-safe: no detiene el tick si el import de state.js falla o la función no está disponible. */
+function isEffortSwitchLockedSafe(team){
+  try {
+    const fn = (typeof isPlayerSwitchLockedForEffort === 'function')
+      ? isPlayerSwitchLockedForEffort
+      : (typeof window !== 'undefined' && typeof window.isPlayerSwitchLockedForEffort === 'function'
+        ? window.isPlayerSwitchLockedForEffort
+        : null);
+    return fn ? !!fn(team) : false;
+  } catch(_e){
+    return false;
+  }
+}
+
+function isAssignmentLockedSafe(p){
+  try {
+    const fn = (typeof isPlayerAssignmentLocked === 'function')
+      ? isPlayerAssignmentLocked
+      : (typeof window !== 'undefined' && typeof window.isPlayerAssignmentLocked === 'function'
+        ? window.isPlayerAssignmentLocked
+        : null);
+    return fn ? !!fn(p) : !!(p && p.lockPlayerAssignment);
+  } catch(_e){
+    return !!(p && p.lockPlayerAssignment);
+  }
+}
+
 function handleRightStickSwitch(dt, team, padIndex){
-  if(isUIActive() || isPaused || Game.paused) return;
+  if(isGameplayInputBlocked()) return;
   if(gameState==='practice') return; // en la Arena de Practica hay un solo jugador util: no tiene sentido cambiar de cursor
-  if(isPlayerSwitchLockedForEffort(team)) return;
+  if(isEffortSwitchLockedSafe(team)) return;
   const st = rsState[team];
   if(st.lockout>0) st.lockout -= dt;
   const pad = getPadAt(padIndex);
@@ -580,10 +634,10 @@ function handleRightStickSwitch(dt, team, padIndex){
 }
 
 function selectPlayerByFlick(dir, team){
-  if(isPlayerSwitchLockedForEffort(team)) return;
+  if(isEffortSwitchLockedSafe(team)) return;
   const isHome = team==='home';
   const cur = isHome ? controlledPlayer() : controlledPlayer2();
-  if(!cur || isPlayerAssignmentLocked(cur)) return;
+  if(!cur || isAssignmentLockedSafe(cur)) return;
   const teamList = isHome ? homeTeam : awayTeam;
   let best = null, bestScore = -Infinity;
   for(const m of teamList){
@@ -631,7 +685,7 @@ function detectSyncTriggerPress(key, aJust, bJust){
 }
 
 function readInput(padIndex, scheme, padKey){
-  if(isUIActive() || isPaused || Game.paused){
+  if(isGameplayInputBlocked()){
     return {
       move:{x:0,y:0}, sprint:false, jockey:false,
       pressPass:false, pressShot:false, pressThrough:false, pressCross:false,
@@ -1906,6 +1960,33 @@ function resetActionBuffer(p){
   clearActionBuffer(p);
 }
 
+/** Limpia estado de botones/ejes del gamepad (evita X fantasma al abrir menús). */
+function resetGamepadState(){
+  snapshotKeys();
+  for(const k in prevButtonsByPad) delete prevButtonsByPad[k];
+  for(const k in triggerSyncPressState) delete triggerSyncPressState[k];
+}
+
+/** Vacía buffers de input al salir de menús/pausa (evita pases/tiros fantasma). */
+function clearInputBuffer(){
+  resetGamepadState();
+  for(const k in effortRsState) delete effortRsState[k];
+  for(const team of ['home', 'away']){
+    if(rsState[team]){
+      rsState[team].prevMag = 0;
+      rsState[team].lockout = 0;
+    }
+  }
+  for(const p of allPlayers){
+    clearActionBuffer(p);
+    clearPendingAction(p);
+    clearChargingShotState(p);
+    p.charging = null;
+    p.pendingKick = null;
+    p.isChargingShot = false;
+  }
+}
+
 function clearPendingAction(p){
   clearActionBuffer(p);
 }
@@ -2558,7 +2639,15 @@ function updateAirLock(p, dt){
 // impacto pie-pelota segun la barra de potencia (ver mas arriba, junto a executeKick). Ya no hace
 // falta medir la distancia recorrida por la pelota en vuelo para esto.
 function updateHumanControl(dt, input, team, padIndex, scheme){
-  if(isUIActive() || isPaused || Game.paused) return;
+  try {
+    updateHumanControlBody(dt, input, team, padIndex, scheme);
+  } catch(err){
+    console.error('[updateHumanControl] Error ignorado para no detener el tick:', err);
+  }
+}
+
+function updateHumanControlBody(dt, input, team, padIndex, scheme){
+  if(isGameplayInputBlocked()) return;
   if(gameState === 'celebration_run') return;
   input = lockKickInputs(input);
 
@@ -2572,8 +2661,8 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   const teamOwnsBall = ball.owner && ball.owner.team===team;
   const curHome = controlledPlayer();
   const curAway = controlledPlayer2();
-  const lockHome = isPlayerAssignmentLocked(curHome);
-  const lockAway = isPlayerAssignmentLocked(curAway);
+  const lockHome = isAssignmentLockedSafe(curHome);
+  const lockAway = isAssignmentLockedSafe(curAway);
   if(!kickoffLocksTeam){
     if(isHome){
       const holdForWallRun = !!getActiveWallRunner('home');
@@ -2750,5 +2839,5 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   if(ball.owner === p) checkActionExecution(p);
 }
 
-export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, getInputKeyState, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, syncGlobalCharging, getCurrentPower, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, clearActionBuffer, resetActionBuffer, clearPendingAction, hasPendingAction, isPendingActionArmed, hasBufferedAction, isBallAtPlayerFeet, isBallLooseForPendingAction, updateActionBufferInput, checkActionExecution, getBufferKickType, canAerialContact, isBallAerialLoose, isBallAirborne, getBallContactHeight, onBallContact, updateActionBufferPhysics, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, startKickoffManeuver, updateKickoffManeuver, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
+export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, getFirstNavigationGamepad, resetGamepadState, axisOrZero, anyKey, anyKeyPrev, getInputKeyState, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, syncGlobalCharging, getCurrentPower, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, clearActionBuffer, resetActionBuffer, clearInputBuffer, clearPendingAction, hasPendingAction, isPendingActionArmed, hasBufferedAction, isBallAtPlayerFeet, isBallLooseForPendingAction, updateActionBufferInput, checkActionExecution, getBufferKickType, canAerialContact, isBallAerialLoose, isBallAirborne, getBallContactHeight, onBallContact, updateActionBufferPhysics, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, startKickoffManeuver, updateKickoffManeuver, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
 

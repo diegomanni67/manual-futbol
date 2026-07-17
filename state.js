@@ -33,6 +33,21 @@ export let isManualMode = true; // true: CPU solo marca posicion / cierra lineas
    CONFIG / CONSTANTES DE CANCHA
    Referencia 6vs6 = cancha reglamentaria; 11vs11 escala worldScale (1.6x) en setGameMode().
    ============================================================ */
+/** Metros reales por unidad del motor (1 unidad = WORLD_SCALE m). */
+export const WORLD_SCALE = 0.5;
+/** Convierte una medida en metros reales a unidades del motor. */
+export function toGameUnits(meters){ return meters / WORLD_SCALE; }
+/** Convierte unidades del motor a metros reales. */
+export function toMeters(gameUnits){ return gameUnits * WORLD_SCALE; }
+
+/** Sprint reglamentario: 50 m / 8 s = 6.25 m/s reales → 12.5 u/s en motor. */
+export const TARGET_SPRINT_MPS = 6.25;
+export const TARGET_SPRINT_GAME_SPEED = toGameUnits(TARGET_SPRINT_MPS);
+export const SPRINT_ACCEL_TIME = 0.5;           // s hasta velocidad plena (arranque de sprint)
+export const LEGACY_SPRINT_GAME_UNITS = 15.4;   // u/s previas — referencia de calibración anim
+/** Factor de playback de zancada sprint (12.5 / 15.4). */
+export const SPRINT_ANIM_PLAYBACK_MULT = TARGET_SPRINT_GAME_SPEED / LEGACY_SPRINT_GAME_UNITS;
+
 export const BASE_FIELD_L = 105, BASE_FIELD_W = 68;
 export const BASE_GOAL_HALF = 3.66, BASE_GOAL_DEPTH = 2.2;
 export const BASE_PBOX_D = 16.5, BASE_PBOX_HALFW = 20.15;
@@ -126,11 +141,11 @@ export function applyMatchCamera(preset){
   CAM.x = CENTER.x;
 }
 
-/** Velocidad visual de zancada (desacoplada de traslacion en 11vs11). */
+/** Velocidad visual de zancada — sincronizada con traslacion real (m/s → u/s). */
 export function getAnimVisualSpeed(p){
   const speed = Math.hypot(p.vx, p.vy);
   if(speed <= 0.25) return 0;
-  if(physicsConfig.animStrideSpeed != null) return physicsConfig.animStrideSpeed;
+  if(physicsConfig.animStrideSpeed != null) return toGameUnits(physicsConfig.animStrideSpeed);
   return speed;
 }
 
@@ -180,9 +195,9 @@ export const TOUCH_ANIM_DUR = 0.22;     // duracion (seg) de la animacion de pun
 export const CONTROL_TOUCH_DUR = 0.3;   // toque de control al ganar posesion (alineado con PREP_MIN_MS de input.js)
 
   // --- Conduccion extendida (FakeShot): offset con lerp; effort touch suelta la pelota ---
-export const DRIBBLE_DIST_R1 = 2.0;           // R1 + stick der.: toque corto / progresion
-export const DRIBBLE_DIST_R2 = 4.0;           // R2 + stick der.: toque largo / carrera
-export const DRIBBLE_DIST_FAKE = 2.0;         // FakeShot (X cancela carga): offset hacia adelante
+export const DRIBBLE_DIST_R1 = toGameUnits(2.0);           // R1 + stick der.: toque corto / progresion (m reales)
+export const DRIBBLE_DIST_R2 = toGameUnits(4.0);           // R2 + stick der.: toque largo / carrera (m reales)
+export const DRIBBLE_DIST_FAKE = toGameUnits(2.0);         // FakeShot (X cancela carga): offset hacia adelante
 export const DRIBBLE_DIST_LERP = 0.2;         // suavizado al cambiar de distancia
 export const EFFORT_AI_FREEZE_DURATION = 0.3; // 300ms: freeze defensivo ante proyeccion del offset
 export const EFFORT_SPRINT_NORMAL_OFFSET = 0.3; // offset de conduccion normal tras convergencia
@@ -194,6 +209,8 @@ export const DRIBBLE_STEAL_RADIUS = 0.4;      // radio de robo sobre la posicion
 export const DRIBBLE_CONTROL_SLACK = 0.25;    // tolerancia extra de control en conduccion extendida
 export const MAN_MARK_MIN_DIST = 1.5;         // distancia minima de marcaje pasivo al portador rival
 export const MAN_MARK_ACTIVATE_DIST = 14;     // radio maximo para activar marcaje pasivo (DEF/MID)
+export const ZONE_MARK_RADIUS = 15;           // radio de zona de influencia para marcaje zonal
+export const KICKOFF_OCCUPATION_DURATION = 3; // seg: CM + CAM deben quedar detras de la pelota post-saque
 export const TEAMMATE_SUPPORT_MIN_DIST = 3.4; // distancia minima de apoyo cuando un companero tiene la pelota
 
 // --- Distancias legacy (referencia; ya no sueltan la pelota a 'free') ---
@@ -210,15 +227,15 @@ export const EFFORT_TOUCH_COOLDOWN = 0.5;       // 500ms entre toques (largo o c
 export const EFFORT_CHASE_TEAMMATE_BLOCK = 0.5; // 500ms: compañeros no pueden interceptar tras effort touch
 export const EFFORT_BALL_LOCK_DURATION = 0.5;   // 500ms: lock global de posesion (isBallLocked)
 export const EFFORT_TOUCH_BURST_MULT = 20.0;    // fuerza base del impulso = targetDist * mult
-export const EFFORT_TOUCH_MAX_VELOCITY = 15.0;  // clamp estricto: evita que la pelota atraviese la cancha
-export const FEINT_TOUCH_MAX_VELOCITY = 52.0;   // clamp de seguridad para fake shot (sin cambiar su fisica)
+export const EFFORT_TOUCH_MAX_VELOCITY = toGameUnits(15.0);  // clamp: 15 m/s reales → unidades motor
+export const FEINT_TOUCH_MAX_VELOCITY = toGameUnits(52.0);   // clamp fake shot (m/s reales)
 export const EFFORT_ROLL_SOFT_DURATION = 0.2;   // 200ms: friccion acelerada al soltar (post-toque)
 export const EFFORT_ROLL_SOFT_FRICTION_MULT = 2.0; // x2 friccion durante EFFORT_ROLL_SOFT_DURATION
-export const CHASE_POSSESS_DIST = 0.5;          // distancia estricta para cerrar el ciclo de persecucion (chasing legacy)
-export const PROXIMITY_POSSESS_DIST = 0.4;      // fail-safe no-intrusivo: toma de posesion por proximidad (pelota suelta)
-export const GHOST_BALL_DIST = 0.2;             // pelota "fantasma": muy cerca pero sin owner registrado
+export const CHASE_POSSESS_DIST = toGameUnits(0.5);          // distancia estricta para cerrar el ciclo de persecucion (chasing legacy)
+export const PROXIMITY_POSSESS_DIST = toGameUnits(0.4);      // fail-safe no-intrusivo: toma de posesion por proximidad (pelota suelta)
+export const GHOST_BALL_DIST = toGameUnits(0.2);             // pelota "fantasma": muy cerca pero sin owner registrado
 export const GHOST_BALL_TIMEOUT = 0.5;          // 500ms pegada al jugador = fallo de colision fisica
-export const FORCED_CHASE_RECOVER_DIST = 0.8;   // distancia estricta para salir de forced_chase y recuperar posesion
+export const FORCED_CHASE_RECOVER_DIST = toGameUnits(0.8);   // distancia estricta para salir de forced_chase y recuperar posesion
 export const FORCED_CHASE_SPEED_MULT = 1.10;    // sprint forzado al 110% de la velocidad base del jugador
 export const FORCED_CHASE_LOCK_DURATION = 1.0;  // lockPlayerAssignment: 1s o hasta contacto con la pelota
 export const INTERCEPT_SIM_STEP = 0.04;         // paso de simulacion para prediccion de intercepcion (s)
@@ -281,7 +298,7 @@ export const PHYSICS_PRESETS = {
     maxSpeed: null,           // null = velocidades por rol (GK/DEF/MID/FWD)
     sideSpeed: null,          // null = sin tope eliptico lateral
     sprintMult: DEFAULT_SPRINT_MULT,
-    playerAccel: 14,
+    playerAccel: TARGET_SPRINT_MPS / SPRINT_ACCEL_TIME,
     accelRampDist: 0,         // 0 = sin rampa (arranque segun accel base)
     useUniformSpeed: false,
     usePredictiveIntersection: false,
@@ -301,13 +318,13 @@ export const PHYSICS_PRESETS = {
     camNearMult: 1.22,
     horizonShift: -0.035,
     viewExtentMult: 1.45,
-    animStrideSpeed: 7.4,
+    animStrideSpeed: null,
     maxJumpHeight: 0.40,
     airTime: 0.5,
-    maxSpeed: 6.56,           // 105 m / 16 s — velocidad de carrera reglamentaria 11vs11
-    sideSpeed: null,          // sin tope eliptico: 6.56 m/s en cualquier direccion al sprint
+    maxSpeed: TARGET_SPRINT_MPS,           // 50 m / 8 s = 6.25 m/s → 12.5 u/s
+    sideSpeed: null,          // sin tope eliptico: misma velocidad en cualquier direccion al sprint
     sprintMult: 1.0,
-    playerAccel: 13.12,       // 6.56 / 0.5 s — plena velocidad en medio segundo
+    playerAccel: TARGET_SPRINT_MPS / SPRINT_ACCEL_TIME, // 12.5 m/s² — plena velocidad en 0.5 s
     accelRampDist: 0,         // sin rampa por distancia (evita techo artificial bajo maxSpeed)
     useUniformSpeed: true,
     usePredictiveIntersection: true,
@@ -370,11 +387,14 @@ export function applyBallAirHorizontalDrag(b, dt){
 }
 
 export function getDefaultMaxSpeedForRole(role){
-  return role === 'GK' ? 5.4 : (role === 'FWD' ? 8.0 : 7.4);
+  const baseMps = TARGET_SPRINT_MPS / DEFAULT_SPRINT_MULT;
+  if(role === 'GK') return baseMps * (5.4 / 8.0);
+  if(role === 'FWD') return baseMps;
+  return baseMps * (7.4 / 8.0);
 }
 
 export function getDirectionalMaxSpeed(moveDir, moveMag, baseMax){
-  const sideMax = physicsConfig.sideSpeed;
+  const sideMax = physicsConfig.sideSpeed ? toGameUnits(physicsConfig.sideSpeed) : null;
   if(!sideMax || sideMax >= baseMax || moveMag <= 0.05) return baseMax;
   const mx = moveDir.x / moveMag;
   const my = moveDir.y / moveMag;
@@ -384,12 +404,12 @@ export function getDirectionalMaxSpeed(moveDir, moveMag, baseMax){
 
 export function applyPhysicsToPlayers(){
   for(const p of allPlayers){
-    p.accel = physicsConfig.playerAccel ?? 14;
+    p.accel = toGameUnits(physicsConfig.playerAccel ?? 14);
     if(physicsConfig.useUniformSpeed){
-      p.maxSpeedBase = physicsConfig.maxSpeed;
-      p.maxSpeed = physicsConfig.maxSpeed;
+      p.maxSpeedBase = toGameUnits(physicsConfig.maxSpeed);
+      p.maxSpeed = p.maxSpeedBase;
     } else {
-      p.maxSpeedBase = getDefaultMaxSpeedForRole(p.role);
+      p.maxSpeedBase = toGameUnits(getDefaultMaxSpeedForRole(p.role));
       p.maxSpeed = p.maxSpeedBase;
     }
     p.accelRampDist = 0;
@@ -405,15 +425,15 @@ export const TOUCH_KICK_REACH = 1.9;    // cuanto mas lejos llega la pierna en e
 // (antes 5: con eso un pase (X) o filtrado (triangulo) a maxima potencia practicamente no frenaba
 // nunca dentro de la cancha. Subido para que el roce del pasto se note, igual que ya se nota en
 // tiros/centros gracias a su drag aereo extra, sin pasarse de rosca)
-export const AIR_DRAG = 0.04;        // resistencia leve mientras esta en el aire (pases rasos/filtrados: casi no la sienten)
+export const AIR_DRAG = toGameUnits(0.04);        // resistencia aerea (coef. definido en m/s, escalado a unidades motor)
 
 // --- fisica EXTRA solo para tiros y centros (pases altos): sin esto, con suficiente potencia
 // cruzan toda la cancha en linea casi recta. Se suma encima de GRAVITY/AIR_DRAG de arriba, y NO
 // afecta a los pases rasos ni a los filtrados (quedan exactamente como estaban). Cada tipo tiene
 // su propia configuracion independiente (maxVelocity, drag y gravedad extra). ---
 export const AERIAL_PHYSICS = {
-  shot:  {maxSpeed:60, extraDrag:0.30, extraGravity:8}, // tiros: +50% tope aereo (antes 40)
-  cross: {maxSpeed:52, extraDrag:0.46, extraGravity:3.6}, // centros: +50% tope aereo (antes 35)
+  shot:  {maxSpeed: toGameUnits(60), extraDrag: toGameUnits(0.30), extraGravity: 8},
+  cross: {maxSpeed: toGameUnits(52), extraDrag: toGameUnits(0.46), extraGravity: 3.6},
 };
 export const CROSS_MARKER_LIFE = 1.5; // seg que se ve la cruz amarilla del pique del centro (boton circulo)
 export const CTRL_RADIUS = 1.0;      // radio de control de pelota de un jugador
@@ -448,7 +468,7 @@ export const BALL_CONTESTED_DURATION = STUN_IMPACT_DURATION; // zona de exclusio
 export const STAGGERED_DURATION = 1.0;     // seg: atacante desequilibrado tras perder posesion (1000ms)
 export const TACKLE_POSSESS_DELAY_MS = 50; // ms: retardo antes de asignar posesion post-tacle (evita race con IA)
 export const STUN_KNOCKBACK = 0.42;        // m/s: retroceso leve por impacto de tacle/barrida
-export const SLIDE_TACKLE_CARRY_SPEED = 5.2; // m/s: inercia hacia adelante tras barrida exitosa
+export const SLIDE_TACKLE_CARRY_SPEED = toGameUnits(5.2); // m/s: inercia tras barrida exitosa
 export const PLAYER_BODY_RADIUS = 0.31;  // radio del jugador (mitad de minD en resolveCollisions)
 export const TACKLE_BOX_SCALE = 1.5;     // hitbox frontal = 1.5x el tamano del jugador
 export const STUMBLE_DURATION = 0.42; // "cooling": al perder la pelota en una entrada/barrida/robo, el que la
@@ -456,15 +476,15 @@ export const STUMBLE_DURATION = 0.42; // "cooling": al perder la pelota en una e
 
 // --- entradas defensivas: entrada de pie (parada) y barrida (deslizamiento) ---
 export const STAND_TACKLE_DURATION = 0.26;  // seg que dura la animacion de la entrada de pie
-export const STAND_TACKLE_LUNGE = 0.55;     // metros que avanza durante la entrada de pie
-export const STAND_TACKLE_CARRY_SPEED = 5.5; // m/s: inercia hacia adelante tras tacle exitoso
-export const STAND_TACKLE_LOOSE_DEFLECT = 6.5; // m/s: desvio lateral si el contacto es lejano
+export const STAND_TACKLE_LUNGE = toGameUnits(0.55);     // metros que avanza durante la entrada de pie
+export const STAND_TACKLE_CARRY_SPEED = toGameUnits(5.5); // m/s: inercia tras tacle exitoso
+export const STAND_TACKLE_LOOSE_DEFLECT = toGameUnits(6.5); // m/s: desvio lateral si contacto lejano
 export const STAND_RECOVERY = 0.2;          // recuperacion tras entrada de pie (200ms)
 export const TACKLE_COOLDOWN = 0.2;         // cooldown base entre entradas defensivas (200ms)
 export const TACKLE_CHAIN_AFTER = 0.55;     // fraccion de anim: a partir de aqui se puede encadenar otra entrada
 
 export const SLIDE_DURATION = 0.5;          // 500ms: duracion fija del deslizamiento
-export const SLIDE_DISTANCE = 3.2;          // metros que se desliza el jugador
+export const SLIDE_DISTANCE = toGameUnits(3.2);          // metros que se desliza el jugador
 export const SLIDE_ACTIVE_START = 0.22;     // prog: inicio ventana activa del slideHitbox
 export const SLIDE_ACTIVE_END = 0.78;       // prog: fin ventana activa del slideHitbox
 export const SLIDE_LEG_REACH = 0.52;        // unidades: pie extendido adelante del torso (ver drawSlideTackle)
@@ -1954,7 +1974,7 @@ function advanceBallSimState(sim, dt){
 }
 
 function getChasePlanSpeed(p){
-  if(physicsConfig.useUniformSpeed) return Math.max(physicsConfig.maxSpeed, 0.1);
+  if(physicsConfig.useUniformSpeed) return Math.max(toGameUnits(physicsConfig.maxSpeed), 0.1);
   return Math.max(getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT, 0.1);
 }
 
@@ -2181,9 +2201,9 @@ export function updateGkPossessionTransitions(dt){
 }
 
 export function getPlayerMoveSpeedBase(p){
-  if(isGkFeetPossession(p)) return physicsConfig.gkFieldMaxSpeed ?? GK_FIELD_MAX_SPEED;
-  if(physicsConfig.useUniformSpeed) return physicsConfig.maxSpeed;
-  return p.maxSpeedBase;
+  if(isGkFeetPossession(p)) return toGameUnits(physicsConfig.gkFieldMaxSpeed ?? GK_FIELD_MAX_SPEED);
+  if(physicsConfig.useUniformSpeed) return p.maxSpeedBase ?? toGameUnits(physicsConfig.maxSpeed);
+  return p.maxSpeedBase ?? toGameUnits(getDefaultMaxSpeedForRole(p.role));
 }
 
 export function getPlayerMaxSprintVelocity(p){
@@ -3801,10 +3821,11 @@ export class Ball{
 
 export let PID = 1;
 export class Player{
-  constructor(team, role, slot, number){
+  constructor(team, role, slot, number, posRole = null){
     this.id = PID++;
     this.team = team; // 'home' | 'away'
     this.role = role; // 'GK','DEF','MID','FWD'
+    this.posRole = posRole || role; // rol tactico: LB, CDM, CAM, ST, etc.
     this.slot = slot; // posicion base normalizada {x,y} en coordenadas de cancha (para local; away se espeja)
     this.number = number;
     const spawn = team === 'home'
@@ -4000,19 +4021,37 @@ export const FORMATION_6VS6 = [
   {role:'FWD', slot:{x:68, y:49}, n:10},
 ];
 
+// 4-1-2-1-2: linea de 4, pivote (CDM), dos medios (CM), enganche (CAM), dos delanteros (ST)
 export const FORMATION_11VS11 = [
-  {role:'GK',  slot:{x:5,  y:34}, n:1},
-  {role:'DEF', slot:{x:22, y:12}, n:2},
-  {role:'DEF', slot:{x:22, y:26}, n:3},
-  {role:'DEF', slot:{x:22, y:42}, n:4},
-  {role:'DEF', slot:{x:22, y:56}, n:5},
-  {role:'MID', slot:{x:48, y:14}, n:6},
-  {role:'MID', slot:{x:48, y:26}, n:7},
-  {role:'MID', slot:{x:48, y:42}, n:8},
-  {role:'MID', slot:{x:48, y:54}, n:9},
-  {role:'FWD', slot:{x:72, y:24}, n:10},
-  {role:'FWD', slot:{x:72, y:44}, n:11},
+  {role:'GK',  posRole:'GK',  slot:{x:5,  y:34}, n:1},
+  {role:'DEF', posRole:'LB',  slot:{x:22, y:10}, n:2},
+  {role:'DEF', posRole:'LCB', slot:{x:22, y:24}, n:3},
+  {role:'DEF', posRole:'RCB', slot:{x:22, y:44}, n:4},
+  {role:'DEF', posRole:'RB',  slot:{x:22, y:58}, n:5},
+  {role:'MID', posRole:'CDM', slot:{x:38, y:34}, n:6},
+  {role:'MID', posRole:'CM',  slot:{x:52, y:16}, n:7},
+  {role:'MID', posRole:'CM',  slot:{x:52, y:52}, n:8},
+  {role:'MID', posRole:'CAM', slot:{x:62, y:34}, n:9},
+  {role:'FWD', posRole:'ST',  slot:{x:76, y:20}, n:10},
+  {role:'FWD', posRole:'ST',  slot:{x:76, y:48}, n:11},
 ];
+
+// Posiciones de arranque en saque de centro (mitad propia agrupada; ST cerca del centro)
+export const StartingPositionTable = {
+  '11vs11': {
+    1:  {x:6,  y:34},
+    2:  {x:14, y:10},
+    3:  {x:14, y:24},
+    4:  {x:14, y:44},
+    5:  {x:14, y:58},
+    6:  {x:20, y:34},
+    7:  {x:26, y:14},
+    8:  {x:26, y:54},
+    9:  {x:30, y:34},
+    10: {x:49, y:20},
+    11: {x:49, y:48},
+  },
+};
 
 export const FORMATIONS = {
   '6vs6': FORMATION_6VS6,
@@ -4026,7 +4065,7 @@ export function buildTeam(team, formationKey = '6vs6'){
   const sy = FIELD_W / BASE_FIELD_W;
   F.forEach(f=>{
     const slot = {x: f.slot.x * sx, y: f.slot.y * sy};
-    const p = new Player(team, f.role, slot, f.n);
+    const p = new Player(team, f.role, slot, f.n, f.posRole || f.role);
     arr.push(p);
   });
   return arr;
@@ -4061,7 +4100,79 @@ export const KICKOFF_TAKER_BALL_OFFSET = 0.85; // dentro de CTRL_RADIUS (1.0) pa
 export const KickoffManager = {
   timer: 0,
   executed: false,
+  occupationTimer: 0,
+  occupationTeam: null,
+  holdingCmId: null,
 };
+
+export function getKickoffStartingPosition(p, formationKey = '11vs11'){
+  const sx = FIELD_L / BASE_FIELD_L;
+  const sy = FIELD_W / BASE_FIELD_W;
+  const table = StartingPositionTable[formationKey];
+  const entry = table?.[p.number];
+  let slot;
+  if(entry){
+    slot = {x: entry.x * sx, y: entry.y * sy};
+  } else {
+    const s = p.targetSlotWorld();
+    const isStriker = p.posRole === 'ST' || (p.role === 'FWD' && p.posRole !== 'CAM');
+    if(isStriker){
+      slot = {x: s.x, y: s.y};
+    } else {
+      const halfLimit = p.team === 'home'
+        ? CENTER.x - KICKOFF_HALF_MARGIN
+        : CENTER.x + KICKOFF_HALF_MARGIN;
+      slot = {
+        x: p.team === 'home' ? Math.min(s.x, halfLimit) : Math.max(s.x, halfLimit),
+        y: s.y,
+      };
+    }
+  }
+  if(p.team === 'home') return slot;
+  return {x: FIELD_L - slot.x, y: FIELD_W - slot.y};
+}
+
+export function updateKickoffOccupationTimer(dt){
+  if(KickoffManager.occupationTimer <= 0) return;
+  KickoffManager.occupationTimer = Math.max(0, KickoffManager.occupationTimer - dt);
+  if(KickoffManager.occupationTimer <= 0){
+    KickoffManager.occupationTeam = null;
+    KickoffManager.holdingCmId = null;
+  }
+}
+
+export function isKickoffOccupationActive(team){
+  return KickoffManager.occupationTimer > 0 && KickoffManager.occupationTeam === team;
+}
+
+function getKickoffHoldingCm(team){
+  if(KickoffManager.holdingCmId){
+    const cached = allPlayers.find(pl => pl.id === KickoffManager.holdingCmId);
+    if(cached && cached.team === team && cached.posRole === 'CM') return cached;
+  }
+  const cms = (team === 'home' ? homeTeam : awayTeam).filter(pl => pl.posRole === 'CM');
+  if(!cms.length) return null;
+  const dir = team === 'home' ? 1 : -1;
+  const holding = cms.reduce((a, b) => {
+    const ax = a.targetSlotWorld().x * dir;
+    const bx = b.targetSlotWorld().x * dir;
+    return ax < bx ? a : b;
+  });
+  KickoffManager.holdingCmId = holding.id;
+  return holding;
+}
+
+export function applyKickoffOccupationTarget(p, target){
+  if(!isKickoffOccupationActive(p.team)) return target;
+  const mustHold = p.posRole === 'CAM' || (p.posRole === 'CM' && getKickoffHoldingCm(p.team) === p);
+  if(!mustHold) return target;
+  const dir = p.attackDir();
+  const ballLine = ball.x - dir * 1.2;
+  return {
+    x: dir > 0 ? Math.min(target.x, ballLine) : Math.max(target.x, ballLine),
+    y: target.y,
+  };
+}
 
 export function isKickoffActive(){
   return Game.matchState === STATE_KICKOFF;
@@ -4218,6 +4329,9 @@ export function clampKickoffDefenderPosition(p){
 export function resetKickoffManager(){
   KickoffManager.timer = 0;
   KickoffManager.executed = false;
+  KickoffManager.occupationTimer = 0;
+  KickoffManager.occupationTeam = null;
+  KickoffManager.holdingCmId = null;
 }
 
 export function enterKickoffState(kickingTeam, takerId){
@@ -4260,6 +4374,10 @@ export function cleanupKickoffState(taker){
     clearKickoffTakerState(kicker);
     registerRestartKick(kicker);
   }
+
+  KickoffManager.occupationTeam = Game.kickoffTeam;
+  KickoffManager.occupationTimer = KICKOFF_OCCUPATION_DURATION;
+  KickoffManager.holdingCmId = null;
 
   Game.matchState = STATE_PLAYING;
   Game.kickoffTeam = null;
@@ -4308,15 +4426,24 @@ export function updateKickoffManager(dt){
 }
 
 export function placeKickoff(kickingTeam){
+  const formationKey = Game.matchFormat === '11vs11' ? '11vs11' : '6vs6';
   allPlayers.forEach(p=>{
-    const s = p.targetSlotWorld();
-    // en el saque de mitad de cancha TODOS los jugadores deben arrancar de su propio lado. La misma
-    // formacion base (targetSlotWorld) se reutiliza tambien durante el juego normal para reacomodarse,
-    // y ahi si puede tener, por ejemplo, al delantero avanzado dentro de la mitad rival: sin este
-    // "clamp" especifico del saque, ese mismo jugador terminaba arrancando el saque del lado contrario.
-    const kx = p.team==='home'
-      ? Math.min(s.x, CENTER.x - KICKOFF_HALF_MARGIN)
-      : Math.max(s.x, CENTER.x + KICKOFF_HALF_MARGIN);
+    const s = getKickoffStartingPosition(p, formationKey);
+    // en el saque de mitad de cancha el equipo se agrupa en su mitad (StartingPositionTable),
+    // excepto los dos delanteros que quedan mas adelante cerca del centro para recibir el pase.
+    const isStriker = p.posRole === 'ST' || (p.role === 'FWD' && p.posRole !== 'CAM');
+    let kx = s.x;
+    if(!isStriker || p.team !== kickingTeam){
+      kx = p.team==='home'
+        ? Math.min(s.x, CENTER.x - KICKOFF_HALF_MARGIN)
+        : Math.max(s.x, CENTER.x + KICKOFF_HALF_MARGIN);
+    } else if(p.team === kickingTeam){
+      // delanteros del equipo sacador: pueden quedar cerca de la linea central
+      const forwardLimit = p.team === 'home'
+        ? CENTER.x - 0.5
+        : CENTER.x + 0.5;
+      kx = p.team === 'home' ? Math.min(s.x, forwardLimit) : Math.max(s.x, forwardLimit);
+    }
     p.x = kx; p.y = s.y; p.vx=0; p.vy=0;
     p.facing = p.team==='home'?0:Math.PI;
     syncPlayerDir(p);
@@ -4549,6 +4676,8 @@ export const Game = {
   matchFormat: '6vs6',    // '6vs6' | '11vs11' — formato activo del partido
   worldScale: 1,          // multiplicador de escala de cancha (1.6 en 11vs11)
   uiActive: false,        // true mientras un menú overlay consume el input
+  uiModeActive: false,    // true: PlayerController ignorado (Input Stack UI)
+  uiNavigationActive: false, // true: modo UI_NAVIGATION (menú / gamepad conectado)
   twoPlayerMode:false,   // true: jugador 2 controla al equipo VISITA con otro joystick (o teclado alternativo)
   controlledId2: null,
   manualOverrideUntil2: 0,
@@ -4826,7 +4955,11 @@ export function wireBridge(deps) {
 }
 
 export function isUIActive(){
-  return !!Game.uiActive;
+  return !!(Game.uiActive || Game.uiModeActive);
+}
+
+export function isUIModeActive(){
+  return !!(Game.uiModeActive || Game.uiActive || isPaused || Game.paused);
 }
 
 export function resetInputEdgeDetection() {

@@ -12,7 +12,20 @@ import {
 import {
   UI_MENU, initInputRouter, setUIMenu, routeInput, tickMenuScreenLoop,
   resetMenuScreenLoopClock, flushInputEvents, getActiveUIMenu,
+  enableUINavigationMode, syncMenuGamepadBaseline,
 } from './inputRouter.js';
+
+/** Fallbacks en window por si algún módulo de input aún no enlazó state.js. */
+function initInputEngineFallbacks(){
+  if(typeof window === 'undefined') return;
+  if(typeof window.isPlayerAssignmentLocked !== 'function'){
+    window.isPlayerAssignmentLocked = (p) => !!(p && p.lockPlayerAssignment);
+  }
+  if(typeof window.isPlayerSwitchLockedForEffort !== 'function'){
+    window.isPlayerSwitchLockedForEffort = () => false;
+  }
+}
+initInputEngineFallbacks();
 
 const CAM_PAN_LERP = 0.055;
 const CAM_CELEB_PAN_LERP = 0.14;
@@ -89,12 +102,21 @@ function updateFormatMenuSelectionVisual() {
 
 function isPadStandard(pad) { return !!pad && pad.mapping === 'standard'; }
 
+function getFirstMenuGamepad() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  if (Game.p1PadIndex != null && pads[Game.p1PadIndex]) return pads[Game.p1PadIndex];
+  for (let i = 0; i < pads.length; i++) {
+    if (pads[i]) return pads[i];
+  }
+  return null;
+}
+
 function getFirstStandardGamepad() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   for (let i = 0; i < pads.length; i++) {
     if (isPadStandard(pads[i])) return pads[i];
   }
-  return null;
+  return getFirstMenuGamepad();
 }
 
 function startMatchFromMenu() {
@@ -238,45 +260,59 @@ function updateCelebrationCamera() {
 
 function tick(ts) {
   requestAnimationFrame(tick);
-  if (!Game.running) { setLastTs(null); return; }
-  if (lastTs === null) setLastTs(ts);
-  let rawDt = (ts - lastTs) / 1000;
-  setLastTs(ts);
-  rawDt = Math.min(rawDt, 0.033);
-  const dt = rawDt * GLOBAL_TIME_SCALE;
-  setLastDt(dt);
 
-  routeInput(rawDt);
+  if (Game.running) {
+    if (lastTs === null) setLastTs(ts);
+    let rawDt = (ts - lastTs) / 1000;
+    setLastTs(ts);
+    rawDt = Math.min(rawDt, 0.033);
+    const dt = rawDt * GLOBAL_TIME_SCALE;
+    setLastDt(dt);
 
-  if (Game.celebration && typeof _updateCelebration === 'function') _updateCelebration(dt);
+    routeInput(rawDt);
 
-  if (!isPaused && !Game.paused) {
-    if (gameState === 'practice' || gameState === 'celebration_run') {
-      if (typeof _runGameplaySim === 'function') _runGameplaySim(dt, rawDt);
-    } else if (!Game.matchEnded) {
-      Game.time -= rawDt;
-      if (Game.time < 0) Game.time = 0;
-      updateClock();
-      if (Game.time <= 0) endMatch();
-      else if (typeof _runGameplaySim === 'function') _runGameplaySim(dt, rawDt);
+    if (Game.celebration && typeof _updateCelebration === 'function') _updateCelebration(dt);
+
+    if (!isPaused && !Game.paused) {
+      try {
+        if (gameState === 'practice' || gameState === 'celebration_run') {
+          if (typeof _runGameplaySim === 'function') _runGameplaySim(dt, rawDt);
+        } else if (!Game.matchEnded) {
+          Game.time -= rawDt;
+          if (Game.time < 0) Game.time = 0;
+          updateClock();
+          if (Game.time <= 0) endMatch();
+          else if (typeof _runGameplaySim === 'function') _runGameplaySim(dt, rawDt);
+        }
+      } catch (err) {
+        console.error('[tick] Error en simulación de gameplay:', err);
+        if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
+        if (typeof _renderFn === 'function') _renderFn();
+      }
     }
+  } else {
+    setLastTs(null);
+    // UI_Controller tiene prioridad aunque el partido no esté corriendo (menú / formato).
+    if (getActiveUIMenu() !== UI_MENU.NONE) routeInput(0.016);
   }
 
-  if (gameState === 'practice') {
-    PCAM.x = lerp(PCAM.x, practicePlayer.x - PCAM.behind, PCAM_PAN_LERP);
-    PCAM.laneY = lerp(PCAM.laneY, practicePlayer.y, PCAM_PAN_LERP);
-  } else if (gameState === 'celebration_run' && Game.celebrationRun?.scorer) {
-    const scorer = Game.celebrationRun.scorer;
-    CAM.x = lerp(CAM.x, clamp(scorer.x, 10, FIELD_L - 10), CAM_CELEB_PAN_LERP);
-  } else if (Game.celebration) {
-    updateCelebrationCamera();
-  } else {
-    const effortFocus = getEffortCameraFocusPlayer();
-    let targetCamX;
-    if (effortFocus) targetCamX = clamp(effortFocus.x, 10, FIELD_L - 10);
-    else if (!isEffortBallCameraLocked()) targetCamX = clamp(ball.x + ball.vx * 0.35, 10, FIELD_L - 10);
-    else targetCamX = CAM.x;
-    CAM.x = lerp(CAM.x, targetCamX, CAM_PAN_LERP);
+  if (Game.running) {
+    if (gameState === 'practice') {
+      PCAM.x = lerp(PCAM.x, practicePlayer.x - PCAM.behind, PCAM_PAN_LERP);
+      PCAM.laneY = lerp(PCAM.laneY, practicePlayer.y, PCAM_PAN_LERP);
+    } else if (gameState === 'celebration_run' && Game.celebrationRun?.scorer) {
+      const scorer = Game.celebrationRun.scorer;
+      CAM.x = lerp(CAM.x, clamp(scorer.x, 10, FIELD_L - 10), CAM_CELEB_PAN_LERP);
+    } else if (Game.celebration) {
+      updateCelebrationCamera();
+    } else {
+      const effortFocus = getEffortCameraFocusPlayer();
+      let targetCamX;
+      if (effortFocus) targetCamX = clamp(effortFocus.x, 10, FIELD_L - 10);
+      else if (!isEffortBallCameraLocked()) targetCamX = clamp(ball.x + ball.vx * 0.35, 10, FIELD_L - 10);
+      else targetCamX = CAM.x;
+      CAM.x = lerp(CAM.x, targetCamX, CAM_PAN_LERP);
+    }
   }
 
   if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
@@ -296,8 +332,14 @@ async function boot() {
   _assignInputSources = input.assignInputSources;
   _updateCelebration = gameplay.updateCelebration ?? null;
 
+  if(typeof window !== 'undefined'){
+    window.isPlayerAssignmentLocked = state.isPlayerAssignmentLocked;
+    window.isPlayerSwitchLockedForEffort = state.isPlayerSwitchLockedForEffort;
+  }
+
   initInputRouter({
-    getFirstPad: getFirstStandardGamepad,
+    getFirstPad: () => input.getFirstNavigationGamepad(),
+    clearInputBuffer: () => input.clearInputBuffer(),
     focusMain: () => { document.getElementById('startBtn')?.focus?.(); },
     focusFormat: () => { format6Btn?.focus?.(); },
     focusPause: () => { pauseContinueBtn?.focus?.(); },
@@ -318,6 +360,12 @@ async function boot() {
     refreshMainVisual: updateMainMenuSelectionVisual,
     refreshFormatVisual: updateFormatMenuSelectionVisual,
     refreshPauseVisual: updatePauseMenuSelectionVisual,
+  });
+
+  input.setGamepadConnectUIHandler(() => {
+    enableUINavigationMode();
+    input.resetGamepadState();
+    syncMenuGamepadBaseline(input.getFirstNavigationGamepad());
   });
 
   setUIMenu(UI_MENU.MAIN);
@@ -366,8 +414,8 @@ async function boot() {
     nearestToBall: gameplay.nearestToBall,
     resetNearestPlayerSelection: gameplay.resetNearestPlayerSelection,
     showBanner: gameplay.showBanner,
-    predictBallLanding: gameplay.predictBallLanding,
-    findPassReceiverByIntent: gameplay.findPassReceiverByIntent,
+    predictBallLanding: input.predictBallLanding,
+    findPassReceiverByIntent: input.findPassReceiverByIntent,
     getAerialPositionTarget: input.getAerialPositionTarget,
     isBallAerialLoose: input.isBallAerialLoose,
     clearChargingShotState: input.clearChargingShotState,
@@ -386,6 +434,12 @@ async function boot() {
 
   initAppChrome();
   updateMainMenuSelectionVisual();
+  if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
+  if (typeof _renderFn === 'function') _renderFn();
+  requestAnimationFrame(() => {
+    if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
+    if (typeof _renderFn === 'function') _renderFn();
+  });
   requestAnimationFrame(startScreenPadLoop);
   requestAnimationFrame(tick);
 }

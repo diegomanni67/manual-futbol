@@ -1,6 +1,6 @@
 "use strict";
 
-import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, getDirectionalMaxSpeed, physicsConfig } from './state.js';
+import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, physicsConfig, toGameUnits } from './state.js';
 
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DISTANCE, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 
@@ -16,7 +16,7 @@ import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisio
    FISICA / MOVIMIENTO DE JUGADORES (peso tipo eFootball: acelera y frena gradual)
    ============================================================ */
 const UNIFORM_LINEAR_ACCEL_TIME = 0.3; // 11vs11: tiempo maximo para alcanzar maxSpeed desde reposo
-const UNIFORM_LINEAR_ACCEL_FLOOR = 6.0; // por debajo de esto se fuerza aceleracion lineal en playing
+const UNIFORM_LINEAR_ACCEL_FLOOR_M = 6.0; // m/s reales: por debajo se fuerza aceleracion lineal
 const MOVE_STEP_DT_MIN = 1 / 120;
 const MOVE_STEP_DT_MAX = 1 / 20;
 
@@ -32,8 +32,10 @@ function clampMoveStepDt(dt){
 // aceleracion/desaceleracion gradual. La pelota NO se toca aqui: sigue anclada al pie via
 // updateBallPosition (usa p.facing/p.dir, no el vector de velocidad directamente).
 function getAccelRampCap(p){
-  if(!physicsConfig.accelRampDist || physicsConfig.accelRampDist <= 0) return 1;
-  const rampT = clamp((p.accelRampDist || 0) / physicsConfig.accelRampDist, 0, 1);
+  const rampMeters = physicsConfig.accelRampDist;
+  if(!rampMeters || rampMeters <= 0) return 1;
+  const rampDist = toGameUnits(rampMeters);
+  const rampT = clamp((p.accelRampDist || 0) / rampDist, 0, 1);
   const smoothRamp = rampT * rampT * (3 - 2 * rampT);
   return Math.max(0.12, smoothRamp);
 }
@@ -134,10 +136,11 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
 
     // 11vs11 + playing: aceleracion lineal (evita arranque ~1 m/s por lerp exponencial lento)
     if(isUniformPlayingMove() && sprint){
-      const uniformMax = physicsConfig.maxSpeed || 6.56;
+      const uniformMax = toGameUnits(physicsConfig.maxSpeed || TARGET_SPRINT_MPS);
       const curSp = Math.hypot(p.vx, p.vy);
       const tgtSp = Math.min(targetSpeed, uniformMax);
-      if(curSp < UNIFORM_LINEAR_ACCEL_FLOOR && tgtSp > curSp + 0.02){
+      const linearFloor = toGameUnits(UNIFORM_LINEAR_ACCEL_FLOOR_M);
+      if(curSp < linearFloor && tgtSp > curSp + toGameUnits(0.02)){
         const accelRate = uniformMax / UNIFORM_LINEAR_ACCEL_TIME;
         const boosted = Math.min(curSp + accelRate * dt, tgtSp);
         p.vx = Math.cos(newAngle) * boosted;
@@ -290,7 +293,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   const sprintActive = sprint || effortSprint;
   let maxSpeed;
   const speedLimiters = [];
-  const uniformMax = physicsConfig.maxSpeed;
+  const uniformMax = physicsConfig.maxSpeed ? toGameUnits(physicsConfig.maxSpeed) : null;
   if(physicsConfig.useUniformSpeed && uniformMax){
     // 11vs11: un solo tope (expectedMax) para todos los roles; sin FORCED_CHASE ni bonus por rol
     maxSpeed = uniformMax * (jockey ? 0.55 : 1.0);
@@ -439,7 +442,9 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   // hacia que las piernas se siguieran moviendo sin que el cuerpo avanzara — el clasico efecto de
   // "patinar" sobre el cesped. Ahora, si no hay desplazamiento real, el ciclo queda congelado.
   const strideLen = clamp(1.55*clamp(1.15-(mass-1)*0.4, 0.8, 1.25), 1.15, 1.95); // distancia (unidades) de una zancada completa
-  const animDrive = speed > 0.25 ? (physicsConfig.animStrideSpeed ?? speed) : 0;
+  const animDrive = speed > 0.25
+    ? (physicsConfig.animStrideSpeed != null ? toGameUnits(physicsConfig.animStrideSpeed) : speed)
+    : 0;
   p.animPhase += (animDrive * dt / strideLen) * Math.PI*2;
   // AMORTIGUACION DE REPOSO: cuando el jugador esta quieto (o casi), el ciclo de piernas ya no
   // avanza (arriba), pero para que no quede "congelado" a mitad de zancada, la AMPLITUD del vaiven
