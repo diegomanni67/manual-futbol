@@ -1,0 +1,89 @@
+  if(ball.state === BALL_STATE.IN_HAND){
+    const thrower = getPlayerById(ball.throwInOwnerId);
+    if(thrower) bindThrowInBall(thrower);
+  }
+}
+
+/* ============================================================
+   PELOTAS PARADAS — bloqueo de movimiento, ejecucion diferenciada, liberacion post-saque
+   ============================================================ */
+function clearPlayerSetPieceState(p){
+  if(!p) return;
+  p.canMove = true;
+  p.isStuck = false;
+  p.blockDribbling = false;
+  p.inSetPieceZone = false;
+}
+
+function setSetPieceMode(active, info){
+  Game.setPieceMode = !!active;
+  if(!active){
+    Game.setPiece = null;
+    Game.isBallInPlay = true;
+    ball.setPieceLaunchPos = null;
+    for(const p of allPlayers) clearPlayerSetPieceState(p);
+    return;
+  }
+  Game.isBallInPlay = false;
+  Game.setPiece = info || null;
+  ball.setPieceLaunchPos = null;
+  for(const p of allPlayers){
+    if(info && p.id === info.takerId){
+      p.inSetPieceZone = true;
+      p.canMove = false;
+      p.isStuck = true;
+      p.blockDribbling = !!(info.type === SET_PIECE.CORNER && ball.owner === p);
+    } else {
+      clearPlayerSetPieceState(p);
+    }
+  }
+}
+
+function onSetPieceBallReleased(){
+  if(!Game.setPieceMode) return;
+  Game.isBallInPlay = true;
+  ball.setPieceLaunchPos = {x: ball.x, y: ball.y};
+}
+
+function isSetPieceTaker(p){
+  return !!(p && Game.setPieceMode && Game.setPiece?.takerId === p.id);
+}
+
+function isSetPieceShotOnly(p){
+  if(!isSetPieceTaker(p)) return false;
+  const t = Game.setPiece?.type;
+  return t === SET_PIECE.CORNER || t === SET_PIECE.GOAL_KICK;
+}
+
+function refreshSetPieceBlockDribbling(){
+  if(!Game.setPieceMode || Game.setPiece?.type !== SET_PIECE.CORNER) return;
+  for(const p of allPlayers){
+    if(p.inSetPieceZone) p.blockDribbling = ball.owner === p;
+  }
+}
+
+function updateSetPieceRelease(){
+  refreshSetPieceBlockDribbling();
+  if(!Game.setPieceMode) return;
+
+  if(Game.setPiece?.type === SET_PIECE.THROW_IN){
+    const taker = getPlayerById(Game.setPiece.takerId);
+    if(taker && ball.state === BALL_STATE.IN_HAND){
+      taker.canMove = false;
+      taker.isStuck = true;
+      taker.inSetPieceZone = true;
+      return;
+    }
+  }
+
+  if(!Game.isBallInPlay || !ball.setPieceLaunchPos) return;
+  const lp = ball.setPieceLaunchPos;
+  const dist = Math.hypot(ball.x - lp.x, ball.y - lp.y);
+  if(dist >= SET_PIECE_UNSTICK_DIST) setSetPieceMode(false);
+}
+
+function triggerGoalkeeperSetPieceKick(p, kickType, aimDir, power){
+  if(!triggerGoalkeeperKick(p, kickType, aimDir)) return false;
+  if(p.gkKickAnim) p.gkKickAnim.power = power;
+  return true;
+}

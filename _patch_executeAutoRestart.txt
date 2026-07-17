@@ -1,0 +1,116 @@
+function performAutoSetPieceKick(taker){
+  if(!taker || !Game.setPiece) return false;
+  const sp = Game.setPiece;
+
+  if(sp.type === SET_PIECE.THROW_IN){
+    const forceKeys = ['short', 'medium', 'long'];
+    const forceKey = forceKeys[Math.floor(Math.random() * forceKeys.length)];
+    const power = 0.55 + Math.random() * 0.35;
+    executeSetPieceRelease(taker, forceKey, power, defaultSetPieceAimDir(taker));
+    return true;
+  }
+
+  if(sp.type !== SET_PIECE.GOAL_KICK && sp.type !== SET_PIECE.CORNER) return false;
+
+  resetSetPieceCharge();
+  const power = 0.55 + Math.random() * 0.35;
+  const gx = taker.oppGoalX();
+  const gy = CENTER.y + (Math.random() - 0.5) * 12;
+  const dir = norm({ x: gx - taker.x, y: gy - taker.y });
+
+  if(sp.type === SET_PIECE.GOAL_KICK && isGoalkeeper(taker)){
+    executeGoalKickRelease(taker, 'long', power, dir);
+    return true;
+  }
+
+  const kickType = sp.type === SET_PIECE.CORNER ? 'cross' : 'pass';
+  executeKick(taker, kickType, dir, power, 0);
+  return true;
+}
+
+function autoExecuteSetPiece(taker){
+  if(!taker || SetPieceManager.executed) return;
+  const sp = Game.setPiece;
+  if(!sp) return;
+  if(sp.type === SET_PIECE.GOAL_KICK || sp.type === SET_PIECE.CORNER){
+    SetPieceManager.executed = true;
+  }
+  performAutoSetPieceKick(taker);
+}
+
+function enterPlayingAfterAutoRestart(team){
+  Game.isBallInPlay = true;
+  ball.isReadyToKick = false;
+  for(const p of allPlayers) clearPlayerSetPieceState(p);
+
+  if(isHumanTeam(team)){
+    const targetId = getPassTargetId(team);
+    const receiver = (targetId ? getPlayerById(targetId) : null) || nearestToBall(team);
+    if(receiver){
+      const now = performance.now();
+      if(team === 'home'){
+        setControlled(receiver);
+        Game.manualOverrideUntil = now + LONGPASS_SWITCH_LOCK_MS;
+      } else {
+        setControlled2(receiver);
+        Game.manualOverrideUntil2 = now + LONGPASS_SWITCH_LOCK_MS;
+      }
+    }
+  }
+}
+
+function executeAutoRestart(){
+  const sp = Game.setPiece;
+  if(!sp) return;
+  if(sp.type !== SET_PIECE.GOAL_KICK && sp.type !== SET_PIECE.CORNER) return;
+
+  const taker = getPlayerById(sp.takerId);
+  if(!taker) return;
+
+  SetPieceManager.executed = true;
+  clearPlayerSetPieceState(taker);
+  if(isGoalkeeper(taker)) taker.gkBallCollidable = true;
+
+  if(!performAutoSetPieceKick(taker)) return;
+
+  enterPlayingAfterAutoRestart(sp.team);
+  showBanner(sp.type === SET_PIECE.CORNER ? 'Corner — auto-saque' : 'Saque de arco — auto-saque', 1400);
+}
+
+function transferPossessionToOpponent(){
+  const sp = Game.setPiece;
+  if(!sp || sp.type !== SET_PIECE.THROW_IN) return;
+
+  const rival = sp.team === 'home' ? 'away' : 'home';
+  const x = Game.throwIn?.x ?? sp.x ?? ball.x;
+  const side = Game.throwIn?.side ?? sp.side;
+
+  const taker = getPlayerById(sp.takerId);
+  if(taker){
+    taker.isThrowingIn = false;
+    taker.throwInAnim = null;
+    clearPlayerSetPieceState(taker);
+  }
+
+  resetSetPieceManager();
+  setSetPieceMode(false);
+  Game.throwIn = null;
+  ball.throwInOwnerId = null;
+  ball.throwInBlockOwnerId = null;
+
+  setupThrowIn({ type: SET_PIECE.THROW_IN, team: rival, side, x, fromY: ball.y });
+  showBanner('Saque lateral — rival', 1400);
+}
+
+function handleSetPieceTimeout(){
+  if(SetPieceManager.executed || Game.isBallInPlay) return;
+  const sp = Game.setPiece;
+  if(!sp) return;
+
+  const restartType = sp.type;
+  if(restartType === SET_PIECE.GOAL_KICK || restartType === SET_PIECE.CORNER){
+    executeAutoRestart();
+  } else if(restartType === SET_PIECE.THROW_IN){
+    transferPossessionToOpponent();
+  }
+}

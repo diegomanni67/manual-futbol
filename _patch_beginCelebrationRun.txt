@@ -1,0 +1,54 @@
+// BTN_A=siuu, BTN_B=topo, BTN_X=baile(robot), BTN_Y=mbappe (gamepad buttons 0..3)
+function pickCelebrationFestejo(input){
+  if(input.pressPass) return 'siuu';
+  if(input.pressCross) return 'topo';
+  if(input.pressShot) return 'robot';
+  if(input.pressThrough) return 'mbappe';
+  return null;
+}
+
+function triggerScorerCelebrationAnim(scorer, type){
+  if(!scorer || !isCelebrationMode) return;
+  scorer.tackleAnim = null;
+  scorer.diveAnim = null;
+  scorer.airStrikeAnim = null;
+  scorer.wallRun = null;
+  scorer.isMakingManualRun = false;
+  scorer.celebAnim = {type, t:0, realT:0};
+  scorer.vx = 0;
+  scorer.vy = 0;
+}
+
+function celebrationResumePressed(team){
+  if(!isHumanTeam(team)) return false;
+  const padIndex = team === 'home' ? Game.p1PadIndex : Game.p2PadIndex;
+  const padKey = team === 'home' ? 'p1' : 'p2';
+  const pad = getPadAt(padIndex);
+  if(!pad) return false;
+  const {justPressed} = padButtons(pad, padKey);
+  return !!justPressed[9]; // Start confirma reanudacion anticipada
+}
+
+function beginCelebrationRun(scorer, scoringTeam){
+  const goalScorer = resolveCelebrationScorer(scorer, scoringTeam);
+  if(!goalScorer) return;
+  gameState = 'celebration_run';
+  isPaused = false;
+  Game.paused = false;
+  goalScorer.celebAnim = null;
+  Game.celebrationRun = {
+    scorer: goalScorer,
+    scoringTeam,
+    timerMs: 0,
+  };
+  idleAllPlayersExceptScorer(goalScorer);
+  if(goalScorer.team === 'home') setControlled(goalScorer);
+  else setControlled2(goalScorer);
+}
+
+function finishCelebrationRun(scoringTeam){
+  isCelebrationMode = false;
+  hideGoalOverlay();
+  gameState = 'match';
+  Game.celebrationRun = null;
+  Game.celebration = null;

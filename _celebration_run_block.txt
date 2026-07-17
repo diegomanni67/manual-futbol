@@ -1,0 +1,163 @@
+function isCelebrationRunActive(){
+  return gameState === 'celebration_run' && !!Game.celebrationRun;
+}
+
+function resolveCelebrationScorer(scorer, scoringTeam){
+  if(scorer) return scorer;
+  const squad = scoringTeam === 'home' ? homeTeam : awayTeam;
+  const fieldPlayers = squad.filter(p => p.role !== 'GK');
+  if(!fieldPlayers.length) return squad[0] || null;
+  return fieldPlayers.reduce((a, b)=> dist2D(a, ball) < dist2D(b, ball) ? a : b);
+}
+
+function idleAllPlayersExceptScorer(scorer){
+  if(!scorer) return;
+  for(const p of allPlayers){
+    if(p === scorer) continue;
+    p.vx = 0;
+    p.vy = 0;
+    p.state = 'idle';
+    p.charging = null;
+    p.pendingKick = null;
+    p.pendingAction = null;
+    p.isChargingShot = false;
+    p.tackleAnim = null;
+    p.diveAnim = null;
+    p.airStrikeAnim = null;
+    p.wallRun = null;
+    p.feint = null;
+    p.dragBack = null;
+    p.gkKickAnim = null;
+  }
+}
+
+function celebrationInputActionPressed(input){
+  return !!(input.pressPass || input.pressShot || input.pressThrough || input.pressCross);
+}
+
+function beginCelebrationRun(scorer, scoringTeam){
+  const goalScorer = resolveCelebrationScorer(scorer, scoringTeam);
+  if(!goalScorer) return;
+  gameState = 'celebration_run';
+  isPaused = false;
+  Game.paused = false;
+  Game.celebrationRun = {
+    scorer: goalScorer,
+    scoringTeam,
+    timerMs: 0,
+    phase: 'run',
+    poseTimerMs: 0,
+    triggered: false,
+  };
+  idleAllPlayersExceptScorer(goalScorer);
+  if(goalScorer.team === 'home') setControlled(goalScorer);
+  else setControlled2(goalScorer);
+}
+
+function finishCelebrationRun(scoringTeam){
+  gameState = 'match';
+  Game.celebrationRun = null;
+  Game.celebration = null;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.vz = 0;
+  ball.curveFactor = 0;
+  ball.owner = null;
+  ball.state = BALL_STATE.FREE;
+  clearGoalNetTriggerState(ball);
+  resetGoalZoneTracking();
+  Game.isGoal = false;
+  ball.isGoal = false;
+  restartAfterGoal(scoringTeam);
+}
+
+function updateCelebrationRunCpuMovement(dt){
+  const cr = Game.celebrationRun;
+  if(!cr || cr.phase !== 'run') return;
+  const p = cr.scorer;
+  if(!p) return;
+  const md = {x: p.attackDir(), y: (Math.random() - 0.5) * 0.35};
+  movePlayer(p, dt, md, true, false);
+}
+
+function updateCelebrationRunControl(dt, input, team){
+  const cr = Game.celebrationRun;
+  if(!cr || cr.phase !== 'run' || cr.scorer.team !== team) return;
+  const p = cr.scorer;
+  syncStickDir(p, input.move);
+  movePlayer(p, dt, input.move, input.sprint, false);
+}
+
+function updateCelebrationRun(rawDt, dt){
+  const cr = Game.celebrationRun;
+  if(!cr || gameState !== 'celebration_run') return;
+
+  idleAllPlayersExceptScorer(cr.scorer);
+
+  if(cr.phase === 'run'){
+    cr.timerMs += rawDt * 1000;
+
+    if(isHumanTeam(cr.scoringTeam)){
+      const input = celebrationInputForTeam(cr.scoringTeam);
+      snapshotKeys();
+      if(celebrationInputActionPressed(input)){
+        cr.triggered = true;
+        cr.phase = 'pose';
+        cr.poseTimerMs = 0;
+        cr.scorer.vx = 0;
+        cr.scorer.vy = 0;
+        showBanner('¡GOOOOL!', CELEBRATION_POSE_EXTRA_MS + 400);
+        return;
+      }
+    } else {
+      updateCelebrationRunCpuMovement(dt);
+    }
+
+    if(cr.timerMs >= CELEBRATION_RUN_TIMEOUT_MS){
+      finishCelebrationRun(cr.scoringTeam);
+    }
+    return;
+  }
+
+  if(cr.phase === 'pose'){
+    cr.scorer.vx = 0;
+    cr.scorer.vy = 0;
+    cr.poseTimerMs += rawDt * 1000;
+    if(cr.poseTimerMs >= CELEBRATION_POSE_EXTRA_MS){
+      finishCelebrationRun(cr.scoringTeam);
+    }
+  }
+}
+
+function runCelebrationRunSim(dt, rawDt){
+  const prevBallX = ball.x;
+  const prevBallY = ball.y;
+
+  updateCelebrationRun(rawDt, dt);
+
+  const cr = Game.celebrationRun;
+  if(cr && cr.phase === 'run'){
+    if(isHumanTeam(cr.scoringTeam)){
+      const input = celebrationInputForTeam(cr.scoringTeam);
+      input.move = remapMoveForCamera(input.move);
+      if(cr.scoringTeam === 'home'){
+        updateCelebrationRunControl(dt, input, 'home');
+      } else {
+        updateCelebrationRunControl(dt, input, 'away');
+      }
+    } else {
+      updateCelebrationRunCpuMovement(dt);
+    }
+  }
+
+  idleAllPlayersExceptScorer(cr?.scorer);
+
+  ball.update(dt, allPlayers);
+  resolveGoalStructureCollisions(ball);
+  resolveBallGoalkeeperCollisions(ball);
+  resolveBoundaryWallCollisions(ball);
+  if(Game.goalRoll) updateGoalRoll(dt);
+  checkGoalsAndBounds(prevBallX, prevBallY, dt);
+  snapshotKeys();
+  finalizeBallFrame();
+}

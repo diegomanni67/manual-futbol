@@ -1,0 +1,476 @@
+[
+  {
+    "oldLen": 1358,
+    "neuLen": 2715,
+    "oldStart": "// Chequeo de proximidad con prioridad absoluta (antes de cualquier otra logica en Ball.update).\nfunction forceProximity",
+    "neuStart": "function syncTechnicallyBusy(p){\n  if(!p) return;\n  p.isTechnicallyBusy = !!(p.isEffortTouching || p.isFakeShooting || p.isMakingManualRun);\n}\n\nfunction distanceToBall(player, ballRef = ball){\n  retur"
+  },
+  {
+    "oldLen": 88,
+    "neuLen": 414,
+    "oldStart": "    this.isMakingManualRun = false; // true mientras corre el desmarque manual post L1+X",
+    "neuStart": "    this.isMakingManualRun = false; // true mientras corre el desmarque manual post L1+X\n    this.isEffortTouching = false;  // true durante effort touch (R1/R2) y recuperacion\n    this.isFakeShooting"
+  },
+  {
+    "oldLen": 226,
+    "neuLen": 282,
+    "oldStart": "function clearEffortSprintState(p){\n  if(!p) return;\n  p.isEffortSprinting = false;\n  p.isEffortTouchR1Active = false;\n ",
+    "neuStart": "function clearEffortSprintState(p){\n  if(!p) return;\n  p.isEffortSprinting = false;\n  p.isEffortTouchR1Active = false;\n  p.isEffortTouching = false;\n  p.maxSprintVelocity = 0;\n  p.maxVelocity = 0;\n  p"
+  },
+  {
+    "oldLen": 309,
+    "neuLen": 363,
+    "oldStart": "function completeFakeShot(p){\n  if(!isFakeShotActive) return;\n  isFakeShotActive = false;\n  fakeShotOwnerId = null;\n  Ga",
+    "neuStart": "function completeFakeShot(p){\n  if(!isFakeShotActive) return;\n  isFakeShotActive = false;\n  fakeShotOwnerId = null;\n  Game.isChargingShot = false;\n  if(!p) return;\n  p.isFakeShooting = false;\n  syncTe"
+  },
+  {
+    "oldLen": 63,
+    "neuLen": 118,
+    "oldStart": "  p.isEffortTouchR1Active = true;\n  p.isEffortSprinting = true;",
+    "neuStart": "  p.isEffortTouchR1Active = true;\n  p.isEffortTouching = true;\n  syncTechnicallyBusy(p);\n  p.isEffortSprinting = true;"
+  },
+  {
+    "oldLen": 182,
+    "neuLen": 237,
+    "oldStart": "  p.normalDribbleSpeed = getPlayerMoveSpeedBase(p) * 0.91;\n  p.maxSprintVelocity = getPlayerMaxSprintVelocity(p);\n  p.ma",
+    "neuStart": "  p.normalDribbleSpeed = getPlayerMoveSpeedBase(p) * 0.91;\n  p.maxSprintVelocity = getPlayerMaxSprintVelocity(p);\n  p.maxVelocity = p.maxSprintVelocity;\n  p.isEffortTouching = true;\n  syncTechnicallyB"
+  },
+  {
+    "oldLen": 103,
+    "neuLen": 156,
+    "oldStart": "  isFakeShotActive = true;\n  fakeShotOwnerId = p.id;\n\n  clearTeammateInterferenceForTechnicalAction(p);",
+    "neuStart": "  isFakeShotActive = true;\n  fakeShotOwnerId = p.id;\n  p.isFakeShooting = true;\n  syncTechnicallyBusy(p);\n\n  clearTeammateInterferenceForTechnicalAction(p);"
+  },
+  {
+    "oldLen": 300,
+    "neuLen": 326,
+    "oldStart": "function resetManualRunState(p){\n  if(!p) return;\n  p.isMakingManualRun = false;\n  p.hasRunDirectionLocked = false;\n  p.",
+    "neuStart": "function resetManualRunState(p){\n  if(!p) return;\n  p.isMakingManualRun = false;\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.defaultForwardVector = null;\n  p.directionListenTime"
+  },
+  {
+    "oldLen": 208,
+    "neuLen": 234,
+    "oldStart": "  p.isMakingManualRun = true;\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.defaultForwardVector = ",
+    "neuStart": "  p.isMakingManualRun = true;\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.defaultForwardVector = fwd;\n  p.directionListenTimer = MANUAL_RUN_LISTEN_T;\n  p.manualRunPadIndex = pad"
+  },
+  {
+    "oldLen": 187,
+    "neuLen": 213,
+    "oldStart": "  p.isMakingManualRun = true;\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.defaultForwardVector = ",
+    "neuStart": "  p.isMakingManualRun = true;\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.defaultForwardVector = null;\n  p.directionListenTimer = 0;\n  p.manualRunPadIndex = null;\n  syncTechnica"
+  },
+  {
+    "oldLen": 362,
+    "neuLen": 417,
+    "oldStart": "  activateSelfTouchCollectBlock(p);\n  activateIgnorePossession();\n\n  p.normalDribbleSpeed = getPlayerMoveSpeedBase(p) * ",
+    "neuStart": "  activateSelfTouchCollectBlock(p);\n  activateIgnorePossession();\n\n  p.normalDribbleSpeed = getPlayerMoveSpeedBase(p) * 0.91;\n  p.maxSprintVelocity = getPlayerMaxSprintVelocity(p);\n  p.maxVelocity = p"
+  },
+  {
+    "oldLen": 91,
+    "neuLen": 217,
+    "oldStart": "    p.wallRun = null;\n    p.isMakingManualRun = false;\n    p.hasRunDirectionLocked = false;",
+    "neuStart": "    p.wallRun = null;\n    p.isMakingManualRun = false;\n    p.isEffortTouching = false;\n    p.isFakeShooting = false;\n    p.isTechnicallyBusy = false;\n    p.ghostBallProximityT = 0;\n    p.hasRunDirecti"
+  },
+  {
+    "oldLen": 265,
+    "neuLen": 391,
+    "oldStart": "    p.airLock = null;\n    p.wallRun = null;\n    p.isMakingManualRun = false;\n    p.hasRunDirectionLocked = false;\n    p.",
+    "neuStart": "    p.airLock = null;\n    p.wallRun = null;\n    p.isMakingManualRun = false;\n    p.isEffortTouching = false;\n    p.isFakeShooting = false;\n    p.isTechnicallyBusy = false;\n    p.ghostBallProximityT = "
+  },
+  {
+    "oldLen": 85,
+    "neuLen": 111,
+    "oldStart": "  p.wallRun = null;\n  p.isMakingManualRun = false;\n  p.hasRunDirectionLocked = false;",
+    "neuStart": "  p.wallRun = null;\n  p.isMakingManualRun = false;\n  syncTechnicallyBusy(p);\n  p.hasRunDirectionLocked = false;"
+  },
+  {
+    "oldLen": 168,
+    "neuLen": 257,
+    "oldStart": "    this.isTechnicallyBusy = false; // grace period: bloquea fail-safe de proximidad\n    this.ghostBallProximityT = 0;  ",
+    "neuStart": "    this.isTechnicallyBusy = false; // grace period: bloquea fail-safe de proximidad\n    this.ghostBallProximityT = 0;   // acumulador para deteccion de pelota fantasma\n    this.runningSpeed = 0;     "
+  },
+  {
+    "oldLen": 84,
+    "neuLen": 2111,
+    "oldStart": "function startRemoteManualRun(p, padIndex){\n  const fwd = calculateForwardVector(p);",
+    "neuStart": "function getPlayerRunningSpeed(p){\n  return p.maxSpeedBase * MANUAL_RUN_SPEED_MULT;\n}\n\nfunction normalizeRunVector(v, p){\n  const len = Math.hypot(v.x, v.y);\n  if(len > 0) return {x: v.x / len, y: v.y"
+  },
+  {
+    "oldLen": 233,
+    "neuLen": 256,
+    "oldStart": "function captureManualRunDirection(p, padIndex){\n  if(p.hasRunDirectionLocked) return;\n  const rs = readRightStickForMan",
+    "neuStart": "function captureManualRunDirection(p, padIndex){\n  if(p.hasRunDirectionLocked) return;\n  const rs = readRightStickForManualRun(padIndex);\n  if(!rs) return;\n  p.lockedRunVector = normalizeRunVector({x:"
+  },
+  {
+    "oldLen": 339,
+    "neuLen": 332,
+    "oldStart": "    if(rs){\n      p.lockedRunVector = {x: rs.x, y: rs.y};\n      p.hasRunDirectionLocked = true;\n      p.directionListenT",
+    "neuStart": "    if(rs){\n      p.lockedRunVector = normalizeRunVector({x: rs.x, y: rs.y}, p);\n      p.hasRunDirectionLocked = true;\n      p.directionListenTimer = 0;\n      return true;\n    }\n    if(p.directionList"
+  },
+  {
+    "oldLen": 203,
+    "neuLen": 264,
+    "oldStart": "function getManualRunDirection(p){\n  if(p.hasRunDirectionLocked && p.lockedRunVector) return p.lockedRunVector;\n  if(p.w",
+    "neuStart": "function getManualRunDirection(p){\n  if(p.hasRunDirectionLocked && p.lockedRunVector) return {x: p.lockedRunVector.x, y: p.lockedRunVector.y};\n  if(p.wallRun && p.wallRun.dir) return {x: p.wallRun.dir"
+  },
+  {
+    "oldLen": 274,
+    "neuLen": 765,
+    "oldStart": "  if(!resolveManualRunDirection(p, dt, padIndex)) return;\n\n  const runDir = getManualRunDirection(p);\n  movePlayer(p, dt",
+    "neuStart": "  if(!resolveManualRunDirection(p, dt, padIndex)) return;\n\n  const runVector = computeManualRunCurvedVector(p);\n  const speed = getPlayerRunningSpeed(p);\n  p.runningSpeed = speed;\n  p.sprinting = true"
+  },
+  {
+    "oldLen": 161,
+    "neuLen": 222,
+    "oldStart": "function normalizeRunVector(v, p){\n  const len = Math.hypot(v.x, v.y);\n  if(len > 0) return {x: v.x / len, y: v.y / len}",
+    "neuStart": "function normalizeRunVector(v, p){\n  const len = Math.hypot(v.x, v.y);\n  if(len > 0) return {x: v.x / len, y: v.y / len};\n  if(!p) return {x: 1, y: 0};\n  const fb = calculateForwardVector(p);\n  return"
+  },
+  {
+    "oldLen": 395,
+    "neuLen": 759,
+    "oldStart": "const MANUAL_RUN_SPEED_MULT = 0.92;       // ligeramente por encima del trote (0.72), muy por debajo del sprint (1.42)\nc",
+    "neuStart": "const MANUAL_RUN_SPEED_MULT = 0.92;       // ligeramente por encima del trote (0.72), muy por debajo del sprint (1.42)\nconst MANUAL_RUN_CURVE_BIAS = 0.05;       // atraccion lateral hacia el espacio l"
+  },
+  {
+    "oldLen": 37,
+    "neuLen": 2034,
+    "oldStart": "function getOffensiveRunDirection(p){",
+    "neuStart": "function getForwardRunDirection(p){\n  const gdx = p.oppGoalX() - p.x;\n  const gdy = CENTER.y - p.y;\n  const gd = Math.hypot(gdx, gdy);\n  return gd > 0.01 ? {x: gdx / gd, y: gdy / gd} : {x: p.attackDir"
+  },
+  {
+    "oldLen": 2294,
+    "neuLen": 2195,
+    "oldStart": "function findManualRunOpenSpace(p){\n  const dir = p.attackDir();\n  const forwardDist = 12;\n  const lateralOptions = [-11",
+    "neuStart": "function findManualRunOpenSpace(p, ignorePartner){\n  const dir = p.attackDir();\n  const forwardDist = 12;\n  const lateralOptions = [-11, -6, -2, 2, 6, 11];\n  let carrier = null;\n  if(!ignorePartner){\n"
+  },
+  {
+    "oldLen": 927,
+    "neuLen": 1032,
+    "oldStart": "function captureManualRunDirection(p, padIndex){\n  if(p.hasRunDirectionLocked) return;\n  const rs = readRightStickForMan",
+    "neuStart": "function captureManualRunDirection(p, padIndex){\n  if(p.hasRunDirectionLocked || !canApplyManualRunStick(p)) return;\n  const rs = readRightStickForManualRun(padIndex);\n  if(!rs) return;\n  p.lockedRunV"
+  },
+  {
+    "oldLen": 893,
+    "neuLen": 1093,
+    "oldStart": "  const padIndex = p.manualRunPadIndex != null ? p.manualRunPadIndex : (p.team === 'home' ? Game.p1PadIndex : Game.p2Pad",
+    "neuStart": "  const padIndex = p.manualRunPadIndex != null ? p.manualRunPadIndex : (p.team === 'home' ? Game.p1PadIndex : Game.p2PadIndex);\n  tickManualRunGrace(p, dt);\n  if(!resolveManualRunDirection(p, dt, padI"
+  },
+  {
+    "oldLen": 31,
+    "neuLen": 37,
+    "oldStart": "        startManualRun(p, dir);",
+    "neuStart": "        startManualRun(p, dir, mate);"
+  },
+  {
+    "oldLen": 115,
+    "neuLen": 121,
+    "oldStart": "  const mate = nearestTeammateInDirection(p, dir) || bestWallPassTarget(p);\n  if(mate){\n    startManualRun(p, dir);",
+    "neuStart": "  const mate = nearestTeammateInDirection(p, dir) || bestWallPassTarget(p);\n  if(mate){\n    startManualRun(p, dir, mate);"
+  },
+  {
+    "oldLen": 129,
+    "neuLen": 214,
+    "oldStart": "function executeKick(p, type, aimDir, power, curve){\n  if(isGoalkeeper(p)) clearGkPossessionType(p);\n  clearEffortSprint",
+    "neuStart": "function executeKick(p, type, aimDir, power, curve){\n  if(isGoalkeeper(p)) clearGkPossessionType(p);\n  clearEffortSprintState(p);\n  p.isPowerLocked = false;\n  p.pendingAction = null;\n  p.isPreparingTo"
+  },
+  {
+    "oldLen": 4983,
+    "neuLen": 7003,
+    "oldStart": "/* ============================================================\n   BUFFER UNIVERSAL DE ACCION + ACCIONES AÉREAS (cabezaz",
+    "neuStart": "/* ============================================================\n   BUFFER UNIVERSAL DE ACCION + ACCIONES AÉREAS (cabezazo, volea, chilena)\n   =========================================================="
+  },
+  {
+    "oldLen": 141,
+    "neuLen": 192,
+    "oldStart": "  ball.highKick = false;\n  ball.highKickType = null;\n  if(p.pendingAction){\n    tryExecuteBufferedActionOnPossession(p);",
+    "neuStart": "  ball.highKick = false;\n  ball.highKickType = null;\n  if(p.pendingAction){\n    if(p.isPowerLocked) tryExecuteBufferedActionOnPossession(p);\n    else resetActionBuffer(p);\n  }\n  return true;\n}"
+  },
+  {
+    "oldLen": 184,
+    "neuLen": 204,
+    "oldStart": "  .pauseOption.selected{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;\n    outli",
+    "neuStart": "  .pauseOption.selected,.pauseOption.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;\n    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.4"
+  },
+  {
+    "oldLen": 443,
+    "neuLen": 488,
+    "oldStart": "const MENU_NAV_COOLDOWN_MS = 200;\nconst PAUSE_TOGGLE_COOLDOWN_MS = 350;\nconst MAIN_MENU_OPTION_COUNT = 3;\nconst PAUSE_ME",
+    "neuStart": "const MENU_NAV_COOLDOWN_MS = 200;\nconst PAUSE_TOGGLE_COOLDOWN_MS = 350;\nconst PAUSE_MENU_STICK_DEAD = 0.5;\nconst MAIN_MENU_OPTION_COUNT = 3;\nconst PAUSE_MENU_OPTION_COUNT = 3;\n\nlet currentMenuOption ="
+  },
+  {
+    "oldLen": 963,
+    "neuLen": 1288,
+    "oldStart": "function updatePauseMenuSelectionVisual(){\n  pauseOptionEls.forEach((btn, i)=>{\n    btn.classList.toggle('selected', i =",
+    "neuStart": "function updatePauseMenuSelectionVisual(){\n  pauseOptionEls.forEach((btn, i)=>{\n    const focused = i === menuFocusIndex;\n    btn.classList.toggle('selected', focused);\n    btn.classList.toggle('activ"
+  },
+  {
+    "oldLen": 162,
+    "neuLen": 176,
+    "oldStart": "function clearPauseGamepadState(){\n  prevPauseGamepad = { up:false, down:false, confirm:false, start:false };\n  pauseNav",
+    "neuStart": "function clearPauseGamepadState(){\n  prevPauseGamepad = { up:false, down:false, confirm:false, cancel:false, start:false };\n  pauseNavCooldown = 0;\n  pauseToggleCooldown = 0;\n}"
+  },
+  {
+    "oldLen": 1284,
+    "neuLen": 1624,
+    "oldStart": "function processPauseMenuGamepad(rawDt){\n  pauseNavCooldown = Math.max(0, pauseNavCooldown - rawDt * 1000);\n  const pad ",
+    "neuStart": "function handleMenuNavigation(pad, rawDt){\n  pauseNavCooldown = Math.max(0, pauseNavCooldown - rawDt * 1000);\n  pauseToggleCooldown = Math.max(0, pauseToggleCooldown - rawDt * 1000);\n\n  const edges = "
+  },
+  {
+    "oldLen": 153,
+    "neuLen": 149,
+    "oldStart": "pauseOptionEls.forEach((btn, i)=>{\n  btn.addEventListener('mouseenter', ()=>{\n    currentPauseOption = i;\n    updatePaus",
+    "neuStart": "pauseOptionEls.forEach((btn, i)=>{\n  btn.addEventListener('mouseenter', ()=>{\n    menuFocusIndex = i;\n    updatePauseMenuSelectionVisual();\n  });\n});"
+  },
+  {
+    "oldLen": 157,
+    "neuLen": 153,
+    "oldStart": "function pauseGame(){\n  syncPausedState(true);\n  currentPauseOption = 0;\n  showPauseMenu();\n  updatePauseMenuSelectionVi",
+    "neuStart": "function pauseGame(){\n  syncPausedState(true);\n  menuFocusIndex = 0;\n  showPauseMenu();\n  updatePauseMenuSelectionVisual();\n  clearPauseGamepadState();\n}"
+  },
+  {
+    "oldLen": 182,
+    "neuLen": 391,
+    "oldStart": "const SET_PIECE_ZONE_RADIUS = 2.0;     // radio de la zona designada para ejecutar la pelota parada\nconst SET_PIECE_TIME",
+    "neuStart": "const SET_PIECE_ZONE_RADIUS = 2.0;     // radio de la zona designada para ejecutar la pelota parada\nconst RESTART_TIME_LIMIT_MS = 3000;    // tiempo limite de espera para reinicios (corner, arco, late"
+  },
+  {
+    "oldLen": 36,
+    "neuLen": 2650,
+    "oldStart": "function transferThrowInOnTimeout(){",
+    "neuStart": "function clearActiveSetPieceTaker(){\n  const sp = Game.setPiece;\n  if(!sp) return;\n  const taker = getPlayerById(sp.takerId);\n  if(taker){\n    taker.isThrowingIn = false;\n    taker.throwInAnim = null;"
+  },
+  {
+    "oldLen": 302,
+    "neuLen": 353,
+    "oldStart": "function handleSetPieceTimeout(){\n  if(SetPieceManager.executed || Game.isBallInPlay) return;\n  const sp = Game.setPiece",
+    "neuStart": "function handleSetPieceTimeout(){\n  if(SetPieceManager.executed || Game.isBallInPlay) return;\n  const sp = Game.setPiece;\n  if(!sp) return;\n\n  SetPieceManager.executed = true;\n\n  if(sp.type === SET_PI"
+  },
+  {
+    "oldLen": 240,
+    "neuLen": 335,
+    "oldStart": "  if(setPieceWaiting && SetPieceManager.timer > 0){\n    ctx.fillStyle = '#ffd166';\n    ctx.font = 'bold 10px Arial';\n   ",
+    "neuStart": "  if(setPieceWaiting && SetPieceManager.timer > 0){\n    const urgent = SetPieceManager.timer <= SET_PIECE_COUNTDOWN_URGENT;\n    ctx.fillStyle = urgent ? '#ff5252' : '#fff';\n    ctx.font = 'bold 10px A"
+  },
+  {
+    "oldLen": 45,
+    "neuLen": 134,
+    "oldStart": "let gameState = 'menu';\nlet isPaused = false;",
+    "neuStart": "let gameState = 'menu';\nlet isCelebrationMode = false; // 5 s de carrera libre + festejos opcionales tras un gol\nlet isPaused = false;"
+  },
+  {
+    "oldLen": 360,
+    "neuLen": 893,
+    "oldStart": "  clearAllChasingStates();\n  if(!ownGoal) beginCelebrationRun(kicker, team);\n}\n\nconst CELEBRATION_RUN_TIMEOUT_MS = 5000;",
+    "neuStart": "  clearAllChasingStates();\n  showGoalOverlay(ownGoal ? '¡GOOOOL EN CONTRA!' : '¡GOOOOL!');\n  if(!ownGoal) triggerGoalCelebrationState(kicker, team);\n}\n\nconst CELEBRATION_MODE_MS = 5000; // ms exactos "
+  },
+  {
+    "oldLen": 773,
+    "neuLen": 1651,
+    "oldStart": "function celebrationInputActionPressed(input){\n  return !!(input.pressPass || input.pressShot || input.pressThrough || i",
+    "neuStart": "// BTN_A=siuu, BTN_B=topo, BTN_X=baile(robot), BTN_Y=mbappe (gamepad buttons 0..3)\nfunction pickCelebrationFestejo(input){\n  if(input.pressPass) return 'siuu';\n  if(input.pressCross) return 'topo';\n  "
+  },
+  {
+    "oldLen": 2175,
+    "neuLen": 2171,
+    "oldStart": "function updateCelebrationRunCpuMovement(dt){\n  const cr = Game.celebrationRun;\n  if(!cr || cr.phase !== 'run') return;\n",
+    "neuStart": "function updateCelebrationRunCpuMovement(dt){\n  const cr = Game.celebrationRun;\n  if(!cr || !isCelebrationMode) return;\n  const p = cr.scorer;\n  if(!p || p.celebAnim) return;\n  const md = {x: p.attack"
+  },
+  {
+    "oldLen": 136,
+    "neuLen": 164,
+    "oldStart": "  if(!gr.bannerShown && gr.bannerText && gr.ownGoal){\n    gr.bannerShown = true;\n    showBanner(gr.bannerText, gr.banner",
+    "neuStart": "  if(!gr.bannerShown && gr.bannerText && gr.ownGoal && !hideGoalOverlay._active){\n    gr.bannerShown = true;\n    showBanner(gr.bannerText, gr.bannerMs || 1300);\n  }"
+  },
+  {
+    "oldLen": 158,
+    "neuLen": 208,
+    "oldStart": "  Game.celebration = null;\n  Game.celebrationRun = null;\n  Game.crossMarker = null;\n  Game.landingPoint = null;\n  Game.a",
+    "neuStart": "  Game.celebration = null;\n  Game.celebrationRun = null;\n  isCelebrationMode = false;\n  hideGoalOverlay();\n  Game.crossMarker = null;\n  Game.landingPoint = null;\n  Game.airDuel = null;\n  Game.goalRoll"
+  },
+  {
+    "oldLen": 101,
+    "neuLen": 82,
+    "oldStart": "  celebrationRun: null, // {scorer, scoringTeam, timerMs, phase:'run'|'pose', poseTimerMs, triggered}",
+    "neuStart": "  celebrationRun: null, // {scorer, scoringTeam, timerMs} — carrera libre post-gol"
+  },
+  {
+    "oldLen": 83,
+    "neuLen": 133,
+    "oldStart": "  Game.celebration = null;\n  Game.celebrationRun = null;\n  Game.matchEnded = false;",
+    "neuStart": "  Game.celebration = null;\n  Game.celebrationRun = null;\n  isCelebrationMode = false;\n  hideGoalOverlay();\n  Game.matchEnded = false;"
+  },
+  {
+    "oldLen": 157,
+    "neuLen": 166,
+    "oldStart": "   ESTADO GLOBAL DEL JUEGO — 'menu' | 'match' | 'practice' | 'celebration_run'\n   (carrera libre del goleador tras un go",
+    "neuStart": "   ESTADO GLOBAL DEL JUEGO — 'menu' | 'match' | 'practice' | 'celebration_run'\n   (isCelebrationMode: 5 s de carrera libre del goleador + festejos opcionales A/B/X/Y)"
+  },
+  {
+    "oldLen": 198,
+    "neuLen": 394,
+    "oldStart": "    this.hasRunDirectionLocked = false; // true tras el primer flick del stick derecho (one-time capture)\n    this.locke",
+    "neuStart": "    this.hasRunDirectionLocked = false; // true tras el primer flick del stick derecho (one-time capture)\n    this.lockedRunVector = null; // direccion fija del desmarque; ya no lee el stick derecho\n "
+  },
+  {
+    "oldLen": 95,
+    "neuLen": 121,
+    "oldStart": "  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.defaultForwardVector = null;",
+    "neuStart": "  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  stopPointingForPass(p);\n  p.defaultForwardVector = null;"
+  },
+  {
+    "oldLen": 101,
+    "neuLen": 162,
+    "oldStart": "    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n    p.defaultForwardVector = null;",
+    "neuStart": "    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n    p.isPointingForPass = false;\n    p.pointingForPassT = 0;\n    p.defaultForwardVector = null;"
+  },
+  {
+    "oldLen": 94,
+    "neuLen": 153,
+    "oldStart": "    pl.isMakingManualRun = false; pl.hasRunDirectionLocked = false; pl.lockedRunVector = null;",
+    "neuStart": "    pl.isMakingManualRun = false; pl.hasRunDirectionLocked = false; pl.lockedRunVector = null;\n    pl.isPointingForPass = false; pl.pointingForPassT = 0;"
+  },
+  {
+    "oldLen": 88,
+    "neuLen": 171,
+    "oldStart": "  practicePlayer.hasRunDirectionLocked = false;\n  practicePlayer.lockedRunVector = null;",
+    "neuStart": "  practicePlayer.hasRunDirectionLocked = false;\n  practicePlayer.lockedRunVector = null;\n  practicePlayer.isPointingForPass = false;\n  practicePlayer.pointingForPassT = 0;"
+  },
+  {
+    "oldLen": 268,
+    "neuLen": 2042,
+    "oldStart": "function tickManualRunGrace(p, dt){\n  if(!p.wallRun || p.wallRun.graceT <= 0) return;\n  p.wallRun.graceT = Math.max(0, p",
+    "neuStart": "const POINTING_FOR_PASS_MAX_S = 2.0;\n\nfunction startPointingForPass(p){\n  if(!p || !p.isMakingManualRun) return;\n  p.isPointingForPass = true;\n  p.pointingForPassT = 0;\n}\n\nfunction stopPointingForPass"
+  },
+  {
+    "oldLen": 138,
+    "neuLen": 187,
+    "oldStart": "  p.isMakingManualRun = true;\n  p.hasRunDirectionLocked = shortStart;\n  p.lockedRunVector = shortStart ? getForwardRunDi",
+    "neuStart": "  p.isMakingManualRun = true;\n  if(shortStart){\n    lockManualRunDirection(p, getForwardRunDirection(p));\n  } else {\n    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n  }"
+  },
+  {
+    "oldLen": 143,
+    "neuLen": 169,
+    "oldStart": "function resetManualRunState(p){\n  if(!p) return;\n  p.isMakingManualRun = false;\n  p.hasRunDirectionLocked = false;\n  p.",
+    "neuStart": "function resetManualRunState(p){\n  if(!p) return;\n  stopPointingForPass(p);\n  p.isMakingManualRun = false;\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;"
+  },
+  {
+    "oldLen": 286,
+    "neuLen": 259,
+    "oldStart": "function captureManualRunDirection(p, padIndex){\n  if(p.hasRunDirectionLocked || !canApplyManualRunStick(p)) return;\n  c",
+    "neuStart": "function captureManualRunDirection(p, padIndex){\n  if(p.hasRunDirectionLocked || !canApplyManualRunStick(p)) return;\n  const rs = readRightStickForManualRun(padIndex);\n  if(!rs) return;\n  lockManualRu"
+  },
+  {
+    "oldLen": 361,
+    "neuLen": 299,
+    "oldStart": "    if(rs && canApplyManualRunStick(p)){\n      p.lockedRunVector = normalizeRunVector({x: rs.x, y: rs.y}, p);\n      p.ha",
+    "neuStart": "    if(rs && canApplyManualRunStick(p)){\n      lockManualRunDirection(p, normalizeRunVector({x: rs.x, y: rs.y}, p));\n      p.directionListenTimer = 0;\n      return true;\n    }\n    if(p.directionListen"
+  },
+  {
+    "oldLen": 314,
+    "neuLen": 394,
+    "oldStart": "  const lostToOpponent = ball.lastTouchTeam && ball.lastTouchTeam !== p.team;\n  if(p.wallRun.timer<=0 || reachedBoxHeigh",
+    "neuStart": "  const lostToOpponent = ball.lastTouchTeam && ball.lastTouchTeam !== p.team;\n  if(p.wallRun.timer<=0 || reachedBoxHeight || lostToOpponent){\n    if(lostToOpponent) stopPointingForPass(p);\n    resetMa"
+  },
+  {
+    "oldLen": 152,
+    "neuLen": 209,
+    "oldStart": "  p.isMakingManualRun = false;\n  syncTechnicallyBusy(p);\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n",
+    "neuStart": "  p.isMakingManualRun = false;\n  syncTechnicallyBusy(p);\n  p.hasRunDirectionLocked = false;\n  p.lockedRunVector = null;\n  p.isPointingForPass = false;\n  p.pointingForPassT = 0;\n  p.defaultForwardVecto"
+  },
+  {
+    "oldLen": 132,
+    "neuLen": 193,
+    "oldStart": "    p.ghostBallProximityT = 0;\n    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n    p.defaultForwardVe",
+    "neuStart": "    p.ghostBallProximityT = 0;\n    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n    p.isPointingForPass = false;\n    p.pointingForPassT = 0;\n    p.defaultForwardVector = null;"
+  },
+  {
+    "oldLen": 134,
+    "neuLen": 195,
+    "oldStart": "    p.isMakingManualRun = false;\n    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n    p.defaultForward",
+    "neuStart": "    p.isMakingManualRun = false;\n    p.hasRunDirectionLocked = false;\n    p.lockedRunVector = null;\n    p.isPointingForPass = false;\n    p.pointingForPassT = 0;\n    p.defaultForwardVector = null;"
+  },
+  {
+    "oldLen": 520,
+    "neuLen": 573,
+    "oldStart": "function applyPassPointArmOverlay(p, armA, armB){\n  if(!p.isPointingForPass || !p.lockedRunVector) return {armA, armB, h",
+    "neuStart": "function applyPassPointArmOverlay(p, armA, armB){\n  if(!p.isPointingForPass || !p.lockedRunVector) return {armA, armB, headYaw: 0, pointLeft: false};\n  const runWorld = Math.atan2(p.lockedRunVector.y,"
+  },
+  {
+    "oldLen": 470,
+    "neuLen": 445,
+    "oldStart": "  let headYaw = 0;\n  let pointWristA = wristA, pointWristB = wristB;\n  if(p.isPointingForPass && p.isMakingManualRun && ",
+    "neuStart": "  let headYaw = 0;\n  let pointWristA = wristA, pointWristB = wristB;\n  if(p.isPointingForPass && p.isMakingManualRun && !prepping && !kicking && !feinting && !draggingBack && !throwingIn){\n    const o"
+  },
+  {
+    "oldLen": 1007,
+    "neuLen": 3535,
+    "oldStart": "function autoExecuteSetPiece(taker){\n  if(!taker || SetPieceManager.executed) return;\n  const sp = Game.setPiece;\n  if(!",
+    "neuStart": "function performAutoSetPieceKick(taker){\n  if(!taker || !Game.setPiece) return false;\n  const sp = Game.setPiece;\n\n  if(sp.type === SET_PIECE.THROW_IN){\n    const forceKeys = ['short', 'medium', 'long"
+  },
+  {
+    "oldLen": 1942,
+    "neuLen": 36,
+    "oldStart": "function handleCornerKick(){\n  const sp = Game.setPiece;\n  if(!sp || sp.type !== SET_PIECE.CORNER) return;\n  const rival",
+    "neuStart": "function restartSetPieceForTeam(db){"
+  },
+  {
+    "oldLen": 1967,
+    "neuLen": 61,
+    "oldStart": "  });\n}\n\nfunction handleCornerKick(){\n  const sp = Game.setPiece;\n  if(!sp || sp.type !== SET_PIECE.CORNER) return;\n  co",
+    "neuStart": "  });\n}\n\nfunction handleSetPiecePowerInput(p, input, aimDir){"
+  },
+  {
+    "oldLen": 389,
+    "neuLen": 506,
+    "oldStart": "function showGoalOverlay(text){\n  hideGoalOverlay._active = true;\n  const el = document.getElementById('banner');\n  el.t",
+    "neuStart": "function showGoalOverlay(text){\n  hideGoalOverlay._active = true;\n  const el = document.getElementById('goal-message');\n  if(!el) return;\n  el.textContent = text || '¡GOOOOL!';\n  el.style.display = 'b"
+  },
+  {
+    "oldLen": 321,
+    "neuLen": 702,
+    "oldStart": "function triggerScorerCelebrationAnim(scorer, type){\n  if(!scorer || !isCelebrationMode) return;\n  scorer.tackleAnim = n",
+    "neuStart": "function triggerScorerCelebrationAnim(scorer, type){\n  if(!scorer || !isCelebrationMode) return;\n  hideGoalOverlay(); // hide-on-input: mismo frame que la animacion del festejo\n  scorer.tackleAnim = n"
+  },
+  {
+    "oldLen": 280,
+    "neuLen": 216,
+    "oldStart": "  if(isHumanTeam(cr.scoringTeam)){\n    const input = celebrationInputForTeam(cr.scoringTeam);\n    snapshotKeys();\n    co",
+    "neuStart": "  if(isHumanTeam(cr.scoringTeam)){\n    const input = celebrationInputForTeam(cr.scoringTeam);\n    snapshotKeys();\n    handleCelebrationFestejoInput(cr.scorer, input);\n    if(celebrationResumePressed(c"
+  },
+  {
+    "oldLen": 163,
+    "neuLen": 78,
+    "oldStart": "function showBanner(text, ms){\n  if(hideGoalOverlay._active) return; // no pisar el cartel de GOOOL durante festejo\n  co",
+    "neuStart": "function showBanner(text, ms){\n  const el = document.getElementById('banner');"
+  },
+  {
+    "oldLen": 81,
+    "neuLen": 80,
+    "oldStart": "  if(!gr.bannerShown && gr.bannerText && gr.ownGoal && !hideGoalOverlay._active){",
+    "neuStart": "  if(!gr.bannerShown && gr.bannerText && gr.ownGoal && !isGoalOverlayVisible()){"
+  },
+  {
+    "oldLen": 299,
+    "neuLen": 300,
+    "oldStart": "function handleCelebrationFestejoInput(scorer, input){\n  const festejo = pickCelebrationFestejo(input);\n  if(!festejo) r",
+    "neuStart": "function handleCelebrationFestejoInput(scorer, input){\n  const festejo = pickCelebrationFestejo(input);\n  if(!festejo) return false;\n  const goalEl = document.getElementById('goal-message');\n  if(goal"
+  },
+  {
+    "oldLen": 100,
+    "neuLen": 166,
+    "oldStart": "  assignPassTargetFromKick(p, dir, type, power);\n  if(Game.setPieceMode) onSetPieceBallReleased();\n}",
+    "neuStart": "  assignPassTargetFromKick(p, dir, type, power);\n  setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);\n  if(Game.setPieceMode) onSetPieceBallReleased();\n}"
+  },
+  {
+    "oldLen": 178,
+    "neuLen": 224,
+    "oldStart": "  applyBallLateralCurve(b, dt);\n  const onGround = b.z <= BALL_RADIUS+0.02;\n  let sp = Math.hypot(b.vx, b.vy);\n  if(onGr",
+    "neuStart": "  applyBallLateralCurve(b, dt);\n  const onGround = b.z <= BALL_RADIUS+0.02;\n  let sp = Math.hypot(b.vx, b.vy);\n  if(onGround){\n    if(sp < CURVE_CUT_MIN_SPEED){\n      b.curveFactor = 0;\n      clearCur"
+  },
+  {
+    "oldLen": 309,
+    "neuLen": 180,
+    "oldStart": "  // en el instante justo en que aterriza y abre los brazos (t cruza 0.9), se dispara UNA vez el\n  // cartelón en pantal",
+    "neuStart": "  // en el instante justo en que aterriza y abre los brazos (t cruza 0.9), cartel \"Siuuuuuu!\"\n  if(a.type==='siuu' && prevT<0.9 && a.t>=0.9){\n    showBanner('Siuuuuuu!', 2200);\n  }"
+  }
+]
