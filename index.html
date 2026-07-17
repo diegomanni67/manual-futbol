@@ -80,6 +80,18 @@
   .padPanel .p2tag{color:#ff9d00;font-weight:700;}
   .swapbtn{padding:6px 14px;font-size:11px;color:#cfe;background:#00000055;border:1px solid #2a2;
     border-radius:6px;cursor:pointer;}
+  .formatScreen{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0d3b1e,#02120a 75%);
+    display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:25;}
+  .formatScreen h2{margin:0 0 8px;font-size:32px;letter-spacing:2px;color:#ffd166;}
+  .formatScreen p{margin:0 0 22px;opacity:.8;font-size:14px;max-width:520px;text-align:center;line-height:1.5;}
+  .formatSelect{display:flex;gap:18px;margin-bottom:18px;}
+  .formatbtn{padding:14px 28px;font-size:16px;font-weight:700;color:#cfe;background:#00000055;
+    border:1px solid #2a2;border-radius:8px;cursor:pointer;letter-spacing:.5px;min-width:160px;}
+  .formatbtn span{display:block;font-weight:400;font-size:11px;opacity:.75;margin-top:4px;}
+  .formatbtn.selected,.formatbtn.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;
+    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.45);}
+  .formatBackBtn{padding:8px 18px;font-size:13px;color:#cfe;background:#00000055;border:1px solid #556;
+    border-radius:8px;cursor:pointer;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -164,6 +176,16 @@
 
   <button class="startbtn" id="startBtn">JUGAR</button>
   <button class="practicebtn" id="practiceBtn" type="button">🎯 ARENA DE PRÁCTICA <span>cámara en tercera persona, remates libres sin rival</span></button>
+</div>
+
+<div class="formatScreen" id="formatScreen">
+  <h2>FORMATO DE PARTIDO</h2>
+  <p>Elegí el tamaño del equipo. En 11 vs 11 se aplican físicas realistas de cancha reglamentaria (105×68 m).</p>
+  <div class="formatSelect">
+    <button class="formatbtn selected" id="format6Btn" type="button">6 vs 6 <span>Formación 2-1-2 · físicas estándar</span></button>
+    <button class="formatbtn" id="format11Btn" type="button">11 vs 11 <span>Formación 4-4-2 · velocidades y salto realistas</span></button>
+  </div>
+  <button class="formatBackBtn" id="formatBackBtn" type="button">← Volver</button>
 </div>
 
 <div class="pauseOverlay" id="pauseOverlay">

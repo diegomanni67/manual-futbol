@@ -5,29 +5,26 @@ import {
   ball, CAM, PCAM, FIELD_L, lastTs, lastDt, practicePlayer,
   clamp, lerp,
   resetMatchForStart, setupPractice, resetPractice, updateClock, endMatch, bindBallBeforeRender,
-  setLastTs, setLastDt, setGameState, setIsPaused,
+  setLastTs, setLastDt, setGameState, setIsPaused, setGameMode,
   setControlled, setControlled2, nearestToBall,
 } from './state.js';
+
+import {
+  UI_MENU, initInputRouter, setUIMenu, routeInput, tickMenuScreenLoop,
+  resetMenuScreenLoopClock, flushInputEvents, getActiveUIMenu,
+} from './inputRouter.js';
 
 const CAM_PAN_LERP = 0.055;
 const CAM_CELEB_PAN_LERP = 0.14;
 const PCAM_PAN_LERP = 0.09;
 
-// ── Menú / pausa (sin export anidados) ────────────────────────────────────
-const MENU_NAV_COOLDOWN_MS = 200;
-const PAUSE_TOGGLE_COOLDOWN_MS = 350;
-const PAUSE_MENU_STICK_DEAD = 0.5;
 const MAIN_MENU_OPTION_COUNT = 3;
 const PAUSE_MENU_OPTION_COUNT = 3;
+const FORMAT_MENU_OPTION_COUNT = 2;
 
 let currentMenuOption = 0;
 let menuFocusIndex = 0;
-let menuNavCooldown = 0;
-let pauseNavCooldown = 0;
-let pauseToggleCooldown = 0;
-let prevMenuGamepad = { up:false, down:false, confirm:false };
-let prevPauseGamepad = { up:false, down:false, confirm:false, cancel:false, start:false };
-let lastMenuLoopTs = null;
+let formatMenuOption = 0;
 
 const mode1pBtn = document.getElementById('mode1pBtn');
 const mode2pBtn = document.getElementById('mode2pBtn');
@@ -41,12 +38,16 @@ const pauseRestartBtn = document.getElementById('pauseRestartBtn');
 const pauseMenuBtn = document.getElementById('pauseMenuBtn');
 const pauseOptionEls = [pauseContinueBtn, pauseRestartBtn, pauseMenuBtn];
 const startScreenEl = document.getElementById('startScreen');
+const formatScreenEl = document.getElementById('formatScreen');
+const format6Btn = document.getElementById('format6Btn');
+const format11Btn = document.getElementById('format11Btn');
+const formatBackBtn = document.getElementById('formatBackBtn');
+const formatOptionEls = [format6Btn, format11Btn];
 
 function syncPausedState(v) { setIsPaused(v); Game.paused = v; }
 function showPauseMenu() { pauseOverlayEl.style.display = 'flex'; }
 function hidePauseMenu() { pauseOverlayEl.style.display = 'none'; }
 
-// Referencias asignadas en boot() — evita imports circulares
 let _runGameplaySim = null;
 let _renderFn = null;
 let _bindBallBeforeRender = null;
@@ -79,6 +80,13 @@ function updatePauseMenuSelectionVisual() {
   });
 }
 
+function updateFormatMenuSelectionVisual() {
+  formatOptionEls.forEach((btn, i) => {
+    btn.classList.toggle('selected', i === formatMenuOption);
+    btn.classList.toggle('active', i === formatMenuOption);
+  });
+}
+
 function isPadStandard(pad) { return !!pad && pad.mapping === 'standard'; }
 
 function getFirstStandardGamepad() {
@@ -89,97 +97,105 @@ function getFirstStandardGamepad() {
   return null;
 }
 
-function readGamepadMenuEdges(pad, prev) {
-  const stickY = pad.axes[1] || 0;
-  const up = !!(pad.buttons[12] && pad.buttons[12].pressed) || stickY < -PAUSE_MENU_STICK_DEAD;
-  const down = !!(pad.buttons[13] && pad.buttons[13].pressed) || stickY > PAUSE_MENU_STICK_DEAD;
-  const confirm = !!(pad.buttons[0] && pad.buttons[0].pressed);
-  const cancel = !!(pad.buttons[1] && pad.buttons[1].pressed);
-  const start = !!(pad.buttons[9] && pad.buttons[9].pressed);
-  const edges = { up: up && !prev.up, down: down && !prev.down, confirm: confirm && !prev.confirm, cancel: cancel && !prev.cancel, start: start && !prev.start };
-  prev.up = up; prev.down = down; prev.confirm = confirm; prev.cancel = cancel; prev.start = start;
-  return edges;
-}
-
-function stepMenuOption(idx, dir, count) { return (idx + dir + count) % count; }
-
 function startMatchFromMenu() {
   document.getElementById('startScreen').style.display = 'none';
+  if (formatScreenEl) formatScreenEl.style.display = 'none';
   document.getElementById('scoreboard').style.display = 'flex';
   document.getElementById('practiceHud').style.display = 'none';
   document.getElementById('practiceLabel').style.display = 'none';
+  setUIMenu(UI_MENU.NONE);
+  resetMenuScreenLoopClock();
   Game.padsLocked = true;
   resetMatchForStart();
   if (typeof nearestToBall === 'function') setControlled(nearestToBall('home'));
   if (Game.twoPlayerMode && typeof nearestToBall === 'function') setControlled2(nearestToBall('away'));
   Game.running = true;
+  flushInputEvents();
   if (typeof _assignInputSources === 'function') _assignInputSources();
+}
+
+function showFormatScreen() {
+  document.getElementById('startScreen').style.display = 'none';
+  formatScreenEl.style.display = 'flex';
+  formatMenuOption = 0;
+  updateFormatMenuSelectionVisual();
+  setUIMenu(UI_MENU.FORMAT);
+}
+
+function hideFormatScreen() {
+  formatScreenEl.style.display = 'none';
+  document.getElementById('startScreen').style.display = '';
+  setUIMenu(UI_MENU.MAIN);
+}
+
+function startMatchWithFormat(modeId) {
+  setGameMode(modeId);
+  startMatchFromMenu();
 }
 
 function startPracticeFromMenu() {
   document.getElementById('startScreen').style.display = 'none';
+  setUIMenu(UI_MENU.NONE);
+  resetMenuScreenLoopClock();
+  flushInputEvents();
   setupPractice();
 }
 
 function returnToMainMenu() {
   Game.running = false;
   setGameState('menu');
+  syncPausedState(false);
+  hidePauseMenu();
   document.getElementById('startScreen').style.display = '';
+  if (formatScreenEl) formatScreenEl.style.display = 'none';
   document.getElementById('practiceLabel').style.display = 'none';
   document.getElementById('practiceHud').style.display = 'none';
   document.getElementById('scoreboard').style.display = '';
+  setUIMenu(UI_MENU.MAIN);
 }
 
-function pauseGame() { syncPausedState(true); showPauseMenu(); menuFocusIndex = 0; updatePauseMenuSelectionVisual(); }
-function resumeFromPause() { syncPausedState(false); hidePauseMenu(); }
+function pauseGame() {
+  syncPausedState(true);
+  showPauseMenu();
+  menuFocusIndex = 0;
+  updatePauseMenuSelectionVisual();
+  setUIMenu(UI_MENU.PAUSE);
+}
+
+function resumeFromPause() {
+  hidePauseMenu();
+  syncPausedState(false);
+  setUIMenu(UI_MENU.NONE);
+  flushInputEvents();
+}
 
 function executePauseMenuOption(index) {
   if (index === 0) resumeFromPause();
-  else if (index === 1) { hidePauseMenu(); syncPausedState(false); resetMatchForStart(); startMatchFromMenu(); }
+  else if (index === 1) { hidePauseMenu(); syncPausedState(false); setUIMenu(UI_MENU.NONE); flushInputEvents(); setGameMode(Game.matchFormat || '6vs6'); startMatchFromMenu(); }
   else returnToMainMenu();
 }
 
 function executeMainMenuOption(index) {
-  if (index === 0) { selectMode(false); startMatchFromMenu(); }
-  else if (index === 1) { selectMode(true); startMatchFromMenu(); }
+  if (index === 0) { selectMode(false); setGameMode('6vs6'); startMatchFromMenu(); }
+  else if (index === 1) { selectMode(true); showFormatScreen(); }
   else startPracticeFromMenu();
 }
 
-function handleMenuNavigation(pad, rawDt) {
-  menuNavCooldown = Math.max(0, menuNavCooldown - rawDt * 1000);
-  const edges = readGamepadMenuEdges(pad, prevMenuGamepad);
-  if (menuNavCooldown <= 0) {
-    if (edges.up) { currentMenuOption = stepMenuOption(currentMenuOption, -1, MAIN_MENU_OPTION_COUNT); menuNavCooldown = MENU_NAV_COOLDOWN_MS; updateMainMenuSelectionVisual(); }
-    else if (edges.down) { currentMenuOption = stepMenuOption(currentMenuOption, 1, MAIN_MENU_OPTION_COUNT); menuNavCooldown = MENU_NAV_COOLDOWN_MS; updateMainMenuSelectionVisual(); }
-  }
-  if (edges.confirm) executeMainMenuOption(currentMenuOption);
-}
-
-function processMainMenuGamepad(ts) {
-  if (lastMenuLoopTs === null) lastMenuLoopTs = ts;
-  const rawDt = Math.min((ts - lastMenuLoopTs) / 1000, 0.033);
-  lastMenuLoopTs = ts;
-  const pad = getFirstStandardGamepad();
-  if (pad) handleMenuNavigation(pad, rawDt);
-}
-
-function updatePauseGamepad(rawDt) {
-  if (!Game.running || gameState === 'menu' || Game.matchEnded || Game.celebration || gameState === 'celebration_run') return;
-  pauseToggleCooldown = Math.max(0, pauseToggleCooldown - rawDt * 1000);
-  const pad = getFirstStandardGamepad();
-  if (!pad) return;
-  if (isPaused) { handleMenuNavigation(pad, rawDt); return; }
-  const edges = readGamepadMenuEdges(pad, prevPauseGamepad);
-  if (edges.start && pauseToggleCooldown <= 0) { pauseGame(); pauseToggleCooldown = PAUSE_TOGGLE_COOLDOWN_MS; }
+function executeFormatMenuOption(index) {
+  startMatchWithFormat(index === 0 ? '6vs6' : '11vs11');
 }
 
 function startScreenPadLoop(ts) {
-  if (startScreenEl.style.display !== 'none') {
+  const formatVisible = formatScreenEl && formatScreenEl.style.display !== 'none';
+  const mainVisible = startScreenEl.style.display !== 'none';
+  if (mainVisible || formatVisible) {
     if (typeof _assignInputSources === 'function') _assignInputSources();
-    processMainMenuGamepad(ts || performance.now());
+    if (formatVisible && getActiveUIMenu() !== UI_MENU.FORMAT) setUIMenu(UI_MENU.FORMAT);
+    else if (mainVisible && getActiveUIMenu() !== UI_MENU.MAIN) setUIMenu(UI_MENU.MAIN);
+    tickMenuScreenLoop(ts);
     requestAnimationFrame(startScreenPadLoop);
   } else {
-    lastMenuLoopTs = null;
+    resetMenuScreenLoopClock();
   }
 }
 
@@ -188,6 +204,12 @@ function initAppChrome() {
   mode2pBtn.addEventListener('click', () => { currentMenuOption = 1; selectMode(true); updateMainMenuSelectionVisual(); });
   swapPadBtn.addEventListener('click', () => { Game.padSwap = !Game.padSwap; if (typeof _assignInputSources === 'function') _assignInputSources(); });
   document.getElementById('startBtn').addEventListener('click', () => executeMainMenuOption(Game.twoPlayerMode ? 1 : 0));
+  format6Btn.addEventListener('click', () => { formatMenuOption = 0; updateFormatMenuSelectionVisual(); startMatchWithFormat('6vs6'); });
+  format11Btn.addEventListener('click', () => { formatMenuOption = 1; updateFormatMenuSelectionVisual(); startMatchWithFormat('11vs11'); });
+  formatBackBtn.addEventListener('click', () => hideFormatScreen());
+  formatOptionEls.forEach((btn, i) => {
+    btn.addEventListener('mouseenter', () => { formatMenuOption = i; updateFormatMenuSelectionVisual(); });
+  });
   document.getElementById('practiceBtn').addEventListener('click', () => { currentMenuOption = 2; updateMainMenuSelectionVisual(); startPracticeFromMenu(); });
   pauseContinueBtn.addEventListener('click', () => executePauseMenuOption(0));
   pauseRestartBtn.addEventListener('click', () => executePauseMenuOption(1));
@@ -199,7 +221,6 @@ function initAppChrome() {
   document.getElementById('practiceMenuBtn').addEventListener('click', () => returnToMainMenu());
 }
 
-// ── Loop principal ────────────────────────────────────────────────────────
 function isEffortBallCameraLocked() { return false; }
 
 function getEffortCameraFocusPlayer() {
@@ -225,7 +246,7 @@ function tick(ts) {
   const dt = rawDt * GLOBAL_TIME_SCALE;
   setLastDt(dt);
 
-  updatePauseGamepad(rawDt);
+  routeInput(rawDt);
 
   if (Game.celebration && typeof _updateCelebration === 'function') _updateCelebration(dt);
 
@@ -275,6 +296,32 @@ async function boot() {
   _assignInputSources = input.assignInputSources;
   _updateCelebration = gameplay.updateCelebration ?? null;
 
+  initInputRouter({
+    getFirstPad: getFirstStandardGamepad,
+    focusMain: () => { document.getElementById('startBtn')?.focus?.(); },
+    focusFormat: () => { format6Btn?.focus?.(); },
+    focusPause: () => { pauseContinueBtn?.focus?.(); },
+    onMainConfirm: executeMainMenuOption,
+    onFormatConfirm: executeFormatMenuOption,
+    onFormatCancel: hideFormatScreen,
+    onPauseConfirm: executePauseMenuOption,
+    onPauseRequest: pauseGame,
+    getMainFocus: () => currentMenuOption,
+    setMainFocus: (i) => { currentMenuOption = i; if (i === 0) selectMode(false); else if (i === 1) selectMode(true); },
+    getFormatFocus: () => formatMenuOption,
+    setFormatFocus: (i) => { formatMenuOption = i; },
+    getPauseFocus: () => menuFocusIndex,
+    setPauseFocus: (i) => { menuFocusIndex = i; },
+    mainOptionCount: MAIN_MENU_OPTION_COUNT,
+    formatOptionCount: FORMAT_MENU_OPTION_COUNT,
+    pauseOptionCount: PAUSE_MENU_OPTION_COUNT,
+    refreshMainVisual: updateMainMenuSelectionVisual,
+    refreshFormatVisual: updateFormatMenuSelectionVisual,
+    refreshPauseVisual: updatePauseMenuSelectionVisual,
+  });
+
+  setUIMenu(UI_MENU.MAIN);
+
   state.wireBridge({
     runGameplaySim: gameplay.runGameplaySim,
     renderFn: renderMod.render,
@@ -319,8 +366,8 @@ async function boot() {
     nearestToBall: gameplay.nearestToBall,
     resetNearestPlayerSelection: gameplay.resetNearestPlayerSelection,
     showBanner: gameplay.showBanner,
-    predictBallLanding: input.predictBallLanding,
-    findPassReceiverByIntent: input.findPassReceiverByIntent,
+    predictBallLanding: gameplay.predictBallLanding,
+    findPassReceiverByIntent: gameplay.findPassReceiverByIntent,
     getAerialPositionTarget: input.getAerialPositionTarget,
     isBallAerialLoose: input.isBallAerialLoose,
     clearChargingShotState: input.clearChargingShotState,
@@ -329,7 +376,8 @@ async function boot() {
     notifyManualRunPossessionChange: input.notifyManualRunPossessionChange,
     triggerGoalkeeperKick: input.triggerGoalkeeperKick,
     resolveSelfTouchDirection: input.resolveSelfTouchDirection,
-    tryExecuteBufferedActionOnPossession: input.tryExecuteBufferedActionOnPossession,
+    checkActionExecution: input.checkActionExecution,
+    rebuildFieldGeometry: physics.rebuildFieldGeometry,
     readRightStick: input.readRightStick,
     anyKey: input.anyKey,
     anyKeyPrev: input.anyKeyPrev,

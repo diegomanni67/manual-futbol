@@ -2,13 +2,13 @@
 
 export { CONTROL_TOUCH_DUR } from './state.js';
 
-import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_RADIUS, AIR_BICYCLE_MIN_Z, AIR_BUFFER_RADIUS, AIR_CONTACT_RADIUS, AIR_DRAG, AIR_HEADER_MAX_Z, AIR_HEADER_MIN_Z, AIR_LOCK_DURATION, AIR_STRIKE_TABLE, AIR_VOLLEY_L2_MAX_Z, AIR_VOLLEY_L2_MIN_Z, AIR_VOLLEY_MAX_Z, AIR_VOLLEY_MIN_Z, AUTOPASE_POWER_THRESHOLD, BALL_AERIAL_MIN_Z, BALL_RADIUS, BALL_STATE, Ball, CENTER, CROSS_MARKER_LIFE, DIRECTION_PRIORITY, DISTANCE_PRIORITY, DIST_FAKE, DRIBBLE_DIST_R1, DRIBBLE_DIST_R2, EFFORT_CHASE_TEAMMATE_BLOCK, EFFORT_ROLL_SOFT_DURATION, EFFORT_RS_MIN, EFFORT_TOUCH_ANIM_LONG, EFFORT_TOUCH_ANIM_SHORT, EFFORT_TOUCH_BURST_MULT, EFFORT_TOUCH_COOLDOWN, EFFORT_TOUCH_MAX_VELOCITY, FEINT_TOUCH_MAX_VELOCITY, FIELD_L, FIELD_W, FORCED_CHASE_RECOVER_DIST } from './state.js';
+import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_RADIUS, AIR_BICYCLE_MIN_Z, AIR_BUFFER_RADIUS, AIR_CONTACT_RADIUS, AIR_DRAG, AIR_FOOT_THRESHOLD_Z, AIR_HEADER_MAX_Z, AIR_HEADER_MIN_Z, AIR_LOCK_DURATION, AIR_MANUAL_VOLLEY_SPREAD_MULT, AIR_MANUAL_VOLLEY_SPEED_MULT, AIR_MANUAL_VOLLEY_STAMINA_COST, AIR_SPAM_SIM_STEP, AIR_STRIKE_TABLE, AIR_VOLLEY_L2_MAX_Z, AIR_VOLLEY_L2_MIN_Z, AIR_VOLLEY_MAX_Z, AIR_VOLLEY_MIN_Z, AUTOPASE_POWER_THRESHOLD, BALL_AERIAL_MIN_Z, BALL_RADIUS, BALL_STATE, Ball, CENTER, CROSS_MARKER_LIFE, DEFAULT_SPRINT_MULT, DIRECTION_PRIORITY, DISTANCE_PRIORITY, DIST_FAKE, DRIBBLE_DIST_R1, DRIBBLE_DIST_R2, EFFORT_CHASE_TEAMMATE_BLOCK, EFFORT_ROLL_SOFT_DURATION, EFFORT_RS_MIN, EFFORT_TOUCH_ANIM_LONG, EFFORT_TOUCH_ANIM_SHORT, EFFORT_TOUCH_BURST_MULT, EFFORT_TOUCH_COOLDOWN, EFFORT_TOUCH_MAX_VELOCITY, FEINT_TOUCH_MAX_VELOCITY, FIELD_L, FIELD_W, FIRST_SHOT_IMPACT_WINDOW, FIRST_SHOT_MAX_Z, FIRST_SHOT_MIN_Z, FIRST_SHOT_POWER_VEL, FORCED_CHASE_RECOVER_DIST, IA_LANDING_JOG_FACTOR, IA_LANDING_WAIT_DIST } from './state.js';
 
-import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PENDING_ACTION_TIMEOUT_MS, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive } from './state.js';
+import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, ACTION_BUFFER_GROUND_PASS, ACTION_BUFFER_LOBBED_PASS, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, lockPlayerSwitchForEffort, prevButtonsByPad } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
 
-import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isKickoffTaker, isKickoffWaiting, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, movePlayer, nearestToBall, norm, onKickoffReleased, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction, maintainKickoffPlacement } from './state.js';
+import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isKickoffTaker, isKickoffWaiting, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, lockKickInputs, movePlayer, nearestToBall, norm, cleanupKickoffState, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction, maintainKickoffPlacement } from './state.js';
 
 import {
   assignPassTargetFromKick, bestWallPassTarget, isAirDuelContestant, isPassTargetPlayer,
@@ -216,7 +216,7 @@ function findTeammateForRemoteRun(carrier, stickDir){
 }
 
 function getPlayerRunningSpeed(p){
-  return p.maxSpeedBase * MANUAL_RUN_SPEED_MULT;
+  return getPlayerMoveSpeedBase(p) * MANUAL_RUN_SPEED_MULT;
 }
 
 function normalizeRunVector(v, p){
@@ -541,6 +541,7 @@ function isEffortRightStickIntent(team, padIndex){
 }
 
 function handleRightStickSwitch(dt, team, padIndex){
+  if(isUIActive() || isPaused || Game.paused) return;
   if(gameState==='practice') return; // en la Arena de Practica hay un solo jugador util: no tiene sentido cambiar de cursor
   if(isPlayerSwitchLockedForEffort(team)) return;
   const st = rsState[team];
@@ -630,7 +631,7 @@ function detectSyncTriggerPress(key, aJust, bJust){
 }
 
 function readInput(padIndex, scheme, padKey){
-  if(isPaused || Game.paused){
+  if(isUIActive() || isPaused || Game.paused){
     return {
       move:{x:0,y:0}, sprint:false, jockey:false,
       pressPass:false, pressShot:false, pressThrough:false, pressCross:false,
@@ -715,6 +716,9 @@ function readInput(padIndex, scheme, padKey){
 }
 let prevKeys = {};
 function snapshotKeys(){ prevKeys = Object.assign({}, Keys); }
+function getInputKeyState(){
+  return { keys: Keys, prev: prevKeys };
+}
 
 // la Arena de Practica usa una camara ROTADA respecto a la de partido (ver projectPractice):
 // alli la "profundidad" (adelante/atras, lo que en partido es el eje Y) pasa a ser el eje X, y el
@@ -800,9 +804,10 @@ function chargePowerFromElapsed(elapsedMs){
 }
 export function chargeLevel(p){
   if(p.pendingKick) return p.pendingKick.power;
-  if(p.pendingActionParams) return p.pendingActionParams.power;
-  if(p.pendingActionChargeStart > 0){
-    return chargePowerFromElapsed(performance.now() - p.pendingActionChargeStart);
+  const buf = p.actionBuffer;
+  if(buf?.type && !buf.chargeStart) return buf.power;
+  if(buf?.chargeStart > 0){
+    return chargePowerFromElapsed(performance.now() - buf.chargeStart);
   }
   if(!p.isChargingShot && !p.charging) return 0;
   if(!p.charging) return 0;
@@ -813,7 +818,8 @@ function syncGlobalChargingShot(p){
   Game.isChargingShot = !!(p && p.isChargingShot);
 }
 function syncGlobalCharging(p){
-  Game.isCharging = !!(p && p.pendingActionChargeStart > 0 && !p.pendingActionParams);
+  const buf = p?.actionBuffer;
+  Game.isCharging = !!(buf && buf.chargeStart > 0);
 }
 function getCurrentPower(p){
   return chargeLevel(p);
@@ -872,9 +878,11 @@ function updateFakeShotState(dt){
 function canCancelChargeWithFakeShot(p){
   if(!p || ball.owner !== p) return false;
   if(chargeLevel(p) > 0) return true;
-  return !!(p.charging || p.pendingKick || p.isChargingShot || p.pendingActionParams || p.pendingActionChargeStart > 0);
+  const buf = p.actionBuffer;
+  return !!(p.charging || p.pendingKick || p.isChargingShot || (buf && (buf.type || buf.chargeStart > 0)));
 }
 // Carga / suelta de tiro (Cuadrado). El amague tecnico (fake shot) vive en InputManager.
+// La carga de potencia va al actionBuffer; no altera movimiento ni estado del jugador.
 function handleShotChargeInput(p, input, aimDir, curve){
   if(isFakeShotInputBlocked(p)) return true;
   if(ball.owner !== p){
@@ -887,7 +895,7 @@ function handleShotChargeInput(p, input, aimDir, curve){
     return false;
   }
 
-  if(input.pressSuperCancel && (p.charging || p.pendingKick)){
+  if(input.pressSuperCancel && (p.charging || p.pendingKick || p.actionBuffer?.type || p.actionBuffer?.chargeStart > 0)){
     clearChargingShotState(p);
     cancelAction(p);
     syncGlobalChargingShot(p);
@@ -900,25 +908,24 @@ function handleShotChargeInput(p, input, aimDir, curve){
     return true;
   }
 
-  if(input.heldShot){
-    if(!p.isChargingShot && !p.charging && !p.pendingKick){
-      p.isChargingShot = true;
-      startCharge(p, 'shot');
-    } else if(!p.isChargingShot && p.charging === 'shot'){
-      p.isChargingShot = true;
-    }
+  // Ventana de amague: isChargingShot activo mientras Cuadrado esta cargado (solo fake shot)
+  const buf = p.actionBuffer;
+  if(input.heldShot && buf?.chargeStart > 0 && getBufferKickType(buf) === 'shot'){
+    p.isChargingShot = true;
+  } else if(input.heldShot && buf?.type === 'shot' && !buf.chargeStart){
+    p.isChargingShot = true;
+  } else if(!input.heldShot){
+    p.isChargingShot = false;
   }
 
-  if(input.releasedShot && (p.isChargingShot || p.charging === 'shot')){
+  if(input.releasedShot && p.isChargingShot){
     if(isFakeShotInputBlocked(p) || isShotFeintBlocked(p) || isFakeShotActive){
       clearChargingShotState(p);
       syncGlobalChargingShot(p);
       return true;
     }
-    releaseCharge(p, aimDir, curve);
     p.isChargingShot = false;
     syncGlobalChargingShot(p);
-    return false;
   }
 
   syncGlobalChargingShot(p);
@@ -929,7 +936,6 @@ function startCharge(p, type){
   if(p && isPassBlockedAfterFakeShot(p) && type !== 'shot') return;
   if(isSetPieceShotOnly(p) && type !== 'shot') return;
   if(ball.owner!==p) return;
-  interruptForcedChaseForAction(p);
   if(p.charging || p.pendingKick) return;
   p.charging = type;
   p.chargeStart = performance.now();
@@ -965,7 +971,7 @@ function releaseCharge(p, aimDir, curve){
     executeKick(p, type, aimDir, power, curve);
   }
 }
-// Carga al mantener, suelta al soltar — un solo tipo de accion a la vez; el golpe nunca sale en el frame de press.
+// Carga al mantener, suelta al soltar — wallpass usa startCharge legacy; el resto va al actionBuffer.
 function handleBallOwnerKicks(p, input, team, aimDir, curve){
   if(isFakeShotInputBlocked(p)) return;
   if(p.pendingKick) return;
@@ -978,26 +984,14 @@ function handleBallOwnerKicks(p, input, team, aimDir, curve){
     return;
   }
 
-  // Tiro: carga via handleShotChargeInput (isChargingShot); X ya interceptada arriba
+  // Tiro: carga via actionBuffer (isChargingShot solo para ventana de amague); X ya interceptada arriba
   if(p.isChargingShot) return;
 
+  // La pared (L1+pase): unico caso que sigue usando startCharge/releaseCharge directo
   if(input.releasedPass){
     if(p.charging === 'wallpass') releaseWallPass(p, team, aimDir, curve);
-    else if(p.charging === 'pass') releaseCharge(p, aimDir, curve);
-  } else if(input.heldPass && !p.charging){
-    startCharge(p, input.heldL1 ? 'wallpass' : 'pass');
-  }
-
-  if(input.releasedThrough && p.charging === 'through'){
-    releaseCharge(p, aimDir, curve);
-  } else if(input.heldThrough && !p.charging){
-    startCharge(p, 'through');
-  }
-
-  if(input.releasedCross && p.charging === 'cross'){
-    releaseCharge(p, aimDir, curve);
-  } else if(input.heldCross && !p.charging){
-    startCharge(p, 'cross');
+  } else if(input.heldPass && !p.charging && input.heldL1){
+    startCharge(p, 'wallpass');
   }
 }
 // cancela cualquier PREPARANDO_ACCION en curso (cargando o en windup) sin pegarle a la pelota;
@@ -1564,6 +1558,83 @@ function updateKickoffManeuver(p, dt){
   return false;
 }
 
+function computeKickVelocityParams(p, type, aimDir, power, curve){
+  const dir = norm(aimDir);
+  const speedTable = {
+    pass:    {min:10,  max:42, vz:2},
+    shot:    {min:18, max:60, vz:7},
+    through: {min:20, max:54, vz:2},
+    cross:   {min:11, max:40, vz:11},
+  };
+  const cfg = speedTable[type] || speedTable.pass;
+  const shotStyle = type==='shot' ? resolveShotStyle(curve) : null;
+  let speedMult = KICK_VELOCITY_MULT;
+  if(type === 'shot'){
+    speedMult *= SHOT_VELOCITY_MULT;
+    if(shotStyle==='placed') speedMult *= SHOT_PLACED_SPEED_MULT;
+    else if(shotStyle==='trivela') speedMult *= SHOT_TRIVELA_SPEED_MULT;
+  } else {
+    speedMult *= PASS_VELOCITY_MULT;
+  }
+  const spd = lerp(cfg.min, cfg.max, power) * speedMult * getBallKickPowerMult();
+  const curvePhys = applyKickCurvePhysics(p, type, dir, curve);
+  return {dir, spd, cfg, curvePhys, type};
+}
+
+// Impulso horizontal con componente vertical minima (pase raso / por abajo).
+function applyStandardImpulse(vel, power){
+  const {dir, spd, cfg, curvePhys, type} = vel;
+  ball.highKick = false;
+  ball.highKickType = null;
+  ball.vx = dir.x * spd;
+  ball.vy = dir.y * spd;
+  ball.initialSpeed = Math.hypot(ball.vx, ball.vy);
+  ball.vz = computeKickVerticalSpeed(type, cfg, power);
+  ball.curveFactor = curvePhys.curveFactor;
+  ball.groundFrictionMult = curvePhys.groundFrictionMult;
+}
+
+// Impulso con elevacion completa (filtrado, centro, tiro por arriba).
+function applyVerticalImpulse(vel, power){
+  const {dir, spd, cfg, curvePhys, type} = vel;
+  ball.highKick = (type==='shot' || type==='cross');
+  ball.highKickType = ball.highKick ? type : null;
+  ball.vx = dir.x * spd;
+  ball.vy = dir.y * spd;
+  ball.initialSpeed = Math.hypot(ball.vx, ball.vy);
+  ball.vz = computeKickVerticalSpeed(type, cfg, power);
+  ball.curveFactor = curvePhys.curveFactor;
+  ball.groundFrictionMult = curvePhys.groundFrictionMult;
+}
+
+function executeKickContact(p, type, aimDir, power, curve, impulseFn){
+  if(isGoalkeeper(p)) clearGkPossessionType(p);
+  clearEffortSprintState(p);
+  const dir = norm(aimDir);
+  setBallStateLoose(true);
+  ball.lastTouchTeam = p.team;
+  ball.lastTouchedBy = p.id;
+  clearThrowInBlockIfOtherPlayer(p);
+  ball.lastKicker = p;
+  ball.passOrigin = (type==='pass') ? {x:p.x, y:p.y} : null;
+  ball.x = p.x + dir.x*0.9;
+  ball.y = p.y + dir.y*0.9;
+  ball.z = 0.35;
+  if(impulseFn) impulseFn(computeKickVelocityParams(p, type, dir, power, curve), power);
+  p.tackleCooldown = 0.25;
+  p.releaseCooldown = 0.55;
+  p.kickAnim = { t:0, dur: type==='shot' ? 0.22 : 0.17, leg:1, power, type };
+  if(type==='cross'){
+    const landing = estimateKickTarget();
+    Game.crossMarker = {x: landing.x, y: landing.y, t: CROSS_MARKER_LIFE};
+  }
+  handleKickCursorSwitch(p, power, dir, type);
+  assignPassTargetFromKick(p, dir, type, power);
+  setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);
+  if(Game.setPieceMode) onSetPieceBallReleased();
+  if(isKickoffWaiting()) cleanupKickoffState(p);
+}
+
 function executeKick(p, type, aimDir, power, curve){
   if(isKickoffWaiting()){
     console.log('[KICKOFF] executeKick', {
@@ -1574,68 +1645,9 @@ function executeKick(p, type, aimDir, power, curve){
       ballOwnerId: ball.owner?.id ?? null,
     });
   }
-  if(isGoalkeeper(p)) clearGkPossessionType(p);
-  clearEffortSprintState(p);
+  const impulseFn = type === 'pass' ? applyStandardImpulse : applyVerticalImpulse;
+  executeKickContact(p, type, aimDir, power, curve, impulseFn);
   resetActionBuffer(p);
-  const dir = norm(aimDir);
-  setBallStateLoose(true);
-  ball.lastTouchTeam = p.team;
-  ball.lastTouchedBy = p.id;
-  clearThrowInBlockIfOtherPlayer(p);
-  ball.lastKicker = p;
-  // solo un PASE limpio arranca el seguimiento de "pase corto" (para no robar el cursor de inmediato);
-  // tiros/centros/filtrados no lo necesitan, se limpia para no arrastrar datos de un pase anterior
-  ball.passOrigin = (type==='pass') ? {x:p.x, y:p.y} : null;
-  ball.highKick = (type==='shot' || type==='cross'); // fisica aerea extra solo para tiros y centros
-  ball.highKickType = ball.highKick ? type : null;
-  const speedTable = {
-    pass:    {min:10,  max:42, vz:2},
-    shot:    {min:18, max:60, vz:7},
-    through: {min:20, max:54, vz:2},
-    cross:   {min:11, max:40, vz:11},
-  };
-  const cfg = speedTable[type];
-  const shotStyle = type==='shot' ? resolveShotStyle(curve) : null;
-  let speedMult = KICK_VELOCITY_MULT;
-  if(type === 'shot'){
-    speedMult *= SHOT_VELOCITY_MULT;
-    if(shotStyle==='placed') speedMult *= SHOT_PLACED_SPEED_MULT;
-    else if(shotStyle==='trivela') speedMult *= SHOT_TRIVELA_SPEED_MULT;
-  } else {
-    speedMult *= PASS_VELOCITY_MULT; // pass, through, cross
-  }
-  const spd = lerp(cfg.min, cfg.max, power) * speedMult;
-  const curvePhys = applyKickCurvePhysics(p, type, dir, curve);
-  ball.curveFactor = curvePhys.curveFactor;
-  ball.groundFrictionMult = curvePhys.groundFrictionMult;
-  ball.x = p.x + dir.x*0.9; ball.y = p.y + dir.y*0.9; ball.z = 0.35;
-  ball.vx = dir.x*spd; ball.vy = dir.y*spd;
-  ball.initialSpeed = Math.hypot(ball.vx, ball.vy);
-  ball.vz = (cfg.vz * power) * 1.8 + (type === 'shot' ? 1.2 : 0.8);
-  p.tackleCooldown = 0.25;
-  p.releaseCooldown = 0.55; // evita que el mismo jugador recupere la pelota al instante
-
-  // EL LATIGAZO: se dispara en el MISMO frame en que la pelota recibe el impulso real (arriba),
-  // asi el impacto visual (pantorrilla+pie extendiendose en punta) queda 100% sincronizado con el
-  // instante en que la pelota efectivamente sale disparada, no con un frame arbitrario despues.
-  // 'leg:1' es siempre la pierna que quedo cargada hacia atras durante el windup (ver drawSkeletalPlayer,
-  // misma convencion que ya usaba prepping/legSwing para la pierna A). Los tiros son mas explosivos
-  // (mas recorrido, mas inclinacion de torso) que pases/centros/filtrados, que igual se benefician
-  // del latigazo pero mas contenido.
-  p.kickAnim = { t:0, dur: type==='shot' ? 0.22 : 0.17, leg:1, power, type };
-
-  // --- cruz amarilla que marca donde va a picar el centro (boton circulo/○) ---
-  if(type==='cross'){
-    const landing = estimateKickTarget();
-    Game.crossMarker = {x: landing.x, y: landing.y, t: CROSS_MARKER_LIFE};
-  }
-
-  // --- CAMBIO DE CURSOR EN EL MOMENTO EXACTO DEL IMPACTO, segun la barra de potencia ---
-  handleKickCursorSwitch(p, power, dir, type);
-  assignPassTargetFromKick(p, dir, type, power);
-  setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);
-  if(Game.setPieceMode) onSetPieceBallReleased();
-  if(isKickoffWaiting()) onKickoffReleased();
 }
 
 function releaseGkBallForKick(p, dir){
@@ -1750,21 +1762,21 @@ function predictBallLanding(b){
   if(b.z <= BALL_RADIUS + 0.08 && Math.abs(b.vz) < 0.15){
     return {x: b.x, y: b.y, t: 0, aerial: false};
   }
-  const aero = b.highKick ? AERIAL_PHYSICS[b.highKickType] : null;
-  const g = GRAVITY + (aero ? aero.extraGravity : 0);
+  const g = getBallAirGravity(b);
   let x=b.x, y=b.y, z=b.z, vx=b.vx, vy=b.vy, vz=b.vz;
   const cf = b.curveFactor||0;
   const initSpd = Math.hypot(vx, vy) || b.initialSpeed || 1;
   const STEP = 0.02;
   let t = 0;
   const startedAerial = z > BALL_AERIAL_MIN_Z;
+  const dragSim = {highKick: b.highKick, highKickType: b.highKickType, vx, vy};
   while(t < 4.0){
-    if(aero && z > BALL_RADIUS){
-      const dragCoef = AIR_DRAG + aero.extraDrag;
-      const drag = 1/(1+dragCoef*STEP);
-      vx *= drag; vy *= drag;
-      const airSp = Math.hypot(vx, vy);
-      if(airSp > aero.maxSpeed){ const s=aero.maxSpeed/airSp; vx*=s; vy*=s; }
+    if(z > BALL_RADIUS){
+      dragSim.vx = vx;
+      dragSim.vy = vy;
+      applyBallAirHorizontalDrag(dragSim, STEP);
+      vx = dragSim.vx;
+      vy = dragSim.vy;
     }
     const sim = {
       vx, vy, z, x, y,
@@ -1859,35 +1871,186 @@ function handleKickCursorSwitch(p, power, aimDir, kickType){
 
 
 /* ============================================================
-   BUFFER EXCLUSIVO DE ACCION + ACCIONES AÉREAS (cabezazo, volea, chilena)
-   Carga (isCharging) vive en campos auxiliares; al soltar se congela en pendingActionParams.
-   La ejecucion ocurre SOLO en update/onBallContact, nunca en el handler de input.
+   BUFFER GLOBAL DE ACCION + ACCIONES AÉREAS (cabezazo, volea, chilena)
+   actionBuffer = {type, power}: input solo setea; ejecucion en onBallContact.
+   Sin colas, sin timeouts, sin alterar movimiento ni estado del jugador.
    ============================================================ */
-function resetActionBuffer(p){
-  clearPlayerPendingAction(p);
+function clearActionBuffer(p){
+  if(!p) return;
+  p.actionBuffer = {type: null, kickType: null, power: 0, chargeStart: 0, curve: 0, manualL2: false, timestamp: 0};
+  p.isPreparingToShoot = false;
   syncGlobalCharging(p);
 }
 
+function getBufferKickType(buf){
+  if(!buf) return null;
+  if(buf.kickType) return buf.kickType;
+  if(buf.type === ACTION_BUFFER_GROUND_PASS) return 'pass';
+  if(buf.type === ACTION_BUFFER_LOBBED_PASS) return 'through';
+  if(buf.type === 'pass' || buf.type === 'shot' || buf.type === 'through' || buf.type === 'cross') return buf.type;
+  return null;
+}
+
+function mapButtonToBufferType(btn){
+  return btn === 'pass' ? ACTION_BUFFER_GROUND_PASS : ACTION_BUFFER_LOBBED_PASS;
+}
+
+function isLobbedActionBuffer(buf){
+  if(!buf?.type) return false;
+  if(buf.type === ACTION_BUFFER_LOBBED_PASS) return true;
+  if(buf.type === ACTION_BUFFER_GROUND_PASS) return false;
+  return buf.type !== 'pass';
+}
+
+function resetActionBuffer(p){
+  clearActionBuffer(p);
+}
+
 function clearPendingAction(p){
-  resetActionBuffer(p);
+  clearActionBuffer(p);
 }
 
 function hasPendingAction(p){
-  return !!(p.pendingActionParams || p.pendingActionChargeStart > 0);
+  const buf = p?.actionBuffer;
+  return !!(buf && (buf.type || buf.chargeStart > 0));
 }
 
 function isPendingActionArmed(p){
-  return !!p.pendingActionParams;
+  const buf = p?.actionBuffer;
+  return !!(buf && buf.type && !buf.chargeStart);
 }
 
-function restorePlayerControlAfterPendingAction(p){
+function hasBufferedAction(p){
+  return isPendingActionArmed(p);
+}
+
+// Altura efectiva de la pelota en el punto de contacto (prediccion corta + ball.z).
+function getBallContactHeight(p, ballRef){
+  const b = ballRef || ball;
+  const z = b.z ?? 0;
+  if(!p) return z;
+  const d = dist2D(p, b);
+  const sp = Math.hypot(b.vx, b.vy);
+  if(sp > 0.45 && d < 2.2){
+    const t = d / Math.max(sp, 0.5);
+    const predZ = z + (b.vz || 0) * t - 0.5 * getBallAirGravity(b) * t * t;
+    return Math.max(z, predZ);
+  }
+  return z;
+}
+
+function isBallInFirstShotHeightRange(p, ballRef){
+  const z = getBallContactHeight(p, ballRef);
+  return z >= FIRST_SHOT_MIN_Z && z <= FIRST_SHOT_MAX_Z;
+}
+
+// Predice el primer instante en que la pelota entra en la ventana de tiro de primera.
+function predictFirstShotContact(p, ballRef){
+  const b = ballRef || ball;
+  if(!b || b.owner) return null;
+
+  const g = getBallAirGravity(b);
+  let x = b.x, y = b.y, z = b.z ?? 0;
+  let vx = b.vx, vy = b.vy, vz = b.vz ?? 0;
+  const cf = b.curveFactor || 0;
+  const initSpd = Math.hypot(vx, vy) || b.initialSpeed || 1;
+  const STEP = AIR_SPAM_SIM_STEP;
+  let t = 0;
+  const dragSim = {highKick: b.highKick, highKickType: b.highKickType, vx, vy};
+
+  if(z >= FIRST_SHOT_MIN_Z && z <= FIRST_SHOT_MAX_Z){
+    return {x, y, z, t: 0, ballSp: Math.hypot(vx, vy)};
+  }
+
+  while(t < 2.5){
+    if(z > BALL_RADIUS){
+      dragSim.vx = vx;
+      dragSim.vy = vy;
+      applyBallAirHorizontalDrag(dragSim, STEP);
+      vx = dragSim.vx;
+      vy = dragSim.vy;
+    }
+    const sim = {
+      vx, vy, z, x, y,
+      curveFactor: cf,
+      initialSpeed: initSpd,
+      curveMaxSpeed: b.curveMaxSpeed || initSpd,
+      curveLineOrigin: b.curveLineOrigin,
+      curveLineDir: b.curveLineDir,
+      curvePassTarget: b.curvePassTarget,
+      curveMaxDrift: b.curveMaxDrift,
+    };
+    applyBallLateralCurve(sim, STEP);
+    vx = sim.vx; vy = sim.vy; x = sim.x; y = sim.y;
+    vz -= g * STEP;
+    x += vx * STEP; y += vy * STEP; z += vz * STEP;
+    t += STEP;
+
+    if(z >= FIRST_SHOT_MIN_Z && z <= FIRST_SHOT_MAX_Z){
+      return {x, y, z, t, ballSp: Math.hypot(vx, vy)};
+    }
+    if(z <= BALL_RADIUS && t > 0.04) break;
+  }
+  return null;
+}
+
+function canFirstShotAtBall(p, ballRef){
+  return !!predictFirstShotContact(p, ballRef);
+}
+
+function moveTowardFirstShotTarget(p, dt, target, contactT){
+  if(!target) return;
+  p.targetPosition = target;
+  const dx = target.x - p.x, dy = target.y - p.y;
+  const d = Math.hypot(dx, dy);
+  let moveMag = d > 0.15 ? 1 : 0;
+  let useSprint = d > 2.2;
+  const margin = FIRST_SHOT_IMPACT_WINDOW;
+
+  if(contactT > 0.08){
+    const trotSpeed = getPlayerMoveSpeedBase(p) * 0.72;
+    const timeToArrive = d / Math.max(trotSpeed, 1.8);
+    if(d <= IA_LANDING_WAIT_DIST && contactT > margin){
+      moveMag = 0;
+      useSprint = false;
+      const damp = Math.pow(0.12, dt);
+      p.vx *= damp; p.vy *= damp;
+    } else if(timeToArrive < contactT - margin){
+      useSprint = false;
+      moveMag *= IA_LANDING_JOG_FACTOR;
+      if(d < IA_LANDING_WAIT_DIST * 2.2) moveMag = 0;
+    } else if(timeToArrive > contactT + margin){
+      useSprint = true;
+    }
+  }
+
+  const md = moveMag > 0.05 ? {x: dx / d, y: dy / d} : {x: 0, y: 0};
+  movePlayer(p, dt, md, useSprint, false, null);
+}
+
+// Si el remate de primera no es viable, priorizar control: perseguir el pique en vez de quedarse estatico.
+function attemptControlOrMoveForShot(p, dt){
   if(!p) return;
-  clearChasingState(p);
-  clearForcedChaseState(p);
-  clearSprintChaseState(p);
-  p.state = 'idle';
   p.isPreparingToShoot = false;
-  if(!isKickoffWaiting()) Game.matchState = STATE_PLAYING;
+  p.seekAerial = false;
+  p.landingTime = 0;
+  p.firstShotContactT = 0;
+
+  const buf = p?.actionBuffer;
+  if(buf && getBufferKickType(buf) === 'shot'){
+    clearActionBuffer(p);
+  }
+
+  if(ball.owner === p) return;
+  if(!ensureChasingState(p) && dt > 0){
+    const land = predictBallLanding(ball);
+    const target = land ? {x: land.x, y: land.y} : {x: ball.x, y: ball.y};
+    moveTowardSeekTarget(p, dt, target, true);
+  }
+}
+
+function isBallAirborne(ballRef, p){
+  return getBallContactHeight(p, ballRef) > AIR_FOOT_THRESHOLD_Z;
 }
 
 function isBallAtPlayerFeet(p){
@@ -1898,121 +2061,20 @@ function isBallLooseForPendingAction(){
   return ball.owner === null;
 }
 
-function pendingKindFromKickType(kickType){
-  return kickType === 'shot' ? PENDING_ACTION_SHOT : PENDING_ACTION_PASS;
-}
-
-function setExclusivePendingAction(p, kickType, input){
-  const curve = resolveInputCurve(input);
-  const now = performance.now();
-  const kind = pendingKindFromKickType(kickType);
-  p.pendingAction = kind;
-  p.pendingActionDetail = kickType;
-  p.pendingActionChargeStart = now;
-  p.pendingActionPower = 0;
-  p.pendingActionCurve = curve;
-  p.pendingActionManualL2 = !!(input.heldL2 && kickType === 'shot');
-  p.pendingActionTimestamp = now;
-  p.isPreparingToShoot = kind === PENDING_ACTION_SHOT;
-  p.isPowerLocked = false;
-  p.pendingActionParams = null;
-}
-
-function pendingActionMatchesButton(p, btn){
-  if(!p.pendingActionChargeStart) return false;
-  return p.pendingAction === pendingKindFromKickType(btn.kickType) &&
-    p.pendingActionDetail === btn.kickType;
-}
-
-function canBufferPendingAction(p){
-  if(!p || p.role === 'GK') return false;
-  if(isBallAtPlayerFeet(p)) return false;
-  if(ball.owner && ball.owner.team !== p.team) return false;
-  if(dist2D(p, ball) < AIR_BUFFER_RADIUS) return true;
-  if(isPlayerChasing(p) || isChaseOwner(p) || isPlayerSprintChasing(p)) return true;
-  if(p.iaSeeking) return true;
-  if(isPassTargetPlayer(p, p.team)) return true;
-  return false;
-}
-
-function canChargePendingAction(p){
-  return canBufferPendingAction(p);
-}
-
-function canStartPendingActionCharge(p){
-  if(Game.isCharging || p.pendingActionParams || p.isPowerLocked) return false;
-  return true;
-}
-
-function lockPendingActionParams(p, btn, input, power){
-  const curve = resolveInputCurve(input);
-  const kickType = p.pendingActionDetail || btn.kickType;
-  p.pendingActionParams = {
-    type: btn.type,
-    power: clamp(power, 0.14, 1),
-    kickType,
-    curve: p.pendingActionCurve ?? curve,
-    manualL2: p.pendingActionManualL2,
-    timestamp: performance.now(),
-  };
-  p.pendingAction = pendingKindFromKickType(kickType);
-  p.pendingActionChargeStart = 0;
-  p.isPowerLocked = true;
-  p.isPreparingToShoot = kickType === 'shot';
-  syncGlobalCharging(p);
-}
-
-function startPendingActionCharge(p, btn, input){
-  if(!canStartPendingActionCharge(p)) return false;
-  setExclusivePendingAction(p, btn.kickType, input);
-  syncGlobalCharging(p);
-  return true;
-}
-
-function armPendingFirstTimeAction(p, btn, input){
-  if(!canStartPendingActionCharge(p)) return false;
-  if(!canBufferPendingAction(p)) return false;
-  return startPendingActionCharge(p, btn, input);
-}
-
-function heldPendingActionButton(input){
-  if(input.heldShot) return {type:'shoot', kickType:'shot'};
-  if(input.heldThrough) return {type:'pass', kickType:'through'};
-  if(input.heldCross) return {type:'pass', kickType:'cross'};
-  if(input.heldPass) return {type:'pass', kickType:'pass'};
+function heldActionButton(input){
+  if(input.heldShot) return 'shot';
+  if(input.heldThrough) return 'through';
+  if(input.heldCross) return 'cross';
+  if(input.heldPass && !input.heldL1) return 'pass';
   return null;
 }
 
-function releasedPendingActionButton(input){
-  if(input.releasedShot) return {type:'shoot', kickType:'shot'};
-  if(input.releasedThrough) return {type:'pass', kickType:'through'};
-  if(input.releasedCross) return {type:'pass', kickType:'cross'};
-  if(input.releasedPass) return {type:'pass', kickType:'pass'};
+function releasedActionButton(input){
+  if(input.releasedShot) return 'shot';
+  if(input.releasedThrough) return 'through';
+  if(input.releasedCross) return 'cross';
+  if(input.releasedPass && !input.heldL1) return 'pass';
   return null;
-}
-
-// Pelota suelta: botones ofensivos entran al buffer (carga visual; ejecucion al contacto con posesion).
-function tryLooseBallOffensiveInput(p, input){
-  if(!canBufferPendingAction(p)) return false;
-  if(!canStartPendingActionCharge(p)) return false;
-  if(p.charging || p.isChargingShot || p.tackleAnim || p.diveAnim || p.airStrikeAnim) return false;
-
-  if(input.pressTackle){
-    return armPendingFirstTimeAction(p, {type:'pass', kickType:'pass'}, input);
-  }
-  if(input.pressTackleAlt || input.pressShot){
-    return armPendingFirstTimeAction(p, {type:'shoot', kickType:'shot'}, input);
-  }
-  if(input.pressPass){
-    return armPendingFirstTimeAction(p, {type:'pass', kickType:'pass'}, input);
-  }
-  if(input.pressThrough){
-    return armPendingFirstTimeAction(p, {type:'pass', kickType:'through'}, input);
-  }
-  if(input.pressCross){
-    return armPendingFirstTimeAction(p, {type:'pass', kickType:'cross'}, input);
-  }
-  return false;
 }
 
 function pendingActionToAerialButton(kickType){
@@ -2021,161 +2083,194 @@ function pendingActionToAerialButton(kickType){
   return 'pass';
 }
 
-function doPass(p, params){
-  const { power, curve } = params;
-  const kickType = params.kickType || 'pass';
-  const dir = norm(getStickDir(p));
-  if(ball.z > AIR_AERIAL_MIN_Z){
-    const aerialBtn = pendingActionToAerialButton(kickType);
-    return handleAerialContact(p, ball, aerialBtn, power, curve, false);
-  }
+// Frame de contacto con posesion: delega en onBallContact (unica fuente de ejecucion del buffer).
+function checkActionExecution(p){
+  if(isKickoffWaiting()) return false;
   if(ball.owner !== p) return false;
+  if(!hasBufferedAction(p)) return false;
+  if(p.tackleAnim || p.airStrikeAnim || p.diveAnim) return false;
+  return onBallContact(p, ball);
+}
+
+function getEffectiveManualL2(p, kickType){
+  if(kickType !== 'shot') return false;
+  const buf = p?.actionBuffer;
+  return !!(buf && buf.manualL2);
+}
+
+function playGroundActionAtContact(p, kickType, power, curve){
+  const dir = norm(getStickDir(p));
+  if(!ball.owner){
+    ball.x = p.x + dir.x * 0.6;
+    ball.y = p.y + dir.y * 0.6;
+    ball.z = 0;
+  }
   executeKick(p, kickType, dir, power, curve);
-  return true;
+  clearChasingState(p);
+  clearForcedChaseState(p);
+  clearSprintChaseState(p);
+  p.state = 'idle';
+  p.isPreparingToShoot = false;
+  if(!isKickoffWaiting()) Game.matchState = STATE_PLAYING;
 }
 
-function doShot(p, params){
-  const { power, curve, manualL2 } = params;
-  const dir = norm(getStickDir(p));
-  if(ball.z > AIR_AERIAL_MIN_Z){
-    return handleAerialContact(p, ball, 'shot', power, curve, !!manualL2);
-  }
-  if(ball.owner !== p) return false;
-  executeKick(p, 'shot', dir, power, curve);
-  return true;
-}
+// Contacto de primera: enruta cabezazo / volea (L2) / pie segun altura de la pelota.
+function onBallContact(p, ballRef){
+  if(!hasBufferedAction(p)) return false;
+  if(isKickoffWaiting()) return false;
+  if(p.tackleAnim || p.airStrikeAnim || p.diveAnim) return false;
+  if(p.airLock && p.airLock.t < p.airLock.dur) return false;
+  if(isAirDuelContestant(p)) return false;
 
-// Ejecuta pendingActionParams al contacto; nunca desde el handler de input.
-function executeBufferedPendingAction(p){
-  const params = p.pendingActionParams;
-  if(!params) return false;
+  const buf = p.actionBuffer;
+  const kickType = getBufferKickType(buf) || 'pass';
+  const power = clamp(buf.power > 0 ? buf.power : 0.72, 0.14, 1);
+  const curve = buf.curve ?? 0;
+  const manualL2 = getEffectiveManualL2(p, kickType);
+  const wasChasing = isPlayerChasing(p) || isChaseOwner(p);
 
-  const saved = {...params};
-  const wasChasing = isPlayerChasing(p) || isChaseOwner(p) || isPlayerSprintChasing(p);
-
-  if(ball.z > AIR_AERIAL_MIN_Z){
-    const d = dist2D(p, ball);
-    if(d >= PENDING_ACTION_EXECUTE_RADIUS) return false;
-    if(ball.owner && ball.owner !== p) return false;
-  } else if(ball.owner !== p){
+  if(isBallAirborne(ballRef, p)){
+    if(kickType === 'shot' && !isBallInFirstShotHeightRange(p, ballRef)){
+      attemptControlOrMoveForShot(p, 0);
+      return false;
+    }
+    const aerialBtn = pendingActionToAerialButton(kickType);
+    if(handleAerialContact(p, ballRef, aerialBtn, power, curve, manualL2)){
+      if(wasChasing) resumeChasingAfterAction(p);
+      return true;
+    }
+    if(kickType === 'shot'){
+      attemptControlOrMoveForShot(p, 0);
+    }
     return false;
   }
 
-  resetActionBuffer(p);
-
-  let ok = false;
-  if(saved.type === 'shoot' || saved.kickType === 'shot') ok = doShot(p, saved);
-  else ok = doPass(p, saved);
-
-  if(ok){
-    restorePlayerControlAfterPendingAction(p);
-    if(wasChasing) resumeChasingAfterAction(p);
-  }
-  return ok;
+  playGroundActionAtContact(p, kickType, power, curve);
+  if(wasChasing) resumeChasingAfterAction(p);
+  return true;
 }
 
-// Carga en segundo plano mientras se mantiene el boton; al soltar congela pendingActionParams.
-function updatePendingActionInput(p, input){
-  if(isBallAtPlayerFeet(p)) return;
+// Loop de fisica: ejecuta al contacto fisico; el buffer persiste hasta onBallContact o cancelacion explicita.
+function updateActionBufferPhysics(p){
+  const buf = p?.actionBuffer;
+  if(!buf?.type) return;
+
+  if(ball.owner && ball.owner !== p && ball.owner.team !== p.team){
+    clearActionBuffer(p);
+    return;
+  }
+
+  if(isAirDuelContestant(p)) return;
+  if(!isPendingActionArmed(p)) return;
+
+  const d = dist2D(p, ball);
+  if(d < PENDING_ACTION_EXECUTE_RADIUS && !ball.owner){
+    onBallContact(p, ball);
+  }
+}
+
+// Input: solo setea type y power en actionBuffer. Sin frenado, sin cambio de estado.
+function updateActionBufferInput(p, input){
+  if(!p || p.role === 'GK') return;
+  if(Game.isInputLocked) return;
+  if(isKickoffWaiting()) return;
   if(p.isChargingShot || isShotFeintBlocked(p)) return;
+  if(p.tackleAnim || p.diveAnim || p.airStrikeAnim) return;
 
   if(ball.owner && ball.owner.team !== p.team){
-    resetActionBuffer(p);
+    clearActionBuffer(p);
     return;
   }
 
   if(input.heldManualCancel){
-    resetActionBuffer(p);
+    clearActionBuffer(p);
     return;
   }
 
-  const curve = resolveInputCurve(input);
-  const btnHeld = heldPendingActionButton(input);
-  const btnReleased = releasedPendingActionButton(input);
+  const buf = p.actionBuffer;
+  if(!buf) return;
 
-  // Accion armada: esperando contacto con la pelota.
-  if(p.pendingActionParams) return;
-
-  // Soltar boton: guardar intencion en pendingActionParams (sin ejecutar aqui).
-  if(btnReleased && p.pendingActionChargeStart > 0 && canBufferPendingAction(p)){
-    const power = chargePowerFromElapsed(performance.now() - p.pendingActionChargeStart);
-    if(power >= 0.14){
-      lockPendingActionParams(p, btnReleased, input, power);
-    } else {
-      resetActionBuffer(p);
+  // Accion armada: esperando frame de contacto — actualizar L2 en vivo para volea manual
+  if(buf.type && !buf.chargeStart){
+    if(buf.kickType === 'shot'){
+      buf.manualL2 = !!input.heldL2;
     }
     return;
   }
 
-  // Mantener boton: cargar potencia (guarda estricta contra segunda carga).
-  if(btnHeld && canChargePendingAction(p)){
-    if(Game.isCharging && p.pendingActionChargeStart > 0){
-      const now = performance.now();
-      const manualL2 = !!(input.heldL2 && btnHeld.kickType === 'shot');
-      if(pendingActionMatchesButton(p, btnHeld)){
-        p.pendingActionCurve = curve;
-        p.pendingActionManualL2 = manualL2;
-        p.pendingActionPower = chargePowerFromElapsed(now - p.pendingActionChargeStart);
-        p.pendingActionTimestamp = now;
-        p.isPreparingToShoot = p.pendingAction === PENDING_ACTION_SHOT;
+  const curve = resolveInputCurve(input);
+  const btnHeld = heldActionButton(input);
+  const btnReleased = releasedActionButton(input);
+
+  // Soltar boton: congelar type y power (sin ejecutar aqui)
+  if(btnReleased && buf.chargeStart > 0){
+    const power = chargePowerFromElapsed(performance.now() - buf.chargeStart);
+    if(power >= 0.14){
+      buf.kickType = btnReleased;
+      buf.type = mapButtonToBufferType(btnReleased);
+      buf.power = clamp(power, 0.14, 1);
+      buf.chargeStart = 0;
+      buf.timestamp = performance.now();
+      if(buf.kickType === 'shot' && isBallAerialLoose() && !canFirstShotAtBall(p, ball)){
+        clearActionBuffer(p);
+        attemptControlOrMoveForShot(p, 0);
+        syncGlobalCharging(p);
+        return;
       }
+      p.isPreparingToShoot = buf.kickType === 'shot';
     } else {
-      if(!canStartPendingActionCharge(p)) return;
-      setExclusivePendingAction(p, btnHeld.kickType, input);
+      clearActionBuffer(p);
     }
     syncGlobalCharging(p);
     return;
   }
 
-  syncGlobalCharging(p);
-}
-
-function tryExecuteBufferedActionOnPossession(p){
-  if(ball.owner !== p) return false;
-  if(!p.pendingActionParams) return false;
-  return executeBufferedPendingAction(p);
-}
-
-function executePendingActionAtContact(p){
-  return executeBufferedPendingAction(p);
-}
-
-// Loop de fisica: ejecuta al contacto con posesion (raso) o proximidad (aereo); limpia por timeout.
-function updatePendingActionPhysics(p, dt){
-  if(!p.pendingActionParams) return;
-
-  if(ball.owner && ball.owner !== p && ball.owner.team !== p.team){
-    resetActionBuffer(p);
-    return;
-  }
-
-  if(isAirDuelContestant(p)) return;
-
-  const elapsed = performance.now() - p.pendingActionParams.timestamp;
-  if(elapsed > PENDING_ACTION_TIMEOUT_MS){
-    resetActionBuffer(p);
-    return;
-  }
-
-  if(ball.z > AIR_AERIAL_MIN_Z){
-    const d = dist2D(p, ball);
-    if(d < PENDING_ACTION_EXECUTE_RADIUS && !ball.owner){
-      executePendingActionAtContact(p);
+  // Mantener boton: iniciar carga solo una vez; la potencia se acumula en chargeLevel()
+  if(btnHeld){
+    const manualL2 = !!(input.heldL2 && btnHeld === 'shot');
+    if(buf.chargeStart > 0){
+      if(getBufferKickType(buf) === btnHeld){
+        buf.curve = curve;
+        buf.manualL2 = manualL2;
+      }
+      p.isPreparingToShoot = getBufferKickType(buf) === 'shot';
+      syncGlobalCharging(p);
+      return;
     }
-  } else if(ball.owner === p){
-    executePendingActionAtContact(p);
+    buf.kickType = btnHeld;
+    buf.type = btnHeld;
+    buf.chargeStart = performance.now();
+    buf.power = 0;
+    buf.curve = curve;
+    buf.manualL2 = manualL2;
+    p.isPreparingToShoot = getBufferKickType(buf) === 'shot';
+    syncGlobalCharging(p);
+    return;
   }
+
+  // Soltar sin carga activa: limpiar carga abortada
+  if(buf.chargeStart > 0 && !btnHeld){
+    clearActionBuffer(p);
+  }
+  syncGlobalCharging(p);
 }
 
 function canAerialContact(p){
   if(isThrowInTakerBlocked(p)) return false;
-  const radius = (p.pendingActionParams || p.pendingActionChargeStart > 0) ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
+  const buf = p?.actionBuffer;
+  const radius = (buf?.type && !buf.chargeStart) ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
   const loose = !ball.owner && (ball.state === BALL_STATE.FREE || ball.state === BALL_STATE.LOOSE_BALL || ball.state === BALL_STATE.IN_AIR);
   return loose && ball.z > AIR_AERIAL_MIN_Z && dist2D(p, ball) < radius;
 }
 
 function isBallAerialLoose(){
   return !ball.owner && ball.z > AIR_AERIAL_MIN_Z;
+}
+
+function getPendingManualL2(p){
+  const buf = p?.actionBuffer;
+  if(getBufferKickType(buf) === 'shot') return !!buf.manualL2;
+  return false;
 }
 
 // Predice cabezazo / volea / chilena para posicionamiento segun input (L2 = manual arriesgado).
@@ -2190,14 +2285,10 @@ function predictAerialStrikeType(p, ball, manualL2){
     return null;
   }
   if(z >= AIR_HEADER_MIN_Z && z <= AIR_HEADER_MAX_Z) return {type:'header'};
+  if(z >= FIRST_SHOT_MIN_Z && z <= FIRST_SHOT_MAX_Z) return {type:'volley'};
   if(z > AIR_VOLLEY_MIN_Z && z < AIR_VOLLEY_MAX_Z) return {type:'volley'};
   if(z > AIR_BICYCLE_MIN_Z) return {type:'bicycle'};
   return null;
-}
-
-function getPendingManualL2(p){
-  if(p.pendingActionParams) return !!(p.pendingActionParams.kickType === 'shot' && p.pendingActionParams.manualL2);
-  return !!(p.pendingActionManualL2 && p.pendingAction === PENDING_ACTION_SHOT);
 }
 
 function getActiveManualL2(p){
@@ -2211,6 +2302,16 @@ function getActiveManualL2(p){
 }
 
 function getAerialPositionTarget(p, ball){
+  const buf = p?.actionBuffer;
+  const isShot = getBufferKickType(buf) === 'shot';
+  if(isShot && isPendingActionArmed(p)){
+    const contact = predictFirstShotContact(p, ball);
+    if(contact){
+      const approach = ballApproachDir(p, ball);
+      p.firstShotContactT = contact.t;
+      return {x: contact.x - approach.x * 0.65, y: contact.y - approach.y * 0.65};
+    }
+  }
   const aimDir = getStickDir(p);
   const hint = predictAerialStrikeType(p, ball, getActiveManualL2(p));
   if(!hint) return {x: ball.x, y: ball.y};
@@ -2226,20 +2327,40 @@ function getAerialPositionTarget(p, ball){
 
 function updateAerialStrikeMovement(p, dt){
   if(isManualAction(p)) return;
+  const buf = p?.actionBuffer;
+  const isShot = getBufferKickType(buf) === 'shot';
+
+  if(isShot && isPendingActionArmed(p)){
+    const contact = predictFirstShotContact(p, ball);
+    if(!contact){
+      attemptControlOrMoveForShot(p, dt);
+      return;
+    }
+    const approach = ballApproachDir(p, ball);
+    const target = {x: contact.x - approach.x * 0.55, y: contact.y - approach.y * 0.55};
+    moveTowardFirstShotTarget(p, dt, target, contact.t);
+    return;
+  }
+
   const target = getAerialPositionTarget(p, ball);
   moveTowardSeekTarget(p, dt, target, dist2D(p, ball) > 3.5);
 }
 
-// Posicionamiento aereo durante buffer (solo fuera de chasing manual; chasing unifica movimiento abajo).
+// Posicionamiento aereo solo para duelos aereos; el buffer no interrumpe sprint_chase.
 function handlePendingActionMovement(p, dt, input){
-  if(isPlayerForcedChasing(p)) return false;
+  if(isPlayerForcedChasing(p) || isPlayerSprintChasing(p)) return false;
   if(isManualAction(p) && isBallFreeForPlayer(p)) return false;
   if(ensureChasingState(p) && isBallFreeForPlayer(p)) return false;
   if(isAirDuelContestant(p)){
     updateAerialStrikeMovement(p, dt);
     return true;
   }
-  if((p.pendingActionParams || p.pendingActionChargeStart > 0) && isBallAerialLoose()){
+  if(isPendingActionArmed(p) && isBallAerialLoose()){
+    const kickType = getBufferKickType(p.actionBuffer);
+    if(kickType === 'shot' && !canFirstShotAtBall(p, ball)){
+      attemptControlOrMoveForShot(p, dt);
+      return true;
+    }
     updateAerialStrikeMovement(p, dt);
     return true;
   }
@@ -2277,13 +2398,15 @@ function ballApproachDir(p, ball){
 
 // Jerarquia: remate sin L2 en altura de cabeza = cabezazo obligatorio.
 // L2+remate: z>2 chilena · 1<z<=2 volea. Pase/centro siguen la altura natural.
-function resolveAerialStrikeType(p, ball, manualL2, actionButton){
-  if(ball.z <= AIR_AERIAL_MIN_Z) return null;
-  const d = dist2D(p, ball);
-  const radius = (p.pendingActionParams || p.pendingActionChargeStart > 0) ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
+function resolveAerialStrikeType(p, ballRef, manualL2, actionButton){
+  const contactZ = getBallContactHeight(p, ballRef);
+  if(contactZ <= AIR_FOOT_THRESHOLD_Z) return null;
+  const d = dist2D(p, ballRef);
+  const buf = p?.actionBuffer;
+  const radius = (buf?.type && !buf.chargeStart) ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
   if(d >= radius) return null;
 
-  const z = ball.z;
+  const z = contactZ;
   const isShot = actionButton === 'shot';
   const useManual = isShot && !!manualL2;
 
@@ -2292,19 +2415,21 @@ function resolveAerialStrikeType(p, ball, manualL2, actionButton){
       if(d < AIR_BICYCLE_CONTACT_RADIUS) return {type:'bicycle', cfg: AIR_STRIKE_TABLE.bicycle, manual:true};
       return null;
     }
-    if(z > AIR_VOLLEY_L2_MIN_Z && z <= AIR_VOLLEY_L2_MAX_Z){
-      return {type:'volley', cfg: AIR_STRIKE_TABLE.volley, manual:true};
-    }
-    if(z > AIR_VOLLEY_MIN_Z && z <= AIR_VOLLEY_L2_MIN_Z){
+    if(z > AIR_FOOT_THRESHOLD_Z){
       return {type:'volley', cfg: AIR_STRIKE_TABLE.volley, manual:true};
     }
     return null;
   }
 
-  // Remate sin L2 en altura de cabeza: cabezazo forzado (accion segura por defecto).
-  if(isShot && z >= AIR_HEADER_MIN_Z && z <= AIR_HEADER_MAX_Z){
-    return {type:'header', cfg: AIR_STRIKE_TABLE.header, manual:false};
+  // Tiro de primera sin L2: solo volea dentro de la ventana de altura realista.
+  if(isShot){
+    if(z >= FIRST_SHOT_MIN_Z && z <= FIRST_SHOT_MAX_Z){
+      return {type:'volley', cfg: AIR_STRIKE_TABLE.volley, manual:false};
+    }
+    return null;
   }
+
+  // Pase/centro en altura de cabeza: cabezazo forzado (accion segura por defecto).
   if(z >= AIR_HEADER_MIN_Z && z <= AIR_HEADER_MAX_Z){
     return {type:'header', cfg: AIR_STRIKE_TABLE.header, manual:false};
   }
@@ -2345,13 +2470,22 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
   if(!contact) return false;
 
   p.charging = null;
-  clearPendingAction(p);
 
   const cfg = contact.cfg;
   const pwr = clamp(power ?? 0.72, mods.powerMin, mods.powerMax);
-  const ang = Math.atan2(aimDir.y, aimDir.x) + (Math.random()-0.5)*cfg.spread*mods.spreadMult;
+  const manualVolley = contact.manual && contact.type === 'volley';
+  const ballSp = Math.hypot(ball.vx, ball.vy);
+  const powerVolley = contact.type === 'volley' && actionButton === 'shot' &&
+    (ballSp >= FIRST_SHOT_POWER_VEL || manualVolley);
+  let spreadMult = mods.spreadMult * (manualVolley ? AIR_MANUAL_VOLLEY_SPREAD_MULT : 1);
+  let speedMult = mods.speedMult * (manualVolley ? AIR_MANUAL_VOLLEY_SPEED_MULT : 1);
+  if(powerVolley && contact.type === 'volley'){
+    speedMult *= 1.14;
+    spreadMult *= 0.88;
+  }
+  const ang = Math.atan2(aimDir.y, aimDir.x) + (Math.random()-0.5)*cfg.spread*spreadMult;
   const fdir = {x: Math.cos(ang), y: Math.sin(ang)};
-  const spd = lerp(cfg.minSpeed, cfg.maxSpeed, pwr) * mods.speedMult;
+  const spd = lerp(cfg.minSpeed, cfg.maxSpeed, pwr) * speedMult;
   const vz = cfg.vz * mods.vzMult * (0.75 + pwr*0.35);
 
   setBallStateLoose(true);
@@ -2375,8 +2509,10 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
   ball.groundFrictionMult = curvePhys.groundFrictionMult || 1;
   setupCurvePassTracking(p, kickType, fdir, curve || 0, ball.initialSpeed);
 
-  const animDur = Math.max(cfg.dur, AIR_LOCK_DURATION);
-  p.airStrikeAnim = {type: contact.type, action: actionButton, t:0, dur: animDur};
+  const animType = (powerVolley && contact.type === 'volley') ? 'volley_power' : contact.type;
+  const jumpDur = contact.type === 'header' ? (physicsConfig.airTime ?? cfg.dur) : cfg.dur;
+  const animDur = Math.max(jumpDur, AIR_LOCK_DURATION);
+  p.airStrikeAnim = {type: animType, action: actionButton, t:0, dur: animDur};
   p.airLock = {t:0, dur: AIR_LOCK_DURATION};
   p.tackleCooldown = TACKLE_COOLDOWN * 2.2;
   p.releaseCooldown = 0.5;
@@ -2384,10 +2520,15 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
   p.vx = 0;
   p.vy = 0;
 
+  if(manualVolley){
+    p.staminaTired = clamp((p.staminaTired || 0) + AIR_MANUAL_VOLLEY_STAMINA_COST, 0, 1);
+  }
+
   if((actionButton==='pass' || actionButton==='cross') && pwr >= AUTOPASE_POWER_THRESHOLD){
     handleKickCursorSwitch(p, pwr, norm(aimDir), actionButton==='cross' ? 'cross' : 'pass');
   }
   assignPassTargetFromKick(p, norm(aimDir), actionButton==='cross' ? 'cross' : 'pass', pwr);
+  clearActionBuffer(p);
   return true;
 }
 
@@ -2395,7 +2536,11 @@ function updateAirStrikeAnim(p, dt){
   const a = p.airStrikeAnim;
   if(!a) return;
   a.t += dt;
-  if(a.t >= a.dur) p.airStrikeAnim = null;
+  updatePlayerJumpZ(p);
+  if(a.t >= a.dur){
+    p.airStrikeAnim = null;
+    p.z = 0;
+  }
 }
 
 function updateAirLock(p, dt){
@@ -2413,7 +2558,9 @@ function updateAirLock(p, dt){
 // impacto pie-pelota segun la barra de potencia (ver mas arriba, junto a executeKick). Ya no hace
 // falta medir la distancia recorrida por la pelota en vuelo para esto.
 function updateHumanControl(dt, input, team, padIndex, scheme){
+  if(isUIActive() || isPaused || Game.paused) return;
   if(gameState === 'celebration_run') return;
+  input = lockKickInputs(input);
 
   const isHome = team==='home';
   // al que la tiene, como en cualquier juego de futbol. En DEFENSA el cambio es 100% MANUAL:
@@ -2477,21 +2624,10 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
     const aimDir = taker.lastAim;
     const curve = resolveInputCurve(input);
 
-    if(input.heldShot || input.heldPass || input.heldThrough || input.heldCross){
-      console.log('[KICKOFF] input charge', {
-        heldShot: input.heldShot,
-        heldPass: input.heldPass,
-        heldThrough: input.heldThrough,
-        heldCross: input.heldCross,
-        ballOwnerId: ball.owner?.id ?? null,
-        takerId: taker.id,
-      });
-    }
-
     if(handleShotChargeInput(taker, input, aimDir, curve)) return;
     if(taker.pendingKick) return;
     if(ball.owner === taker){
-      handleBallOwnerKicks(taker, input, team, aimDir, curve);
+      handleManualRestartKickInput(taker, input);
     } else {
       console.warn('[KICKOFF] saque bloqueado: pelota no vinculada al sacador', {
         takerId: taker.id,
@@ -2503,15 +2639,22 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
 
   syncStickDir(p, input.move);
 
-  // --- Pelota parada: barra de carga (X / Triangulo / Circulo) + bloqueo de movimiento ---
-  if(isSetPieceAwaitingExecution(p)){
-    handleSetPiecePowerInput(p, input, p.lastAim);
+  // --- Pelota parada / saque de centro: potencia + direccion estricta del stick ---
+  if(isManualRestartAwaiting(p)){
+    handleManualRestartKickInput(p, input);
+    updateHumanMovement(p, dt, input, team);
+    return;
+  }
+
+  // --- Saque lateral: direccion obligatoria del stick en el frame de lanzamiento ---
+  if(p.isThrowingIn && ball.state === BALL_STATE.IN_HAND){
+    handleThrowInInput(p, input);
     updateHumanMovement(p, dt, input, team);
     return;
   }
 
   // --- Saque lateral en animacion de lanzamiento ---
-  if(p.isThrowingIn || p.throwInAnim || ball.state === BALL_STATE.IN_HAND){
+  if(p.throwInAnim || ball.state === BALL_STATE.IN_HAND){
     updateHumanMovement(p, dt, input, team);
     return;
   }
@@ -2532,36 +2675,26 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   // Prioridad defensiva: tacle/barrida antes que caminar/trotar; permite encadenar al final de la animacion
   if(tryDefensiveTackleInput(p, input)) return;
 
-  // Pelota suelta: tiro/pase de primera o accion aerea (nunca tacle de pie)
-  tryLooseBallOffensiveInput(p, input);
-
   if(p.tackleAnim || p.airStrikeAnim || p.diveAnim || p.feint || p.dragBack || p.gkKickAnim || p.throwInAnim){
-    // mientras dura la entrada/barrida/golpe aereo/estirada del arquero, el recorte del amague
-    // de tiro, o la pisada+arrastre del dragback (todas animadas en el loop principal) no hay
-    // control manual
     return;
   }
   if(p.airLock && p.airLock.t < p.airLock.dur) return;
 
-  // --- "la pared": el companero que corre lo maneja la IA (ver updateWallRun en el loop principal);
-  // aca ya no hace falta nada porque el jugador controlado ahora es el que RECIBE la pelota, no el
-  // que corre. (fallback defensivo: si por algun motivo el jugador controlado tuviera una carrera
-  // activa, se lo deja correr solo en vez de tomar el input manual)
   if(p.isMakingManualRun && p.wallRun && p.wallRun.active){
     updateWallRun(p, dt);
     return;
   }
 
-  // --- CARGA DE TIRO (Cuadrado); fake shot cancelado via InputManager arriba ---
+  // Fake shot (Cuadrado + X): ventana de amague; no bloquea movimiento
   if(ball.owner === p){
-    if(handleShotChargeInput(p, input, p.lastAim, resolveInputCurve(input))) return;
+    handleShotChargeInput(p, input, p.lastAim, resolveInputCurve(input));
   } else if(p.isChargingShot){
     clearChargingShotState(p);
     syncGlobalChargingShot(p);
   }
 
-  // --- BUFFER UNIVERSAL + duelos aereos ---
-  updatePendingActionInput(p, input);
+  // Buffer global: input solo setea type/power; sin frenado ni cambio de estado
+  updateActionBufferInput(p, input);
   if(Game.airDuel?.active && !Game.airDuel.resolved && isAirDuelContestant(p)){
     registerAirSpamPress(p, input, resolveInputCurve(input));
   }
@@ -2569,10 +2702,7 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
 
   updateHumanMovement(p, dt, input, team);
 
-  // --- DRAGBACK (L1+R1 + stick hacia la espalda del jugador): pisa la pelota y la arrastra un poco
-  // hacia atras con la suela. Es un skill de CONDUCCION (la pelota nunca se suelta), asi que se
-  // resuelve aca arriba, antes de las ramas de tiro/pase/centro de mas abajo, y solo corriendo
-  // normal con la pelota — no interrumpe una carga real de tiro/pase que ya este en curso.
+  // --- DRAGBACK (L1+R1 + stick hacia la espalda del jugador)
   const dragCombo = ball.owner===p && input.heldL1 && input.heldR1;
   if(!dragCombo){
     p.dragBackArmed = false;
@@ -2604,8 +2734,6 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   } else if(owns){
     handleBallOwnerKicks(p, input, team, p.lastAim, resolveInputCurve(input));
   } else if(p.role==='GK'){
-    // arquero sin la pelota: △ (through) = salta para las que van por arriba ·
-    // ▢ (shot) + direccion del stick = se tira para ese lado
     p.charging = null;
     if(p.tackleCooldown<=0){
       if(input.pressThrough){
@@ -2617,7 +2745,10 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
       }
     }
   }
+
+  // Frame de contacto: ejecucion inmediata si ya tiene posesion
+  if(ball.owner === p) checkActionExecution(p);
 }
 
-export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, syncGlobalCharging, getCurrentPower, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, resetActionBuffer, clearPendingAction, hasPendingAction, isBallAtPlayerFeet, isBallLooseForPendingAction, canBufferPendingAction, canChargePendingAction, canStartPendingActionCharge, startPendingActionCharge, armPendingFirstTimeAction, heldPendingActionButton, releasedPendingActionButton, tryLooseBallOffensiveInput, pendingActionToAerialButton, updatePendingActionInput, executeBufferedPendingAction, tryExecuteBufferedActionOnPossession, executePendingActionAtContact, updatePendingActionPhysics, canAerialContact, isBallAerialLoose, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, startKickoffManeuver, updateKickoffManeuver, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
+export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, getInputKeyState, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, syncGlobalCharging, getCurrentPower, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, clearActionBuffer, resetActionBuffer, clearPendingAction, hasPendingAction, isPendingActionArmed, hasBufferedAction, isBallAtPlayerFeet, isBallLooseForPendingAction, updateActionBufferInput, checkActionExecution, getBufferKickType, canAerialContact, isBallAerialLoose, isBallAirborne, getBallContactHeight, onBallContact, updateActionBufferPhysics, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, startKickoffManeuver, updateKickoffManeuver, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
 

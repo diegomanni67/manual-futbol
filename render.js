@@ -1,12 +1,12 @@
 "use strict";
 
-import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, SLIDE_DISTANCE, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, isAirSpamWindowActive } from './state.js';
+import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, SLIDE_DISTANCE, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, isAirSpamWindowActive, BASE_FIELD_L } from './state.js';
 
-import { isCelebrationMode, isHumanTeam, isSetPieceAwaitingExecution, lastDt, lerp, movePlayer, paintDepth, practiceGK, practicePlayer, project, projectPractice, setupPractice, touchKickCurve, updatePlayerMeshDir8 } from './state.js';
+import { isCelebrationMode, isHumanTeam, isSetPieceAwaitingExecution, lastDt, lerp, movePlayer, paintDepth, physicsConfig, practiceGK, practicePlayer, project, projectPractice, setupPractice, touchKickCurve, updatePlayerMeshDir8, getAnimVisualSpeed } from './state.js';
 
 import { BoundaryWalls, GOAL_FRAMES, OutZone, fieldBoundary, stadiumBounds } from './physics.js';
 
-import { chargeLevel } from './input.js';
+import { chargeLevel, getBufferKickType } from './input.js';
 
 /* ============================================================
    RENDER — CANCHA
@@ -67,8 +67,9 @@ function drawOutZoneShade(){
 function drawField(){
   drawStadiumFloor();
   const sb = stadiumBounds;
+  const grassBands = Math.max(12, Math.round(12 * (FIELD_L / BASE_FIELD_L)));
   // cesped con franjas (zona de juego + OutZone inmediata)
-  drawGrassBands(sb.xMin, sb.xMax, sb.yMin, sb.yMax, 12);
+  drawGrassBands(sb.xMin, sb.xMax, sb.yMin, sb.yMax, grassBands);
   ctx.save();
   ctx.globalAlpha = 0.14;
   const shade = ctx.createLinearGradient(0, canvas.height * CAM.horizonFrac, 0, canvas.height * CAM.groundFrac);
@@ -739,11 +740,13 @@ function smoothPose(p, target, rate){
 }
 
 function drawNormalPose(p, s, h){
-  const speed = Math.hypot(p.vx,p.vy);
+  const moveSpeed = Math.hypot(p.vx, p.vy);
+  const speed = getAnimVisualSpeed(p) || moveSpeed;
   const runT = p.animPhase;
   const mass = p.weightFactor||1;
   const prepping = !!(p.charging || p.pendingKick);
-  const chargeLayer = !!(p.pendingActionChargeStart > 0 && !p.pendingActionParams);
+  const buf = p.actionBuffer;
+  const chargeLayer = !!(buf?.chargeStart > 0);
   const feinting = !!p.feint;
   const draggingBack = !!p.dragBack;
   const throwingIn = !!(p.isThrowingIn || p.throwInAnim);
@@ -1388,7 +1391,7 @@ function drawAirStrike(p, s, h){
   if(a.type==='header'){
     // salto de cabeza: se eleva, cuello estirado hacia la pelota
     const lean = Math.sin(clamp(prog,0,1)*Math.PI);
-    const airZ = lean * 0.75;
+    const airZ = lean * physicsConfig.maxJumpHeight;
     const offsetY = -airZ*scale*1.7;
     ctx.save();
     ctx.translate(s.x, s.y);
@@ -1420,9 +1423,12 @@ function drawAirStrike(p, s, h){
     return;
   }
 
-  if(a.type==='volley'){
+  if(a.type==='volley' || a.type==='volley_power'){
+    const powerShot = a.type === 'volley_power';
     // volea: pierna de pateo bien alta, cuerpo inclinado hacia atras para acompañar
     const kick = Math.sin(clamp(prog,0,1)*Math.PI);
+    const legLift = powerShot ? 0.58 : 0.44;
+    const torsoLean = powerShot ? 0.38 : 0.28;
     ctx.save();
     ctx.translate(s.x, s.y);
     ctx.beginPath();
@@ -1435,12 +1441,12 @@ function drawAirStrike(p, s, h){
     // pierna de volea, se eleva bien alto
     ctx.beginPath();
     ctx.moveTo(h*0.04,-h*0.42);
-    ctx.lineTo(h*0.32, -h*0.42 - kick*h*0.44);
+    ctx.lineTo(h*0.32, -h*0.42 - kick*h*legLift);
     ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(h*0.32,-h*0.42-kick*h*0.44,h*0.06,h*0.035,0,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(h*0.32,-h*0.42-kick*h*legLift,h*0.06,h*0.035,0,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill();
     // torso inclinado hacia atras acompañando el gesto
     ctx.save();
-    ctx.rotate(0.28*kick);
+    ctx.rotate(torsoLean*kick);
     ctx.fillStyle=shorts;
     ctx.beginPath(); ctx.ellipse(-h*0.02,-h*0.55,h*0.13,h*0.1,0,0,Math.PI*2); ctx.fill();
     ctx.fillStyle=shirt;
@@ -1516,6 +1522,7 @@ function drawBall(){
 }
 
 function drawPowerBar(p){
+  if(Game.isInputLocked) return;
   const setPieceWaiting = isSetPieceAwaitingExecution(p);
   let level = 0;
   let pkType = null;
@@ -1525,14 +1532,15 @@ function drawPowerBar(p){
       : (SetPieceManager.chargeType === 'medium' ? 'through' : 'cross');
   } else if(!setPieceWaiting){
     level = chargeLevel(p);
-    pkType = p.pendingKick ? p.pendingKick.type : (p.pendingActionParams ? p.pendingActionParams.kickType : (p.pendingActionDetail || p.charging));
+    const buf = p.actionBuffer;
+    pkType = p.pendingKick ? p.pendingKick.type : (getBufferKickType(buf) || buf?.type || p.charging);
   }
   const chargingNow = !setPieceWaiting && (
     (p.charging && p.chargeStart > 0) ||
     (p.isChargingShot && p.chargeStart > 0) ||
-    (p.pendingActionChargeStart > 0 && !p.pendingActionParams)
+    (p.actionBuffer?.chargeStart > 0)
   );
-  const lockedBuffer = !setPieceWaiting && !!p.pendingActionParams;
+  const lockedBuffer = !setPieceWaiting && !!(p.actionBuffer?.type && !p.actionBuffer?.chargeStart);
   if(!setPieceWaiting && level <= 0 && !p.pendingKick && !chargingNow && !lockedBuffer) return;
   if(!setPieceWaiting && level <= 0 && !pkType && !chargingNow && !lockedBuffer && !p.isChargingShot) return;
   const s = project({x:p.x,y:p.y,z:2.4});

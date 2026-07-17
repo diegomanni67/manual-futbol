@@ -1,10 +1,10 @@
 "use strict";
 
-import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game } from './state.js';
+import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, getDirectionalMaxSpeed, physicsConfig } from './state.js';
 
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DISTANCE, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 
-import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession } from './state.js';
+import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession } from './state.js';
 
 import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard } from './state.js';
 
@@ -15,9 +15,50 @@ import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisio
 /* ============================================================
    FISICA / MOVIMIENTO DE JUGADORES (peso tipo eFootball: acelera y frena gradual)
    ============================================================ */
+const UNIFORM_LINEAR_ACCEL_TIME = 0.3; // 11vs11: tiempo maximo para alcanzar maxSpeed desde reposo
+const UNIFORM_LINEAR_ACCEL_FLOOR = 6.0; // por debajo de esto se fuerza aceleracion lineal en playing
+const MOVE_STEP_DT_MIN = 1 / 120;
+const MOVE_STEP_DT_MAX = 1 / 20;
+
+function isUniformPlayingMove(){
+  return physicsConfig.useUniformSpeed && Game.matchState === STATE_PLAYING;
+}
+
+function clampMoveStepDt(dt){
+  return clamp(dt, MOVE_STEP_DT_MIN, MOVE_STEP_DT_MAX);
+}
+
 // Actualiza p.vx / p.vy con inercia de giro (rotacion limitada del vector de velocidad) y
 // aceleracion/desaceleracion gradual. La pelota NO se toca aqui: sigue anclada al pie via
 // updateBallPosition (usa p.facing/p.dir, no el vector de velocidad directamente).
+function getAccelRampCap(p){
+  if(!physicsConfig.accelRampDist || physicsConfig.accelRampDist <= 0) return 1;
+  const rampT = clamp((p.accelRampDist || 0) / physicsConfig.accelRampDist, 0, 1);
+  const smoothRamp = rampT * rampT * (3 - 2 * rampT);
+  return Math.max(0.12, smoothRamp);
+}
+
+function logSprintSpeedDiagnostic(p, diag){
+  if(!physicsConfig.useUniformSpeed || !diag.sprint || !diag.wantMove) return;
+  const currentSpeed = Math.hypot(p.vx, p.vy);
+  const targetSpeed = diag.maxSpeed;
+  if(currentSpeed >= targetSpeed * 0.98) return;
+  p._speedDiagCooldown = (p._speedDiagCooldown || 0) - diag.dt;
+  if(p._speedDiagCooldown > 0) return;
+  p._speedDiagCooldown = 0.45;
+  const limiters = diag.limiters.length ? diag.limiters : ['accelInertia'];
+  console.log('[11vs11 SPEED]', {
+    playerId: p.id,
+    role: p.role,
+    currentSpeed: +currentSpeed.toFixed(2),
+    targetMaxSpeed: +targetSpeed.toFixed(2),
+    expectedMax: physicsConfig.maxSpeed,
+    sprint: diag.sprint,
+    rampCap: +diag.rampCap.toFixed(2),
+    limiters,
+  });
+}
+
 function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mass){
   const prevVX = p.vx, prevVY = p.vy;
   const fakeShotRecovery = isFakeShotRecoveryChase(p);
@@ -41,7 +82,9 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
   }
 
   if(wantMove){
-    const targetSpeed = moveMag*maxSpeed;
+    const rampCap = getAccelRampCap(p);
+    let cappedMax = maxSpeed * rampCap;
+    const targetSpeed = moveMag * cappedMax;
     const targetAngle = Math.atan2(moveDir.y/moveMag, moveDir.x/moveMag);
 
     let curSpeed = Math.hypot(p.vx, p.vy);
@@ -67,7 +110,9 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
     let newSpeed = curSpeed;
 
     // giros bruscos: desaceleracion proporcional a (1 - agility); sin pelota casi no frena al girar
-    if(!stunned && !effortSprint && curSpeed > MOVE_LOW_SPEED_SNAP && turnDelta > 0.5){
+    // 11vs11 sprint sin pelota: sin bleed (evita caidas a ~1 m/s al reorientarse)
+    const skipSharpBleed = isUniformPlayingMove() && sprint && !dribbling;
+    if(!stunned && !effortSprint && !skipSharpBleed && curSpeed > MOVE_LOW_SPEED_SNAP && turnDelta > 0.5){
       const sharpness = clamp((turnDelta-0.5)/(Math.PI-0.5), 0, 1);
       const bleedBase = MOVE_SHARP_TURN_BLEED*(dribbling ? 0.75 : 0.28);
       const bleed = bleedBase*Math.pow(sharpness, 0.62)*speedRatio*(1.08 - agility*0.65);
@@ -86,6 +131,19 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
 
     p.vx = Math.cos(newAngle)*newSpeed;
     p.vy = Math.sin(newAngle)*newSpeed;
+
+    // 11vs11 + playing: aceleracion lineal (evita arranque ~1 m/s por lerp exponencial lento)
+    if(isUniformPlayingMove() && sprint){
+      const uniformMax = physicsConfig.maxSpeed || 6.56;
+      const curSp = Math.hypot(p.vx, p.vy);
+      const tgtSp = Math.min(targetSpeed, uniformMax);
+      if(curSp < UNIFORM_LINEAR_ACCEL_FLOOR && tgtSp > curSp + 0.02){
+        const accelRate = uniformMax / UNIFORM_LINEAR_ACCEL_TIME;
+        const boosted = Math.min(curSp + accelRate * dt, tgtSp);
+        p.vx = Math.cos(newAngle) * boosted;
+        p.vy = Math.sin(newAngle) * boosted;
+      }
+    }
   } else if(!effortSprint) {
     // sin input: frenado gradual (inercia al soltar el stick)
     const brakeRate = clamp(0.0007*mass, 0.0004, 0.0016);
@@ -99,6 +157,7 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
 // Captura por proximidad: misma regla para todos; dueño logico (possessedBy / feintDetach) ignora distancia.
 export function checkBallCapture(p, opts = {}){
   if(!p || ball.owner === p) return false;
+  if(isOnBallContactBlocked(p)) return false;
   if(ball.owner !== null) return false;
   if(ball.state !== BALL_STATE.FREE && ball.state !== BALL_STATE.LOOSE_BALL) return false;
   if(ball.z >= 1.15) return false;
@@ -138,6 +197,7 @@ export function checkBallCapture(p, opts = {}){
   p.charging = null;
   if(p.takePossession(possessSource)){
     clearSprintChaseState(p);
+    notifyRestartBallTouchedByOther(p);
     syncHumanTeamControlOnPossession(p);
     if(isPostTouchChasing(p)) clearChasingState(p);
     return true;
@@ -147,6 +207,7 @@ export function checkBallCapture(p, opts = {}){
 
 function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   opts = opts || {};
+  dt = clampMoveStepDt(dt);
   if(p.isThrowingIn || p.throwInAnim){
     p.vx = 0;
     p.vy = 0;
@@ -226,25 +287,74 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
     }
   }
 
-  let maxSpeed = getPlayerMoveSpeedBase(p) * (sprint?1.42:1.0) * (jockey?0.55:1.0);
-  if(sprintChase){
-    maxSpeed = getPlayerMaxSprintVelocity(p);
-  } else if(forcedChase) maxSpeed = getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT;
-  if(fakeShotRecovery) maxSpeed = p.maxVelocity || p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
-  else if(!sprintChase && effortSprint) maxSpeed = p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
-  else if(ball.owner===p && !forcedChase && !sprintChase) maxSpeed *= 0.91;
-  if(isGkHandsPossession(p)) maxSpeed *= 0.68;
-  if(p.stumble) maxSpeed *= 0.3; // tropezando tras perder un duelo: se mueve mucho mas lento un instante
-  // PREPARANDO_ACCION con pelota en pie: cargando o windup post-suelta — no aplica en sprint_chase
-  if((p.charging || p.pendingKick) && !isPlayerSprintChasing(p)) maxSpeed *= PREP_SPEED_FACTOR;
-  // ESTADO DE TRANSICION (toque de acomodo del giro): velocidad de desplazamiento casi nula durante
-  // los ~100ms del toque — recien cuando p.turnTouch se apaga (ver bloque de abajo) se vuelve a
-  // permitir que vx/vy suban hacia la velocidad de carrera normal.
-  if(p.turnTouch) maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
+  const sprintActive = sprint || effortSprint;
+  let maxSpeed;
+  const speedLimiters = [];
+  const uniformMax = physicsConfig.maxSpeed;
+  if(physicsConfig.useUniformSpeed && uniformMax){
+    // 11vs11: un solo tope (expectedMax) para todos los roles; sin FORCED_CHASE ni bonus por rol
+    maxSpeed = uniformMax * (jockey ? 0.55 : 1.0);
+    if(ball.owner === p && !sprintActive && !forcedChase && !sprintChase && !effortSprint){
+      maxSpeed *= 0.91;
+      speedLimiters.push('ballOwner*0.91');
+    }
+    if(isGkHandsPossession(p)){ maxSpeed *= 0.68; speedLimiters.push('gkHands*0.68'); }
+    if(p.stumble){ maxSpeed *= 0.3; speedLimiters.push('stumble*0.3'); }
+    if((p.charging || p.pendingKick) && !isPlayerSprintChasing(p)){
+      maxSpeed *= PREP_SPEED_FACTOR;
+      speedLimiters.push(`prep*${PREP_SPEED_FACTOR}`);
+    }
+    if(p.turnTouch){
+      maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
+      speedLimiters.push(`turnTouch*${TURN_TOUCH_SPEED_FACTOR}`);
+    }
+    maxSpeed = Math.min(maxSpeed, uniformMax);
+  } else {
+    maxSpeed = getPlayerMoveSpeedBase(p) * (sprint ? (physicsConfig.sprintMult ?? DEFAULT_SPRINT_MULT) : 1.0) * (jockey?0.55:1.0);
+    if(sprintChase){
+      maxSpeed = getPlayerMaxSprintVelocity(p);
+    } else if(forcedChase) maxSpeed = getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT;
+    if(fakeShotRecovery) maxSpeed = p.maxVelocity || p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
+    else if(!sprintChase && effortSprint) maxSpeed = p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
+    else if(ball.owner===p && !forcedChase && !sprintChase && !(physicsConfig.useUniformSpeed && sprint)){
+      maxSpeed *= 0.91;
+      speedLimiters.push('ballOwner*0.91');
+    }
+    if(isGkHandsPossession(p)){ maxSpeed *= 0.68; speedLimiters.push('gkHands*0.68'); }
+    if(p.stumble){ maxSpeed *= 0.3; speedLimiters.push('stumble*0.3'); }
+    if((p.charging || p.pendingKick) && !isPlayerSprintChasing(p)){
+      maxSpeed *= PREP_SPEED_FACTOR;
+      speedLimiters.push(`prep*${PREP_SPEED_FACTOR}`);
+    }
+    if(p.turnTouch){
+      maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
+      speedLimiters.push(`turnTouch*${TURN_TOUCH_SPEED_FACTOR}`);
+    }
+  }
+
+  const maxSpeedBeforeDirectional = maxSpeed;
+  maxSpeed = getDirectionalMaxSpeed(activeMoveDir, moveMag, maxSpeed);
+  if(maxSpeed < maxSpeedBeforeDirectional - 0.01) speedLimiters.push('directionalCap');
 
   const mass = p.weightFactor || 1;
-  const sprintActive = sprint || effortSprint;
+  const rampCapBeforeMove = getAccelRampCap(p);
   const {prevVX, prevVY} = updateMovement(p, dt, activeMoveDir, moveMag, wantMove, maxSpeed, sprintActive, mass);
+
+  const speedAfterMove = Math.hypot(p.vx, p.vy);
+  if(rampCapBeforeMove < 0.98) speedLimiters.push(`accelRampDist(${(rampCapBeforeMove*100).toFixed(0)}%)`);
+  logSprintSpeedDiagnostic(p, {
+    dt,
+    sprint: sprintActive,
+    wantMove,
+    maxSpeed,
+    rampCap: rampCapBeforeMove,
+    limiters: speedLimiters,
+  });
+  if(wantMove && speedAfterMove > 0.08 && physicsConfig.accelRampDist > 0){
+    p.accelRampDist = (p.accelRampDist || 0) + speedAfterMove * dt;
+  } else if(!wantMove || speedAfterMove < 0.05){
+    p.accelRampDist = 0;
+  }
 
   if(p.effortExitBlendT > 0){
     applyEffortExitVelocityBlend(p, dt, activeMoveDir, moveMag, maxSpeed);
@@ -329,7 +439,8 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   // hacia que las piernas se siguieran moviendo sin que el cuerpo avanzara — el clasico efecto de
   // "patinar" sobre el cesped. Ahora, si no hay desplazamiento real, el ciclo queda congelado.
   const strideLen = clamp(1.55*clamp(1.15-(mass-1)*0.4, 0.8, 1.25), 1.15, 1.95); // distancia (unidades) de una zancada completa
-  p.animPhase += (speed*dt/strideLen) * Math.PI*2;
+  const animDrive = speed > 0.25 ? (physicsConfig.animStrideSpeed ?? speed) : 0;
+  p.animPhase += (animDrive * dt / strideLen) * Math.PI*2;
   // AMORTIGUACION DE REPOSO: cuando el jugador esta quieto (o casi), el ciclo de piernas ya no
   // avanza (arriba), pero para que no quede "congelado" a mitad de zancada, la AMPLITUD del vaiven
   // se desvanece suave hacia 0 (ver drawNormalPose, usa p.legIdleBlend) — el jugador termina
@@ -483,6 +594,7 @@ function startTackle(p, type, aimDir){
 
 function tryDefensiveTackleInput(p, input){
   if(p.charging) return false;
+  if(p.isPreparingToShoot) return false;
   if(isBallAboveKnee()) return false;
 
   if(input.pressSlide && canUseSlideTackle(p)){
@@ -725,6 +837,27 @@ function buildBoundaryWalls(){
 }
 const BoundaryWalls = buildBoundaryWalls();
 
+function rebuildFieldGeometry(){
+  fieldBoundary.xMin = 0;
+  fieldBoundary.yMin = 0;
+  fieldBoundary.xMax = FIELD_L;
+  fieldBoundary.yMax = FIELD_W;
+  stadiumBounds.xMin = -OUT_ZONE_DEPTH;
+  stadiumBounds.yMin = -OUT_ZONE_DEPTH;
+  stadiumBounds.xMax = FIELD_L + OUT_ZONE_DEPTH;
+  stadiumBounds.yMax = FIELD_W + OUT_ZONE_DEPTH;
+  OutZone.xMin = stadiumBounds.xMin;
+  OutZone.yMin = stadiumBounds.yMin;
+  OutZone.xMax = stadiumBounds.xMax;
+  OutZone.yMax = stadiumBounds.yMax;
+  OutZone.depth = OUT_ZONE_DEPTH;
+  BoundaryWalls.splice(0, BoundaryWalls.length, ...buildBoundaryWalls());
+  GOAL_FRAMES.splice(0, GOAL_FRAMES.length,
+    buildGoalFrame(GOAL_LINE_LEFT, -1, 'away'),
+    buildGoalFrame(GOAL_LINE_RIGHT, 1, 'home'),
+  );
+}
+
 function resetGoalZoneTracking(){
   Game.goalZoneInside = { left: false, right: false };
   Game.goalZonePassed = { left: false, right: false };
@@ -855,6 +988,7 @@ export const GOAL_FRAMES = [
   buildGoalFrame(GOAL_LINE_LEFT, -1, 'away'),
   buildGoalFrame(GOAL_LINE_RIGHT, 1, 'home'),
 ];
+rebuildFieldGeometry();
 
 function isBallPastGoalLine(b, side){
   const r = BALL_RADIUS;
@@ -1914,5 +2048,5 @@ function restartAfterGoal(scoringTeam){
   Game.paused = false;
 }
 
-export { updateMovement, movePlayer, ballInTackleBox, applyTackleCarryInertia, tackleAnimProgress, canChainTackle, isBallAboveKnee, hasRivalPossession, isLooseBallForDefense, isWithinSlideReceptionZone, canUseStandingTackle, canUseSlideTackle, startTackle, tryDefensiveTackleInput, resolveStandTackle, computeSlideHitbox, ballIntersectsSlideHitbox, randomDirInCone, slideTackle, resolveTackleImpact, updateSlidePosition, checkSlideFoul, updateTackleAnim, startGKDive, updateGKDive, buildBoundaryWalls, resetGoalZoneTracking, clearGoalNetTriggerState, buildGoalFrame, isBallPastGoalLine, isBallInGoalMouth, isBallInsideGoalVolume, getGoalNetSide, getGoalNetFrictionMult, isInsideGoalTrigger, isBallTouchingNetMesh, updateGoalNetTriggerPhysics, isBallNearGoalArea, getOutZoneFrictionMult, getGoalAreaFrictionMult, getGoalBackLineX, getGoalExitMarginX, registerGoalOnLineCross, ballCrossedGoalLinePlane, ballPassedGoalZone, isBallInGoalZone, isValidGoalTrigger, markGoalZonePassed, onGoalZoneTriggerEnter, tryRegisterGoal, checkGoalLinePosition, checkBallStuck, updateGoalZoneTriggers, dampGoalStructureBounce, isInsideGoalCavity, resolveGoalSolid, resolveGoalLateralNets, resolveBackNet, resolveGoalFrameCollisions, resolveGoalStructureCollisions, forcePossessionLoss, isBallInValidGoalBox, onGoal, isBallOutsideFieldLines, isBallInOutZone, resolveBoundaryWallAbsorb, resolveBoundaryWallCollisions, defendingTeamForGoalLine, attackingTeamForGoalLine, cornerPositionForGoalLineExit, goalKickPositionForGoalLine, enterDeadBallState, computeOutZoneSetPiece, onBallOut, updateWaitingForRetrieval, checkFieldLimits, checkGoalsAndBounds, resumeFromDeadBall, updateDeadBallRestart, resetPracticeOutOfPlay, updateGoalRoll, scoreGoal, showGoalOverlay, hideGoalOverlay, isGoalOverlayVisible, resolveCelebrationScorer, idleAllPlayersExceptScorer, pickCelebrationFestejo, triggerScorerCelebrationAnim, celebrationResumePressed, triggerGoalCelebrationState, beginCelebrationRun, finishCelebrationRun, updateCelebrationRunCpuMovement, updateCelebrationRunControl, updateCelebrationRun, runCelebrationRunSim, restartAfterGoal, fieldBoundary, stadiumBounds, OutZone, BoundaryWalls };
+export { updateMovement, movePlayer, ballInTackleBox, applyTackleCarryInertia, tackleAnimProgress, canChainTackle, isBallAboveKnee, hasRivalPossession, isLooseBallForDefense, isWithinSlideReceptionZone, canUseStandingTackle, canUseSlideTackle, startTackle, tryDefensiveTackleInput, resolveStandTackle, computeSlideHitbox, ballIntersectsSlideHitbox, randomDirInCone, slideTackle, resolveTackleImpact, updateSlidePosition, checkSlideFoul, updateTackleAnim, startGKDive, updateGKDive, buildBoundaryWalls, rebuildFieldGeometry, resetGoalZoneTracking, clearGoalNetTriggerState, buildGoalFrame, isBallPastGoalLine, isBallInGoalMouth, isBallInsideGoalVolume, getGoalNetSide, getGoalNetFrictionMult, isInsideGoalTrigger, isBallTouchingNetMesh, updateGoalNetTriggerPhysics, isBallNearGoalArea, getOutZoneFrictionMult, getGoalAreaFrictionMult, getGoalBackLineX, getGoalExitMarginX, registerGoalOnLineCross, ballCrossedGoalLinePlane, ballPassedGoalZone, isBallInGoalZone, isValidGoalTrigger, markGoalZonePassed, onGoalZoneTriggerEnter, tryRegisterGoal, checkGoalLinePosition, checkBallStuck, updateGoalZoneTriggers, dampGoalStructureBounce, isInsideGoalCavity, resolveGoalSolid, resolveGoalLateralNets, resolveBackNet, resolveGoalFrameCollisions, resolveGoalStructureCollisions, forcePossessionLoss, isBallInValidGoalBox, onGoal, isBallOutsideFieldLines, isBallInOutZone, resolveBoundaryWallAbsorb, resolveBoundaryWallCollisions, defendingTeamForGoalLine, attackingTeamForGoalLine, cornerPositionForGoalLineExit, goalKickPositionForGoalLine, enterDeadBallState, computeOutZoneSetPiece, onBallOut, updateWaitingForRetrieval, checkFieldLimits, checkGoalsAndBounds, resumeFromDeadBall, updateDeadBallRestart, resetPracticeOutOfPlay, updateGoalRoll, scoreGoal, showGoalOverlay, hideGoalOverlay, isGoalOverlayVisible, resolveCelebrationScorer, idleAllPlayersExceptScorer, pickCelebrationFestejo, triggerScorerCelebrationAnim, celebrationResumePressed, triggerGoalCelebrationState, beginCelebrationRun, finishCelebrationRun, updateCelebrationRunCpuMovement, updateCelebrationRunControl, updateCelebrationRun, runCelebrationRunSim, restartAfterGoal, fieldBoundary, stadiumBounds, OutZone, BoundaryWalls };
 
