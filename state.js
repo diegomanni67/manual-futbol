@@ -170,6 +170,9 @@ export const IGNORE_POSSESSION_T = 0.2;         // 200ms: nadie puede reposeer t
 export const EFFORT_REPOSSESS_COOLDOWN = SELF_TOUCH_COLLECT_BLOCK; // sincronizado con canCollectBlockT
 
 export const STATE_SPRINT_CHASE = 'sprint_chase'; // effort touch: autopase + sprint sin pelota hasta captura
+export const STATE_PLAYING = 'playing';   // juego normal en curso
+export const STATE_KICKOFF = 'kickoff';   // saque de centro (inicio o post-gol)
+export const STATE_FIXED = 'fixed';       // anclado en pelota parada (saque de centro, etc.)
 
 // --- GIRO CON PELOTA (toque de acomodo) ---
 // Si el jugador conduce y cambia bruscamente de direccion, no sale corriendo de inmediato: primero
@@ -306,6 +309,23 @@ export const GK_KICK_GROUND_Z = 0.2;      // altura de suelo para transicion pos
 export const AIR_CONTACT_RADIUS = 1.2;        // rango de contacto espontaneo (sin buffer)
 export const PENDING_ACTION_EXECUTE_RADIUS = 1.0; // buffer universal: ejecuta remate/pase de primera al contacto
 export const PENDING_ACTION_TIMEOUT_MS = 500;     // limpia buffer si no hay contacto en 500ms
+export const PENDING_ACTION_PASS = 'PASS';
+export const PENDING_ACTION_SHOT = 'SHOT';
+
+export function clearPlayerPendingAction(p){
+  if(!p) return;
+  p.pendingAction = null;
+  p.pendingActionDetail = null;
+  p.pendingActionChargeStart = 0;
+  p.pendingActionPower = 0;
+  p.pendingActionCurve = 0;
+  p.pendingActionManualL2 = false;
+  p.pendingActionTimestamp = 0;
+  p.pendingActionParams = null;
+  p.isPowerLocked = false;
+  p.isPreparingToShoot = false;
+  Game.isCharging = false;
+}
 export const AIR_BICYCLE_CONTACT_RADIUS = 0.8;// chilena: distancia perfecta jugador-pelota
 export const AIR_BUFFER_RADIUS = 14;          // distancia maxima para empezar a cargar el buffer de accion
 export const AIR_CONTACT_PASSED_EPS = 0.055;  // distancia crece por encima de esto = paso el punto de contacto
@@ -321,6 +341,19 @@ export const AIR_DUEL_RADIUS = 1.0;           // distancia jugador-pelota para d
 export const AIR_SPAM_WINDOW_MS = 400;        // ventana de spam: ultimos 400ms antes del contacto
 export const AIR_SPAM_SIM_STEP = 0.012;       // paso de simulacion para predecir impacto
 export const AIR_SPAM_METER_MAX = 8;          // presiones para llenar la barra visual de spam
+
+// Bandera global de UI: true solo durante la ventana de spam del duelo aereo activo.
+export let isAirSpamWindowActive = false;
+
+export function setAirSpamWindowUiActive(active){
+  isAirSpamWindowActive = !!active;
+  Game.isAirSpamWindowActive = !!active;
+}
+
+export function clearAirSpamUiState(){
+  Game.airDuel = null;
+  setAirSpamWindowUiActive(false);
+}
 // jerarquia aerea: sin L2 = cabezazo (seguro) · L2+remate = volea/chilena (arriesgado)
 export const AIR_VOLLEY_L2_MIN_Z = 1.0;       // volea manual (L2+remate): altura minima (exclusive)
 export const AIR_VOLLEY_L2_MAX_Z = 2.0;       // volea manual (L2+remate): altura maxima (inclusive)
@@ -678,7 +711,7 @@ export function syncPlayerDir(p){
 
 // --- ESTADOS DE LA PELOTA: 'free' | 'in_possession' | 'dead_ball' | 'loose_ball' | 'goal_celebration' | throw-in ---
 export const BALL_STATE = { FREE: 'free', IN_POSSESSION: 'in_possession', DEAD_BALL: 'dead_ball', LOOSE_BALL: 'loose_ball', WAITING_FOR_RETRIEVAL: 'waiting_for_retrieval', GOAL_CELEBRATION: 'goal_celebration', OUT_OF_BOUNDS: 'out_of_bounds', IN_HAND: 'in_hand', IN_AIR: 'in_air', PLACED: 'placed' };
-export const SET_PIECE = { GOAL_KICK: 'goal_kick', CORNER: 'corner', THROW_IN: 'throw_in' };
+export const SET_PIECE = { GOAL_KICK: 'goal_kick', CORNER: 'corner', THROW_IN: 'throw_in', KICKOFF: 'kickoff' };
 export const SET_PIECE_UNSTICK_DIST = 1.0;    // metros minimos de recorrido post-saque antes de liberar isStuck
 export const SET_PIECE_ZONE_RADIUS = 2.0;     // radio de la zona designada para ejecutar la pelota parada
 export const RESTART_TIME_LIMIT_MS = 3000;    // tiempo limite de espera para reinicios (corner, arco, lateral)
@@ -699,6 +732,7 @@ export const THROW_IN_APPROACH_DIST = 1.8;  // distancia para activar isThrowing
 
 export function playerInStrictControlRange(p, b = ball){
   if(!p) return false;
+  if(isKickoffTaker(p) && isKickoffWaiting()) return true;
   if(isGkHandsPossession(p)) return dist2D(p, b) <= GK_HANDS_CTRL_RADIUS;
   if(isGoalkeeper(p)) return dist2D(p, b) <= GK_INTERCEPTION_RADIUS;
   if(ball.owner === p && (isExtendedDribbleActive(p) || p.isEffortSprinting)){
@@ -1202,7 +1236,7 @@ export function applyStun(player, duration = STUN_IMPACT_DURATION){
   player.tackleCooldown = Math.max(player.tackleCooldown, 0.4);
   player.charging = null;
   player.pendingKick = null;
-  player.pendingAction = null;
+  clearPlayerPendingAction(player);
   player.iaSeeking = false;
   player.targetPosition = null;
   player.landingTime = 0;
@@ -1569,6 +1603,7 @@ export function tryEnterChasingFromPrivateEvent(p){
 
 export function clearChasingState(p){
   if(!p) return;
+  if(isKickoffTaker(p) && isKickoffWaiting()) return;
   if(isPostTouchChasing(p)){
     clearForcedChaseState(p);
     return;
@@ -1596,7 +1631,7 @@ export function resumeChasingAfterAction(p){
 
 // Punto de intercepcion durante chasing (incluye buffer de recepcion / primera).
 export function getChaseInterceptTarget(p){
-  if(p.pendingAction && isBallAerialLoose()){
+  if((p.pendingActionParams || p.pendingActionChargeStart > 0) && isBallAerialLoose()){
     return getAerialPositionTarget(p, ball);
   }
   if(ball.z > BALL_AERIAL_MIN_Z){
@@ -1968,9 +2003,8 @@ export function setBallStateInPossession(p, possessSource){
   ball.curveFactor = 0;
   ball.highKick = false;
   ball.highKickType = null;
-  if(p.pendingAction){
-    if(p.isPowerLocked) tryExecuteBufferedActionOnPossession(p);
-    else resetActionBuffer(p);
+  if(p.pendingActionParams){
+    tryExecuteBufferedActionOnPossession(p);
   }
   syncHumanTeamControlOnPossession(p);
   return true;
@@ -1985,6 +2019,13 @@ export function dribblingBinding(){
   const p = ball.owner;
   if(!p || p.possessionType === GK_POSSESS_FREE){
     setBallStateLoose(false);
+    return;
+  }
+  if(isKickoffWaiting() && isKickoffTaker(p)){
+    ball.x = CENTER.x;
+    ball.y = CENTER.y;
+    ball.z = BALL_RADIUS;
+    bindDribbleBallPosition(p);
     return;
   }
   if(isBallLocked() && Game.ballLockOwnerId === p.id){
@@ -2280,6 +2321,7 @@ export function bindThrowInBall(p){
 }
 
 export function setupThrowIn(db){
+  clearAirSpamUiState();
   setSetPieceMode(false);
   Game.deadBall = null;
   Game.isDeadBall = false;
@@ -2505,6 +2547,10 @@ export function positionSetPieceTaker(taker, db, ballPos){
     taker.x = ballPos.x + (db.side === 'left' ? 0.55 : -0.55);
     taker.y = ballPos.y + (ballPos.y > CENTER.y ? -0.55 : 0.55);
     taker.facing = db.side === 'left' ? 0 : Math.PI;
+  } else if(db.type === SET_PIECE.KICKOFF){
+    taker.x = ballPos.x + (db.team === 'home' ? -KICKOFF_TAKER_BALL_OFFSET : KICKOFF_TAKER_BALL_OFFSET);
+    taker.y = ballPos.y;
+    taker.facing = db.team === 'home' ? 0 : Math.PI;
   } else if(db.type === SET_PIECE.THROW_IN){
     taker.x = ballPos.x;
     taker.y = ballPos.y;
@@ -2536,7 +2582,7 @@ export function resetGoalkeeperForGoalKick(gk){
   gk.vy = 0;
   gk.charging = null;
   gk.pendingKick = null;
-  gk.pendingAction = null;
+  clearPlayerPendingAction(gk);
   gk.isStuck = false;
   gk.canMove = true;
 }
@@ -2887,9 +2933,11 @@ export function clearPlayerSetPieceState(p){
   p.isStuck = false;
   p.blockDribbling = false;
   p.inSetPieceZone = false;
+  if(p.state === STATE_FIXED) p.state = 'idle';
 }
 
 export function setSetPieceMode(active, info){
+  if(active) clearAirSpamUiState();
   Game.setPieceMode = !!active;
   if(!active){
     if(Game.setPiece?.type === SET_PIECE.GOAL_KICK){
@@ -3235,9 +3283,17 @@ export class Player{
     this.aiMode = 'normal'; // 'normal' | 'idle' — congelado en zona de exclusion post-tacle (CPU rival)
     this.chargeStart = 0;
     this.charging = null; // 'shot'|'pass'|'through'|'cross'|'wallpass'
-    // Buffer universal de accion: remate/pase de primera (aereo o raso) con ejecucion al contacto
-    this.pendingAction = null; // {type, kickType, power, timestamp, chargeStart, curve, manualL2}
+    // Buffer exclusivo: una sola intencion ('PASS' | 'SHOT'); la carga vive en campos auxiliares
+    this.pendingAction = null;
+    this.pendingActionDetail = null; // 'pass' | 'through' | 'cross' | 'shot'
+    this.pendingActionChargeStart = 0;
+    this.pendingActionPower = 0;
+    this.pendingActionCurve = 0;
+    this.pendingActionManualL2 = false;
+    this.pendingActionTimestamp = 0;
+    this.pendingActionParams = null; // { type, power, kickType, curve, manualL2, timestamp } — armado al soltar
     this.isPowerLocked = false; // single charge lock: no re-cargar hasta ejecutar o perder buffer
+    this.kickoffAnim = null; // maniobra cinematica del saque de centro (giro / retroceso+impacto)
     // PREPARANDO_ACCION (fase 2): tras soltar el boton, si todavia no paso el tiempo minimo de
     // preparacion (PREP_MIN_MS), el pase/tiro queda "en el aire" con estos datos guardados y se
     // ejecuta de verdad recien cuando termina la cuenta regresiva (ver releaseCharge/updatePendingKick)
@@ -3414,6 +3470,238 @@ export const allPlayers = [...homeTeam, ...awayTeam];
 export const ball = new Ball();
 
 export const KICKOFF_HALF_MARGIN = 1.5; // separacion minima respecto de la linea media en el saque
+export const KICKOFF_CIRCLE_MARGIN = 0.35; // margen extra fuera del circulo central para el equipo defensor
+export const KICKOFF_TAKER_BALL_OFFSET = 0.85; // dentro de CTRL_RADIUS (1.0) para que la posesion no falle
+
+export const KickoffManager = {
+  timer: 0,
+  executed: false,
+};
+
+export function isKickoffActive(){
+  return Game.matchState === STATE_KICKOFF;
+}
+
+export function isKickoffWaiting(){
+  return isKickoffActive() && !Game.isBallInPlay;
+}
+
+export function isKickoffTaker(p){
+  return !!(p && isKickoffWaiting() && Game.kickoffTakerId === p.id);
+}
+
+export function isKickoffDefendingTeam(team){
+  return isKickoffWaiting() && team !== Game.kickoffTeam;
+}
+
+export function getKickoffDefendingTeam(){
+  if(!Game.kickoffTeam) return null;
+  return Game.kickoffTeam === 'home' ? 'away' : 'home';
+}
+
+export function getKickoffTaker(){
+  if(!Game.kickoffTakerId) return null;
+  return allPlayers.find(p => p.id === Game.kickoffTakerId) || null;
+}
+
+export function getKickoffBallPosition(){
+  return { x: CENTER.x, y: CENTER.y };
+}
+
+export function getKickoffTakerWorldPosition(taker){
+  if(!taker) return getKickoffBallPosition();
+  return {
+    x: CENTER.x + (taker.team === 'home' ? -KICKOFF_TAKER_BALL_OFFSET : KICKOFF_TAKER_BALL_OFFSET),
+    y: CENTER.y,
+  };
+}
+
+// Teletransporte duro: mata inercia y ancla al sacador junto al punto central (sin interpolacion).
+export function teleportKickoffTakerHard(taker){
+  if(!taker) return;
+  if(taker.kickoffAnim) return;
+  taker.vx = 0;
+  taker.vy = 0;
+  taker.state = STATE_FIXED;
+  const pos = getKickoffTakerWorldPosition(taker);
+  taker.x = pos.x;
+  taker.y = pos.y;
+  taker.facing = getKickoffFacingOwnGoal(taker);
+  syncPlayerDir(taker);
+}
+
+export function getKickoffFacingOwnGoal(taker){
+  return taker.team === 'home' ? Math.PI : 0;
+}
+
+export function getKickoffFacingAttack(taker){
+  return taker.team === 'home' ? 0 : Math.PI;
+}
+
+export function isKickoffManeuverActive(p){
+  return !!(p && p.kickoffAnim);
+}
+
+export function clampKickoffTakerManeuverPosition(p){
+  if(!p) return;
+  p.y = CENTER.y;
+  const circleR = CCIRCLE_R - 0.45;
+  const dx = p.x - CENTER.x;
+  if(Math.abs(dx) > circleR){
+    p.x = CENTER.x + Math.sign(dx) * circleR;
+  }
+  if(p.team === 'home') p.x = Math.min(p.x, CENTER.x - 0.1);
+  else p.x = Math.max(p.x, CENTER.x + 0.1);
+  p.vy = 0;
+}
+
+export function positionKickoffTaker(taker){
+  if(!taker) return;
+  teleportKickoffTakerHard(taker);
+}
+
+export function lockKickoffTaker(taker){
+  if(!taker) return;
+  teleportKickoffTakerHard(taker);
+  taker.inSetPieceZone = true;
+  taker.canMove = false;
+  taker.isStuck = true;
+  taker.blockDribbling = true;
+}
+
+export function clearKickoffTakerState(p){
+  if(!p) return;
+  p.kickoffAnim = null;
+  clearPlayerSetPieceState(p);
+}
+
+export function maintainKickoffPlacement(){
+  if(!isKickoffWaiting()) return;
+  const taker = getKickoffTaker();
+  if(!taker) return;
+  if(isKickoffManeuverActive(taker)) return;
+  const ballPos = getKickoffBallPosition();
+  ball.x = ballPos.x;
+  ball.y = ballPos.y;
+  ball.z = BALL_RADIUS;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.vz = 0;
+  teleportKickoffTakerHard(taker);
+  if(ball.owner !== taker){
+    if(!setBallStateInPossession(taker)){
+      ball.owner = taker;
+      ball.state = BALL_STATE.IN_POSSESSION;
+      ball.lastTouchedBy = taker.id;
+      ball.lastTouchTeam = taker.team;
+    }
+  }
+  ball.lastTouchTeam = taker.team;
+  lockKickoffTaker(taker);
+}
+
+export function clampKickoffDefenderPosition(p){
+  const halfLimit = p.team === 'home'
+    ? CENTER.x - KICKOFF_HALF_MARGIN
+    : CENTER.x + KICKOFF_HALF_MARGIN;
+  let x = p.x;
+  let y = p.y;
+
+  if(p.team === 'home') x = Math.min(x, halfLimit);
+  else x = Math.max(x, halfLimit);
+
+  const dx = x - CENTER.x;
+  const dy = y - CENTER.y;
+  const dist = Math.hypot(dx, dy);
+  const minDist = CCIRCLE_R + KICKOFF_CIRCLE_MARGIN;
+  if(dist < minDist){
+    const ang = dist > 0.01 ? Math.atan2(dy, dx) : (p.team === 'home' ? Math.PI : 0);
+    x = CENTER.x + Math.cos(ang) * minDist;
+    y = CENTER.y + Math.sin(ang) * minDist;
+    if(p.team === 'home') x = Math.min(x, halfLimit);
+    else x = Math.max(x, halfLimit);
+  }
+
+  if(x !== p.x || y !== p.y){
+    p.x = x;
+    p.y = y;
+    p.vx = 0;
+    p.vy = 0;
+  }
+}
+
+export function enforceKickoffPositionRestrictions(){
+  if(!isKickoffWaiting()) return;
+  const defendingTeam = getKickoffDefendingTeam();
+  if(!defendingTeam) return;
+  for(const p of allPlayers){
+    if(p.team === defendingTeam) clampKickoffDefenderPosition(p);
+  }
+}
+
+export function resetKickoffManager(){
+  KickoffManager.timer = 0;
+  KickoffManager.executed = false;
+}
+
+export function enterKickoffState(kickingTeam, takerId){
+  Game.matchState = STATE_KICKOFF;
+  Game.kickoffTeam = kickingTeam;
+  Game.kickoffTakerId = takerId;
+  Game.isBallInPlay = false;
+  KickoffManager.timer = SET_PIECE_TIMER_DURATION;
+  KickoffManager.executed = false;
+  maintainKickoffPlacement();
+}
+
+export function exitKickoffToPlaying(){
+  Game.matchState = STATE_PLAYING;
+  Game.kickoffTeam = null;
+  Game.kickoffTakerId = null;
+  Game.isBallInPlay = true;
+  resetKickoffManager();
+}
+
+export function onKickoffReleased(){
+  if(!isKickoffWaiting()) return;
+  clearKickoffTakerState(getKickoffTaker());
+  KickoffManager.executed = true;
+  exitKickoffToPlaying();
+}
+
+export function executeAutoKickoff(){
+  if(!isKickoffWaiting() || KickoffManager.executed) return;
+  const taker = getKickoffTaker() || ball.owner;
+  if(!taker || taker.team !== Game.kickoffTeam) return;
+  if(taker.kickoffAnim) return;
+  maintainKickoffPlacement();
+
+  console.log('[KICKOFF] executeAutoKickoff', { takerId: taker.id, team: taker.team });
+
+  if(startKickoffManeuver){
+    startKickoffManeuver(taker, 'pass', 0.38, 0, { x: taker.attackDir(), y: (Math.random() - 0.5) * 0.2 });
+    showBanner('Saque de centro — auto', 1200);
+    return;
+  }
+
+  const dir = norm({
+    x: taker.attackDir(),
+    y: (Math.random() - 0.5) * 0.28,
+  });
+  executeKick(taker, 'pass', dir, 0.45 + Math.random() * 0.2, 0);
+  showBanner('Saque de centro — auto', 1200);
+}
+
+export function updateKickoffManager(dt){
+  if(!isKickoffWaiting()) return;
+  const taker = getKickoffTaker();
+  if(taker?.kickoffAnim) return;
+  maintainKickoffPlacement();
+  if(KickoffManager.executed) return;
+  KickoffManager.timer = Math.max(0, KickoffManager.timer - dt);
+  if(KickoffManager.timer <= 0) executeAutoKickoff();
+}
+
 export function placeKickoff(kickingTeam){
   allPlayers.forEach(p=>{
     const s = p.targetSlotWorld();
@@ -3451,8 +3739,7 @@ export function placeKickoff(kickingTeam){
     p.manualRunPadIndex = null;
     p.charging = null;
     p.chargeStart = 0;
-    p.pendingAction = null;
-    p.isPowerLocked = false;
+    clearPlayerPendingAction(p);
     p.pendingKick = null;
     p.feint = null;
     p.isChargingShot = false;
@@ -3460,7 +3747,6 @@ export function placeKickoff(kickingTeam){
     p.feintPostPassBlockT = 0;
     p.dragBack = null;
     p.kickAnim = null;
-    p.pendingAction = null;
     p.pendingKick = null;
     p.feint = null;
     p.isChargingShot = false;
@@ -3511,12 +3797,22 @@ export function placeKickoff(kickingTeam){
   resetGoalZoneTracking();
   Game.isGoalScored = false;
   ball.reset(CENTER.x, CENTER.y);
-  // el jugador de ataque mas cercano al centro arranca con la pelota
-  const starter = (kickingTeam==='home'?homeTeam:awayTeam).reduce((a,b)=>dist2D(a,CENTER)<dist2D(b,CENTER)?a:b);
-  starter.x = CENTER.x - starter.attackDir()*1.2;
-  starter.y = CENTER.y;
+  const squad = kickingTeam === 'home' ? homeTeam : awayTeam;
+  const starter = squad.reduce((a, b) => dist2D(a, CENTER) < dist2D(b, CENTER) ? a : b);
+  teleportKickoffTakerHard(starter);
   setBallStateInPossession(starter);
+  if(ball.owner !== starter){
+    ball.owner = starter;
+    ball.state = BALL_STATE.IN_POSSESSION;
+    ball.lastTouchedBy = starter.id;
+    ball.lastTouchTeam = kickingTeam;
+  }
   ball.lastTouchTeam = kickingTeam;
+  lockKickoffTaker(starter);
+  enterKickoffState(kickingTeam, starter.id);
+  if(kickingTeam === 'home') setControlled(starter);
+  else if(Game.twoPlayerMode) setControlled2(starter);
+  enforceKickoffPositionRestrictions();
 }
 
 /* ============================================================
@@ -3537,7 +3833,7 @@ export function setupPractice(){
   Game.crossMarker = null;
   Game.passTargetHome = null;
   Game.passTargetAway = null;
-  Game.airDuel = null;
+  clearAirSpamUiState();
   Game.goalRoll = null;
   Game.outOfPlay = null;
   Game.isDeadBall = false;
@@ -3590,7 +3886,7 @@ export function resetPractice(){
   practicePlayer.staggered = null;
   practicePlayer.iaSeeking = false; practicePlayer.targetPosition = null;
   practicePlayer.landingTime = 0; practicePlayer.seekAerial = false;
-  practicePlayer.pendingAction = null;
+  clearPlayerPendingAction(practicePlayer);
   practicePlayer.manualCancelActive = false;
   practicePlayer.state = 'idle'; practicePlayer.releaseCooldown = 0; practicePlayer.tackleCooldown = 0;
 
@@ -3661,11 +3957,14 @@ export const Game = {
   landingPoint: null,   // {x, y, t} — prediccion de pique mientras la pelota esta en el aire
   passTargetHome: null, // id del jugador objetivo del ultimo pase del equipo local (IA_SEEKING por defecto)
   passTargetAway: null, // id del jugador objetivo del ultimo pase del equipo visita
+  airDuel: null,        // duelo aereo activo (spam-battle)
+  isAirSpamWindowActive: false, // bandera UI: ventana de spam visible
   goalRoll: null,         // inercia post-gol: la pelota entra a la red antes del festejo (ver updateGoalRoll)
   outOfPlay: null,        // saque precalculado al cruzar linea de cal; dispara cinematica de inmediato
   isDeadBall: false,      // true desde onBallOut() hasta reanudar el juego
   deadBall: null,         // {type, team, x, y, t} — contador/cinematica de saque (t arranca en onBallOut)
   isChargingShot: false,  // ventana de interrupcion de amague (fake shot): true mientras se carga tiro
+  isCharging: false,      // carga de potencia en segundo plano (no altera state del jugador)
   isGoal: false,          // true cuando GoalZone valida un gol real
   isGoalScored: false,    // bloquea cobros multiples; solo se limpia en el saque de centro (kickoff)
   goalZoneInside: { left: false, right: false },  // estado previo del trigger GoalZone
@@ -3677,6 +3976,9 @@ export const Game = {
   throwIn: null,        // {active, team, side, x, y} — saque lateral en curso
   setPieceMode: false,  // true mientras un sacador esta bloqueado esperando ejecutar
   setPiece: null,       // {type, team, side, takerId} — pelota parada activa
+  matchState: STATE_PLAYING, // STATE_PLAYING | STATE_KICKOFF
+  kickoffTeam: null,    // equipo que saca durante STATE_KICKOFF
+  kickoffTakerId: null, // sacador designado en el saque de centro
   isBallInPlay: true,   // false hasta que el sacador golpee/lance la pelota
   wasInterceptionEligible: false, // borde de deteccion para asignar randomDelay a la IA
   nearestSeekerHome: null,        // id del CPU mas cercano a la pelota (equipo local)
@@ -3703,7 +4005,7 @@ export function resetMatchForStart(){
   hideGoalOverlay();
   Game.crossMarker = null;
   Game.landingPoint = null;
-  Game.airDuel = null;
+  clearAirSpamUiState();
   Game.goalRoll = null;
   Game.outOfPlay = null;
   Game.isDeadBall = false;
@@ -3719,6 +4021,7 @@ export function resetMatchForStart(){
   Game.banner = null;
   Game.bannerUntil = 0;
   Game.isChargingShot = false;
+  Game.isCharging = false;
   isFakeShotActive = false;
   fakeShotOwnerId = null;
   for (const k in effortRsState) delete effortRsState[k];
@@ -3726,6 +4029,11 @@ export function resetMatchForStart(){
   Game.throwIn = null;
   resetSetPieceManager();
   setSetPieceMode(false);
+  resetKickoffManager();
+  Game.matchState = STATE_PLAYING;
+  Game.kickoffTeam = null;
+  Game.kickoffTakerId = null;
+  Game.isBallInPlay = true;
   Game.wasInterceptionEligible = false;
   resetNearestPlayerSelection();
   clearBallLock();
@@ -3782,6 +4090,7 @@ export let executeFakeShot = null;
 export let isStandardPad = null;
 export let effortTouch = null;
 export let executeKick = null;
+export let startKickoffManeuver = null;
 export let updatePendingKick = null;
 export let prevButtonsByPad = {};
 export let isFakeShotActive = false;
@@ -3852,6 +4161,7 @@ export function wireBridge(deps) {
   if (deps.isStandardPad !== undefined) isStandardPad = deps.isStandardPad;
   if (deps.effortTouch !== undefined) effortTouch = deps.effortTouch;
   if (deps.executeKick !== undefined) executeKick = deps.executeKick;
+  if (deps.startKickoffManeuver !== undefined) startKickoffManeuver = deps.startKickoffManeuver;
   if (deps.updatePendingKick !== undefined) updatePendingKick = deps.updatePendingKick;
   if (deps.hideGoalOverlay !== undefined) hideGoalOverlay = deps.hideGoalOverlay;
   if (deps.resetGoalZoneTracking !== undefined) resetGoalZoneTracking = deps.resetGoalZoneTracking;

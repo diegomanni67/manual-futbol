@@ -1,6 +1,6 @@
 "use strict";
 
-import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, SLIDE_DISTANCE, STADIUM_FLOOR_PAD, SetPieceManager, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState } from './state.js';
+import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, SLIDE_DISTANCE, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, isAirSpamWindowActive } from './state.js';
 
 import { isCelebrationMode, isHumanTeam, isSetPieceAwaitingExecution, lastDt, lerp, movePlayer, paintDepth, practiceGK, practicePlayer, project, projectPractice, setupPractice, touchKickCurve, updatePlayerMeshDir8 } from './state.js';
 
@@ -349,10 +349,12 @@ function teamColors(p){
 
 
 function drawSpamDuelMeter(p, s, h){
+  if(typeof isAirSpamWindowActive === 'undefined' || !isAirSpamWindowActive) return;
   const duel = Game.airDuel;
-  if(!duel || duel.resolved || !isAirSpamWindowActive(duel)) return;
-  if(!duel.contestants.includes(p.id)) return;
-  const count = (duel.spamCounts[p.id] && duel.spamCounts[p.id].count) || 0;
+  if(!duel || !duel.active || duel.resolved) return;
+  if(!Array.isArray(duel.contestants) || !duel.contestants.includes(p.id)) return;
+  const spamEntry = duel.spamCounts && duel.spamCounts[p.id];
+  const count = (spamEntry && spamEntry.count) || 0;
   const fill = clamp(count / AIR_SPAM_METER_MAX, 0, 1);
   const w = 30, barH = 3;
   ctx.save();
@@ -741,6 +743,7 @@ function drawNormalPose(p, s, h){
   const runT = p.animPhase;
   const mass = p.weightFactor||1;
   const prepping = !!(p.charging || p.pendingKick);
+  const chargeLayer = !!(p.pendingActionChargeStart > 0 && !p.pendingActionParams);
   const feinting = !!p.feint;
   const draggingBack = !!p.dragBack;
   const throwingIn = !!(p.isThrowingIn || p.throwInAnim);
@@ -822,7 +825,7 @@ function drawNormalPose(p, s, h){
     neckTilt = 0;
   }
 
-  // --- PREPARANDO_ACCION: pierna A (la que patea) cargada atras y flexionada, pierna B plantada ---
+  // --- PREPARANDO_ACCION (pelota en pie): pierna de golpeo cargada — reemplaza la carrera ---
   if(prepping && !feinting && !throwingIn){
     const cl = chargeLevel(p);
     legA = { thigh: -0.95 - Math.sin(runT*0.6)*0.06, knee: 1.15*clamp(0.5+cl,0.5,1), foot: 0.25 };
@@ -830,6 +833,20 @@ function drawNormalPose(p, s, h){
     armA = { shoulder: -0.12, elbow: 0.4 }; armB = { shoulder: 0.12, elbow: 0.4 };
     neckTilt = 0;
     torsoExtra = -0.11*cl;
+  }
+
+  // --- CAPA DE CARGA sobre la carrera (sprint_chase / pelota suelta): piernas siguen corriendo ---
+  if(chargeLayer && !prepping && !feinting && !kicking && !draggingBack && !throwingIn && speed > 0.25){
+    const cl = chargeLevel(p);
+    const kickLeg = { thigh: -0.95 - Math.sin(runT*0.6)*0.06, knee: 1.15*clamp(0.5+cl,0.5,1), foot: 0.25 };
+    legA = {
+      thigh: lerp(legA.thigh, kickLeg.thigh, cl * 0.55),
+      knee: lerp(legA.knee, kickLeg.knee, cl * 0.55),
+      foot: lerp(legA.foot, kickLeg.foot, cl * 0.45),
+    };
+    armA = { shoulder: lerp(armA.shoulder, -0.12, cl * 0.55), elbow: lerp(armA.elbow, 0.4, cl * 0.55) };
+    armB = { shoulder: lerp(armB.shoulder, 0.12, cl * 0.55), elbow: lerp(armB.elbow, 0.4, cl * 0.55) };
+    torsoExtra = lerp(torsoExtra, -0.11 * cl, cl * 0.35);
   }
 
   // --- ANIMACION DE TIRO — EL LATIGAZO ---
@@ -1508,14 +1525,14 @@ function drawPowerBar(p){
       : (SetPieceManager.chargeType === 'medium' ? 'through' : 'cross');
   } else if(!setPieceWaiting){
     level = chargeLevel(p);
-    pkType = p.pendingKick ? p.pendingKick.type : (p.pendingAction ? p.pendingAction.kickType : p.charging);
+    pkType = p.pendingKick ? p.pendingKick.type : (p.pendingActionParams ? p.pendingActionParams.kickType : (p.pendingActionDetail || p.charging));
   }
   const chargingNow = !setPieceWaiting && (
     (p.charging && p.chargeStart > 0) ||
     (p.isChargingShot && p.chargeStart > 0) ||
-    (p.pendingAction && p.pendingAction.chargeStart > 0 && !p.isPowerLocked)
+    (p.pendingActionChargeStart > 0 && !p.pendingActionParams)
   );
-  const lockedBuffer = !setPieceWaiting && !!(p.pendingAction && p.isPowerLocked);
+  const lockedBuffer = !setPieceWaiting && !!p.pendingActionParams;
   if(!setPieceWaiting && level <= 0 && !p.pendingKick && !chargingNow && !lockedBuffer) return;
   if(!setPieceWaiting && level <= 0 && !pkType && !chargingNow && !lockedBuffer && !p.isChargingShot) return;
   const s = project({x:p.x,y:p.y,z:2.4});
@@ -1535,18 +1552,6 @@ function drawPowerBar(p){
     ctx.textAlign = 'center';
     ctx.fillText(Math.ceil(SetPieceManager.timer).toString(), w / 2, level > 0 ? -5 : h + 12);
   }
-  ctx.restore();
-
-  if(!setPieceWaiting && level <= 0) return;
-
-  // linea de direccion de apunte
-  const aim = p.stickDir || p.lastAim || {x:Math.cos(p.facing),y:Math.sin(p.facing)};
-  const to = project({x:p.x+aim.x*6, y:p.y+aim.y*6, z:0});
-  const from = project({x:p.x,y:p.y,z:0});
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,0,0.55)';
-  ctx.lineWidth=2; ctx.setLineDash([6,6]);
-  ctx.beginPath(); ctx.moveTo(from.x,from.y); ctx.lineTo(to.x,to.y); ctx.stroke();
   ctx.restore();
 }
 
@@ -1664,6 +1669,27 @@ function drawCrossMarker(){
   ctx.stroke();
   ctx.restore();
 }
+function drawKickoffCountdownHud(){
+  if(Game.matchState !== STATE_KICKOFF || Game.isBallInPlay || KickoffManager.executed || KickoffManager.timer <= 0) return;
+  const urgent = KickoffManager.timer <= SET_PIECE_COUNTDOWN_URGENT;
+  const secs = Math.ceil(KickoffManager.timer);
+  ctx.save();
+  ctx.textAlign = 'center';
+  roundRectPath(canvas.width / 2 - 72, 72, 144, 52, 8);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fill();
+  ctx.strokeStyle = urgent ? 'rgba(255,82,82,0.85)' : 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = urgent ? '#ff5252' : '#fff';
+  ctx.font = 'bold 26px Arial';
+  ctx.fillText(String(secs), canvas.width / 2, 104);
+  ctx.font = '11px Arial';
+  ctx.fillStyle = urgent ? '#ffb4b4' : '#cfe';
+  ctx.fillText('Saque de centro', canvas.width / 2, 118);
+  ctx.restore();
+}
+
 function drawSetPieceCountdownHud(){
   if(!Game.setPieceMode || Game.isBallInPlay || SetPieceManager.executed || SetPieceManager.timer <= 0) return;
   const sp = Game.setPiece;
@@ -1720,6 +1746,7 @@ function render(){
   }
   if(gameState!=='practice') drawRadar(); // el radar (minimapa cenital) no aplica a la camara de practica
   drawSetPieceCountdownHud();
+  drawKickoffCountdownHud();
   drawCelebrationPrompt();
 }
 function isControlledByHuman(p){

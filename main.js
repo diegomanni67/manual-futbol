@@ -290,6 +290,7 @@ async function boot() {
     isStandardPad: input.isStandardPad,
     effortTouch: input.effortTouch,
     executeKick: input.executeKick,
+    startKickoffManeuver: input.startKickoffManeuver,
     updatePendingKick: input.updatePendingKick,
     hideGoalOverlay: physics.hideGoalOverlay,
     resetGoalZoneTracking: physics.resetGoalZoneTracking,

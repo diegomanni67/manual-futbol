@@ -4,11 +4,11 @@ export { CONTROL_TOUCH_DUR } from './state.js';
 
 import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_RADIUS, AIR_BICYCLE_MIN_Z, AIR_BUFFER_RADIUS, AIR_CONTACT_RADIUS, AIR_DRAG, AIR_HEADER_MAX_Z, AIR_HEADER_MIN_Z, AIR_LOCK_DURATION, AIR_STRIKE_TABLE, AIR_VOLLEY_L2_MAX_Z, AIR_VOLLEY_L2_MIN_Z, AIR_VOLLEY_MAX_Z, AIR_VOLLEY_MIN_Z, AUTOPASE_POWER_THRESHOLD, BALL_AERIAL_MIN_Z, BALL_RADIUS, BALL_STATE, Ball, CENTER, CROSS_MARKER_LIFE, DIRECTION_PRIORITY, DISTANCE_PRIORITY, DIST_FAKE, DRIBBLE_DIST_R1, DRIBBLE_DIST_R2, EFFORT_CHASE_TEAMMATE_BLOCK, EFFORT_ROLL_SOFT_DURATION, EFFORT_RS_MIN, EFFORT_TOUCH_ANIM_LONG, EFFORT_TOUCH_ANIM_SHORT, EFFORT_TOUCH_BURST_MULT, EFFORT_TOUCH_COOLDOWN, EFFORT_TOUCH_MAX_VELOCITY, FEINT_TOUCH_MAX_VELOCITY, FIELD_L, FIELD_W, FORCED_CHASE_RECOVER_DIST } from './state.js';
 
-import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_TIMEOUT_MS, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, TACKLE_COOLDOWN, activateBallLock, activateIgnorePossession, allPlayers, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clearBallLock, effortRsState } from './state.js';
+import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PENDING_ACTION_TIMEOUT_MS, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, lockPlayerSwitchForEffort, prevButtonsByPad } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, handleSetPiecePowerInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isPaused, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, lockPlayerSwitchForEffort, prevButtonsByPad } from './state.js';
 
-import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, movePlayer, nearestToBall, norm, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction } from './state.js';
+import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isKickoffTaker, isKickoffWaiting, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, movePlayer, nearestToBall, norm, onKickoffReleased, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction, maintainKickoffPlacement } from './state.js';
 
 import {
   assignPassTargetFromKick, bestWallPassTarget, isAirDuelContestant, isPassTargetPlayer,
@@ -800,10 +800,9 @@ function chargePowerFromElapsed(elapsedMs){
 }
 export function chargeLevel(p){
   if(p.pendingKick) return p.pendingKick.power;
-  if(p.pendingAction){
-    if(p.isPowerLocked) return p.pendingAction.power;
-    if(p.pendingAction.chargeStart) return chargePowerFromElapsed(performance.now() - p.pendingAction.chargeStart);
-    return p.pendingAction.power;
+  if(p.pendingActionParams) return p.pendingActionParams.power;
+  if(p.pendingActionChargeStart > 0){
+    return chargePowerFromElapsed(performance.now() - p.pendingActionChargeStart);
   }
   if(!p.isChargingShot && !p.charging) return 0;
   if(!p.charging) return 0;
@@ -812,6 +811,12 @@ export function chargeLevel(p){
 }
 function syncGlobalChargingShot(p){
   Game.isChargingShot = !!(p && p.isChargingShot);
+}
+function syncGlobalCharging(p){
+  Game.isCharging = !!(p && p.pendingActionChargeStart > 0 && !p.pendingActionParams);
+}
+function getCurrentPower(p){
+  return chargeLevel(p);
 }
 function clearChargingShotState(p){
   if(!p) return;
@@ -867,7 +872,7 @@ function updateFakeShotState(dt){
 function canCancelChargeWithFakeShot(p){
   if(!p || ball.owner !== p) return false;
   if(chargeLevel(p) > 0) return true;
-  return !!(p.charging || p.pendingKick || p.isChargingShot || p.pendingAction);
+  return !!(p.charging || p.pendingKick || p.isChargingShot || p.pendingActionParams || p.pendingActionChargeStart > 0);
 }
 // Carga / suelta de tiro (Cuadrado). El amague tecnico (fake shot) vive en InputManager.
 function handleShotChargeInput(p, input, aimDir, curve){
@@ -946,6 +951,11 @@ function releaseCharge(p, aimDir, curve){
       return;
     }
     if(isSetPieceShotOnly(p)) type = 'shot';
+  }
+
+  if(isKickoffWaiting() && isKickoffTaker(p)){
+    startKickoffManeuver(p, type, power, curve, aimDir);
+    return;
   }
 
   const remainingMs = PREP_MIN_MS - elapsed;
@@ -1099,6 +1109,7 @@ function beginSelfTouchChase(p, vx, vy, source = 'effort'){
 function executeFakeShot(p, moveDir){
   if(!p || isFakeShotActive || isShotFeintBlocked(p)) return false;
   if(!canCancelChargeWithFakeShot(p)) return false;
+  resetActionBuffer(p);
   interruptPlayerStateForTechnicalAction(p);
   cancelCurrentAction(p);
   return fakeShot(p, moveDir);
@@ -1187,7 +1198,7 @@ function updateForcedChase(p, dt, input){
   }
 
   const d = dist2D(p, ball);
-  if(!p.pendingAction && d < getPostTouchRecoverDist(p) && p.releaseCooldown <= 0 && !isPossessionIgnored()){
+  if(d < getPostTouchRecoverDist(p) && p.releaseCooldown <= 0 && !isPossessionIgnored()){
     if(checkBallCapture(p)) return true;
   }
 
@@ -1243,7 +1254,7 @@ function updateChasing(p, dt, input){
 
   const d = dist2D(p, ball);
   const recoverDist = getPostTouchRecoverDist(p);
-  if(!p.pendingAction && d < recoverDist && p.releaseCooldown <= 0 && !isPossessionIgnored()){
+  if(d < recoverDist && p.releaseCooldown <= 0 && !isPossessionIgnored()){
     if(checkBallCapture(p)) return true;
   }
 
@@ -1375,12 +1386,197 @@ function updateDragBack(p, dt){
   p.y = clamp(p.y, -3, FIELD_W+3);
   if(db.t >= db.dur) p.dragBack = null;
 }
+
+/* ============================================================
+   SAQUE DE CENTRO — maniobra cinematica (posicion inversa + giro / retroceso)
+   ============================================================ */
+const KICKOFF_SHORT_SPIN_DUR = 0.34;
+const KICKOFF_RETREAT_DIST = 2.6;
+const KICKOFF_RETREAT_SPEED = 5.5;
+const KICKOFF_APPROACH_SPEED = 7.8;
+const KICKOFF_INERTIA_BONUS = 0.16;
+const KICKOFF_STRIKE_REACH = 1.05;
+
+function kickoffSmoothstep(t){
+  const x = clamp(t, 0, 1);
+  return x * x * (3 - 2 * x);
+}
+
+function getKickoffKickDirection(p, aimDir){
+  const atk = getKickoffFacingAttack(p);
+  const base = { x: Math.cos(atk), y: Math.sin(atk) };
+  if(Math.hypot(aimDir.x, aimDir.y) > 0.2){
+    return norm({ x: base.x * 0.72 + aimDir.x * 0.28, y: base.y * 0.72 + aimDir.y * 0.28 });
+  }
+  return base;
+}
+
+function unlockKickoffTakerForManeuver(p){
+  p.canMove = true;
+  p.isStuck = false;
+  p.blockDribbling = false;
+  p.inSetPieceZone = true;
+  if(p.state === STATE_FIXED) p.state = 'idle';
+}
+
+function isKickoffShortKick(kickType){
+  return kickType === 'pass';
+}
+
+function startKickoffManeuver(p, kickType, power, curve, aimDir){
+  if(!p || !isKickoffWaiting() || !isKickoffTaker(p) || p.kickoffAnim) return false;
+
+  unlockKickoffTakerForManeuver(p);
+  p.charging = null;
+  p.chargeStart = 0;
+  p.pendingKick = null;
+  clearChargingShotState(p);
+
+  const ownFacing = getKickoffFacingOwnGoal(p);
+  const atkFacing = getKickoffFacingAttack(p);
+  const kickDir = getKickoffKickDirection(p, aimDir);
+  const shortKick = isKickoffShortKick(kickType);
+
+  if(shortKick){
+    p.kickoffAnim = {
+      mode: 'short',
+      phase: 'spin',
+      t: 0,
+      spinDur: KICKOFF_SHORT_SPIN_DUR,
+      startFacing: ownFacing,
+      targetFacing: atkFacing,
+      kickType,
+      power: clamp(power * 0.52, 0.14, 0.42),
+      curve,
+      kickDir,
+    };
+  } else {
+    const backDir = { x: -Math.cos(atkFacing), y: 0 };
+    p.kickoffAnim = {
+      mode: 'long',
+      phase: 'retreat',
+      t: 0,
+      retreatDist: KICKOFF_RETREAT_DIST,
+      retreated: 0,
+      retreatSpeed: KICKOFF_RETREAT_SPEED,
+      approachSpeed: KICKOFF_APPROACH_SPEED,
+      startFacing: ownFacing,
+      targetFacing: atkFacing,
+      backDir,
+      kickType,
+      power,
+      curve,
+      kickDir,
+      ballX: CENTER.x,
+      ballY: CENTER.y,
+    };
+    ball.x = CENTER.x;
+    ball.y = CENTER.y;
+    ball.z = BALL_RADIUS;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.vz = 0;
+    ball.owner = null;
+    ball.state = BALL_STATE.FREE;
+  }
+  return true;
+}
+
+function finishKickoffManeuverKick(p, a){
+  p.facing = a.targetFacing;
+  syncPlayerDir(p);
+  if(a.mode === 'long'){
+    ball.owner = p;
+    ball.state = BALL_STATE.IN_POSSESSION;
+    ball.x = CENTER.x;
+    ball.y = CENTER.y;
+    ball.z = BALL_RADIUS;
+  }
+  const boosted = a.mode === 'long'
+    ? clamp(a.power + KICKOFF_INERTIA_BONUS * clamp(a.retreated / a.retreatDist, 0, 1), 0.14, 1)
+    : a.power;
+  p.kickoffAnim = null;
+  executeKick(p, a.kickType, a.kickDir, boosted, a.curve);
+}
+
+function updateKickoffManeuver(p, dt){
+  const a = p.kickoffAnim;
+  if(!a) return false;
+
+  a.t += dt;
+  const moveSpd = Math.hypot(p.vx, p.vy);
+  if(moveSpd > 0.25) p.animPhase += moveSpd * dt * 2.4;
+
+  if(a.mode === 'short'){
+    const prog = kickoffSmoothstep(a.t / a.spinDur);
+    p.facing = a.startFacing + angDiff(a.targetFacing, a.startFacing) * prog;
+    syncPlayerDir(p);
+    p.vx = 0;
+    p.vy = 0;
+
+    if(a.t >= a.spinDur){
+      finishKickoffManeuverKick(p, a);
+    }
+    return true;
+  }
+
+  if(a.mode === 'long'){
+    if(a.phase === 'retreat'){
+      const step = a.retreatSpeed * dt;
+      p.x += a.backDir.x * step;
+      p.y = CENTER.y;
+      a.retreated += step;
+      p.vx = a.backDir.x * a.retreatSpeed;
+      p.vy = 0;
+
+      const rotProg = kickoffSmoothstep(a.retreated / a.retreatDist);
+      p.facing = a.startFacing + angDiff(a.targetFacing, a.startFacing) * rotProg;
+      syncPlayerDir(p);
+      clampKickoffTakerManeuverPosition(p);
+
+      if(a.retreated >= a.retreatDist){
+        a.phase = 'approach';
+        a.t = 0;
+        p.facing = a.targetFacing;
+        syncPlayerDir(p);
+      }
+    } else if(a.phase === 'approach'){
+      const dx = a.ballX - p.x;
+      const dy = a.ballY - p.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const toBall = { x: dx / dist, y: dy / dist };
+      const speed = a.approachSpeed + (a.retreated / a.retreatDist) * 1.8;
+      p.x += toBall.x * speed * dt;
+      p.y = CENTER.y;
+      p.facing = a.targetFacing;
+      p.vx = toBall.x * speed;
+      p.vy = 0;
+      syncPlayerDir(p);
+      clampKickoffTakerManeuverPosition(p);
+
+      if(dist <= KICKOFF_STRIKE_REACH){
+        finishKickoffManeuverKick(p, a);
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
 function executeKick(p, type, aimDir, power, curve){
+  if(isKickoffWaiting()){
+    console.log('[KICKOFF] executeKick', {
+      type,
+      power: +power.toFixed(2),
+      playerId: p?.id,
+      takerId: Game.kickoffTakerId,
+      ballOwnerId: ball.owner?.id ?? null,
+    });
+  }
   if(isGoalkeeper(p)) clearGkPossessionType(p);
   clearEffortSprintState(p);
-  p.isPowerLocked = false;
-  p.pendingAction = null;
-  p.isPreparingToShoot = false;
+  resetActionBuffer(p);
   const dir = norm(aimDir);
   setBallStateLoose(true);
   ball.lastTouchTeam = p.team;
@@ -1439,6 +1635,7 @@ function executeKick(p, type, aimDir, power, curve){
   assignPassTargetFromKick(p, dir, type, power);
   setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);
   if(Game.setPieceMode) onSetPieceBallReleased();
+  if(isKickoffWaiting()) onKickoffReleased();
 }
 
 function releaseGkBallForKick(p, dir){
@@ -1662,13 +1859,13 @@ function handleKickCursorSwitch(p, power, aimDir, kickType){
 
 
 /* ============================================================
-   BUFFER UNIVERSAL DE ACCION + ACCIONES AÉREAS (cabezazo, volea, chilena)
+   BUFFER EXCLUSIVO DE ACCION + ACCIONES AÉREAS (cabezazo, volea, chilena)
+   Carga (isCharging) vive en campos auxiliares; al soltar se congela en pendingActionParams.
+   La ejecucion ocurre SOLO en update/onBallContact, nunca en el handler de input.
    ============================================================ */
 function resetActionBuffer(p){
-  if(!p) return;
-  p.pendingAction = null;
-  p.isPreparingToShoot = false;
-  p.isPowerLocked = false;
+  clearPlayerPendingAction(p);
+  syncGlobalCharging(p);
 }
 
 function clearPendingAction(p){
@@ -1676,7 +1873,21 @@ function clearPendingAction(p){
 }
 
 function hasPendingAction(p){
-  return !!p.pendingAction;
+  return !!(p.pendingActionParams || p.pendingActionChargeStart > 0);
+}
+
+function isPendingActionArmed(p){
+  return !!p.pendingActionParams;
+}
+
+function restorePlayerControlAfterPendingAction(p){
+  if(!p) return;
+  clearChasingState(p);
+  clearForcedChaseState(p);
+  clearSprintChaseState(p);
+  p.state = 'idle';
+  p.isPreparingToShoot = false;
+  if(!isKickoffWaiting()) Game.matchState = STATE_PLAYING;
 }
 
 function isBallAtPlayerFeet(p){
@@ -1685,6 +1896,32 @@ function isBallAtPlayerFeet(p){
 
 function isBallLooseForPendingAction(){
   return ball.owner === null;
+}
+
+function pendingKindFromKickType(kickType){
+  return kickType === 'shot' ? PENDING_ACTION_SHOT : PENDING_ACTION_PASS;
+}
+
+function setExclusivePendingAction(p, kickType, input){
+  const curve = resolveInputCurve(input);
+  const now = performance.now();
+  const kind = pendingKindFromKickType(kickType);
+  p.pendingAction = kind;
+  p.pendingActionDetail = kickType;
+  p.pendingActionChargeStart = now;
+  p.pendingActionPower = 0;
+  p.pendingActionCurve = curve;
+  p.pendingActionManualL2 = !!(input.heldL2 && kickType === 'shot');
+  p.pendingActionTimestamp = now;
+  p.isPreparingToShoot = kind === PENDING_ACTION_SHOT;
+  p.isPowerLocked = false;
+  p.pendingActionParams = null;
+}
+
+function pendingActionMatchesButton(p, btn){
+  if(!p.pendingActionChargeStart) return false;
+  return p.pendingAction === pendingKindFromKickType(btn.kickType) &&
+    p.pendingActionDetail === btn.kickType;
 }
 
 function canBufferPendingAction(p){
@@ -1702,33 +1939,40 @@ function canChargePendingAction(p){
   return canBufferPendingAction(p);
 }
 
-function lockPendingActionBuffer(p, power){
-  if(!p || !p.pendingAction) return;
-  p.pendingAction.power = clamp(power, 0.14, 1);
-  p.pendingAction.timestamp = performance.now();
+function canStartPendingActionCharge(p){
+  if(Game.isCharging || p.pendingActionParams || p.isPowerLocked) return false;
+  return true;
+}
+
+function lockPendingActionParams(p, btn, input, power){
+  const curve = resolveInputCurve(input);
+  const kickType = p.pendingActionDetail || btn.kickType;
+  p.pendingActionParams = {
+    type: btn.type,
+    power: clamp(power, 0.14, 1),
+    kickType,
+    curve: p.pendingActionCurve ?? curve,
+    manualL2: p.pendingActionManualL2,
+    timestamp: performance.now(),
+  };
+  p.pendingAction = pendingKindFromKickType(kickType);
+  p.pendingActionChargeStart = 0;
   p.isPowerLocked = true;
+  p.isPreparingToShoot = kickType === 'shot';
+  syncGlobalCharging(p);
 }
 
 function startPendingActionCharge(p, btn, input){
-  const curve = resolveInputCurve(input);
-  const now = performance.now();
-  const manualL2 = !!(input.heldL2 && btn.kickType === 'shot');
-  p.pendingAction = {
-    type: btn.type,
-    kickType: btn.kickType,
-    power: 0,
-    timestamp: now,
-    chargeStart: now,
-    curve,
-    manualL2,
-  };
-  p.isPreparingToShoot = btn.kickType === 'shot';
+  if(!canStartPendingActionCharge(p)) return false;
+  setExclusivePendingAction(p, btn.kickType, input);
+  syncGlobalCharging(p);
+  return true;
 }
 
 function armPendingFirstTimeAction(p, btn, input){
-  if(p.isPowerLocked) return false;
-  startPendingActionCharge(p, btn, input);
-  return true;
+  if(!canStartPendingActionCharge(p)) return false;
+  if(!canBufferPendingAction(p)) return false;
+  return startPendingActionCharge(p, btn, input);
 }
 
 function heldPendingActionButton(input){
@@ -1747,10 +1991,10 @@ function releasedPendingActionButton(input){
   return null;
 }
 
-// Pelota suelta: botones ofensivos entran al buffer (nunca ejecutan al instante sin la pelota).
+// Pelota suelta: botones ofensivos entran al buffer (carga visual; ejecucion al contacto con posesion).
 function tryLooseBallOffensiveInput(p, input){
   if(!canBufferPendingAction(p)) return false;
-  if(p.isPowerLocked) return false;
+  if(!canStartPendingActionCharge(p)) return false;
   if(p.charging || p.isChargingShot || p.tackleAnim || p.diveAnim || p.airStrikeAnim) return false;
 
   if(input.pressTackle){
@@ -1777,7 +2021,60 @@ function pendingActionToAerialButton(kickType){
   return 'pass';
 }
 
-// Carga mientras se mantiene el boton; al soltar congela potencia (single charge lock).
+function doPass(p, params){
+  const { power, curve } = params;
+  const kickType = params.kickType || 'pass';
+  const dir = norm(getStickDir(p));
+  if(ball.z > AIR_AERIAL_MIN_Z){
+    const aerialBtn = pendingActionToAerialButton(kickType);
+    return handleAerialContact(p, ball, aerialBtn, power, curve, false);
+  }
+  if(ball.owner !== p) return false;
+  executeKick(p, kickType, dir, power, curve);
+  return true;
+}
+
+function doShot(p, params){
+  const { power, curve, manualL2 } = params;
+  const dir = norm(getStickDir(p));
+  if(ball.z > AIR_AERIAL_MIN_Z){
+    return handleAerialContact(p, ball, 'shot', power, curve, !!manualL2);
+  }
+  if(ball.owner !== p) return false;
+  executeKick(p, 'shot', dir, power, curve);
+  return true;
+}
+
+// Ejecuta pendingActionParams al contacto; nunca desde el handler de input.
+function executeBufferedPendingAction(p){
+  const params = p.pendingActionParams;
+  if(!params) return false;
+
+  const saved = {...params};
+  const wasChasing = isPlayerChasing(p) || isChaseOwner(p) || isPlayerSprintChasing(p);
+
+  if(ball.z > AIR_AERIAL_MIN_Z){
+    const d = dist2D(p, ball);
+    if(d >= PENDING_ACTION_EXECUTE_RADIUS) return false;
+    if(ball.owner && ball.owner !== p) return false;
+  } else if(ball.owner !== p){
+    return false;
+  }
+
+  resetActionBuffer(p);
+
+  let ok = false;
+  if(saved.type === 'shoot' || saved.kickType === 'shot') ok = doShot(p, saved);
+  else ok = doPass(p, saved);
+
+  if(ok){
+    restorePlayerControlAfterPendingAction(p);
+    if(wasChasing) resumeChasingAfterAction(p);
+  }
+  return ok;
+}
+
+// Carga en segundo plano mientras se mantiene el boton; al soltar congela pendingActionParams.
 function updatePendingActionInput(p, input){
   if(isBallAtPlayerFeet(p)) return;
   if(p.isChargingShot || isShotFeintBlocked(p)) return;
@@ -1796,68 +2093,46 @@ function updatePendingActionInput(p, input){
   const btnHeld = heldPendingActionButton(input);
   const btnReleased = releasedPendingActionButton(input);
 
-  if(btnReleased && canBufferPendingAction(p) && !p.isPowerLocked){
-    const btn = btnReleased;
-    const manualL2 = !!(input.heldL2 && btn.kickType === 'shot');
-    if(!p.pendingAction || p.pendingAction.kickType !== btn.kickType){
-      startPendingActionCharge(p, btn, input);
+  // Accion armada: esperando contacto con la pelota.
+  if(p.pendingActionParams) return;
+
+  // Soltar boton: guardar intencion en pendingActionParams (sin ejecutar aqui).
+  if(btnReleased && p.pendingActionChargeStart > 0 && canBufferPendingAction(p)){
+    const power = chargePowerFromElapsed(performance.now() - p.pendingActionChargeStart);
+    if(power >= 0.14){
+      lockPendingActionParams(p, btnReleased, input, power);
     } else {
-      p.pendingAction.curve = curve;
-      p.pendingAction.manualL2 = manualL2;
+      resetActionBuffer(p);
     }
-    const power = chargePowerFromElapsed(performance.now() - p.pendingAction.chargeStart);
-    lockPendingActionBuffer(p, power);
     return;
   }
 
-  if(btnHeld && canBufferPendingAction(p) && !p.isPowerLocked){
-    const now = performance.now();
-    const manualL2 = !!(input.heldL2 && btnHeld.kickType === 'shot');
-    if(!p.pendingAction || p.pendingAction.kickType !== btnHeld.kickType){
-      startPendingActionCharge(p, btnHeld, input);
+  // Mantener boton: cargar potencia (guarda estricta contra segunda carga).
+  if(btnHeld && canChargePendingAction(p)){
+    if(Game.isCharging && p.pendingActionChargeStart > 0){
+      const now = performance.now();
+      const manualL2 = !!(input.heldL2 && btnHeld.kickType === 'shot');
+      if(pendingActionMatchesButton(p, btnHeld)){
+        p.pendingActionCurve = curve;
+        p.pendingActionManualL2 = manualL2;
+        p.pendingActionPower = chargePowerFromElapsed(now - p.pendingActionChargeStart);
+        p.pendingActionTimestamp = now;
+        p.isPreparingToShoot = p.pendingAction === PENDING_ACTION_SHOT;
+      }
     } else {
-      p.pendingAction.curve = curve;
-      p.pendingAction.manualL2 = manualL2;
+      if(!canStartPendingActionCharge(p)) return;
+      setExclusivePendingAction(p, btnHeld.kickType, input);
     }
-    p.pendingAction.power = chargePowerFromElapsed(now - p.pendingAction.chargeStart);
-    p.pendingAction.timestamp = now;
-    p.isPreparingToShoot = btnHeld.kickType === 'shot';
-    if(p.pendingAction.power >= 1) lockPendingActionBuffer(p, 1);
-  }
-}
-
-function executeBufferedPendingAction(p){
-  const pa = p.pendingAction;
-  if(!pa) return false;
-  const wasChasing = isPlayerChasing(p) || isChaseOwner(p);
-  const power = clamp(pa.power > 0 ? pa.power : 0.72, 0.14, 1);
-  const curve = pa.curve || 0;
-  const kickType = pa.kickType;
-  resetActionBuffer(p);
-
-  if(ball.z > AIR_AERIAL_MIN_Z){
-    const aerialBtn = pendingActionToAerialButton(kickType);
-    const manualL2 = !!(pa.manualL2 && kickType === 'shot');
-    if(handleAerialContact(p, ball, aerialBtn, power, curve, manualL2)){
-      if(wasChasing) resumeChasingAfterAction(p);
-      return true;
-    }
-    return false;
+    syncGlobalCharging(p);
+    return;
   }
 
-  const dir = norm(getStickDir(p));
-  if(!ball.owner){
-    ball.x = p.x + dir.x * 0.6;
-    ball.y = p.y + dir.y * 0.6;
-    ball.z = 0;
-  }
-  executeKick(p, kickType, dir, power, curve);
-  if(wasChasing) resumeChasingAfterAction(p);
-  return true;
+  syncGlobalCharging(p);
 }
 
 function tryExecuteBufferedActionOnPossession(p){
-  if(!p.pendingAction || !p.isPowerLocked) return false;
+  if(ball.owner !== p) return false;
+  if(!p.pendingActionParams) return false;
   return executeBufferedPendingAction(p);
 }
 
@@ -1865,9 +2140,9 @@ function executePendingActionAtContact(p){
   return executeBufferedPendingAction(p);
 }
 
-// Loop de fisica: ejecuta al contacto o limpia por timeout / robo rival.
+// Loop de fisica: ejecuta al contacto con posesion (raso) o proximidad (aereo); limpia por timeout.
 function updatePendingActionPhysics(p, dt){
-  if(!p.pendingAction) return;
+  if(!p.pendingActionParams) return;
 
   if(ball.owner && ball.owner !== p && ball.owner.team !== p.team){
     resetActionBuffer(p);
@@ -1876,23 +2151,25 @@ function updatePendingActionPhysics(p, dt){
 
   if(isAirDuelContestant(p)) return;
 
-  if(!p.isPowerLocked) return;
-
-  const d = dist2D(p, ball);
-  if(d < PENDING_ACTION_EXECUTE_RADIUS && !ball.owner){
-    executePendingActionAtContact(p);
+  const elapsed = performance.now() - p.pendingActionParams.timestamp;
+  if(elapsed > PENDING_ACTION_TIMEOUT_MS){
+    resetActionBuffer(p);
     return;
   }
 
-  const elapsed = performance.now() - p.pendingAction.timestamp;
-  if(elapsed > PENDING_ACTION_TIMEOUT_MS){
-    resetActionBuffer(p);
+  if(ball.z > AIR_AERIAL_MIN_Z){
+    const d = dist2D(p, ball);
+    if(d < PENDING_ACTION_EXECUTE_RADIUS && !ball.owner){
+      executePendingActionAtContact(p);
+    }
+  } else if(ball.owner === p){
+    executePendingActionAtContact(p);
   }
 }
 
 function canAerialContact(p){
   if(isThrowInTakerBlocked(p)) return false;
-  const radius = p.pendingAction ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
+  const radius = (p.pendingActionParams || p.pendingActionChargeStart > 0) ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
   const loose = !ball.owner && (ball.state === BALL_STATE.FREE || ball.state === BALL_STATE.LOOSE_BALL || ball.state === BALL_STATE.IN_AIR);
   return loose && ball.z > AIR_AERIAL_MIN_Z && dist2D(p, ball) < radius;
 }
@@ -1919,7 +2196,8 @@ function predictAerialStrikeType(p, ball, manualL2){
 }
 
 function getPendingManualL2(p){
-  return !!(p.pendingAction && p.pendingAction.kickType === 'shot' && p.pendingAction.manualL2);
+  if(p.pendingActionParams) return !!(p.pendingActionParams.kickType === 'shot' && p.pendingActionParams.manualL2);
+  return !!(p.pendingActionManualL2 && p.pendingAction === PENDING_ACTION_SHOT);
 }
 
 function getActiveManualL2(p){
@@ -1961,7 +2239,7 @@ function handlePendingActionMovement(p, dt, input){
     updateAerialStrikeMovement(p, dt);
     return true;
   }
-  if(p.pendingAction && isBallAerialLoose()){
+  if((p.pendingActionParams || p.pendingActionChargeStart > 0) && isBallAerialLoose()){
     updateAerialStrikeMovement(p, dt);
     return true;
   }
@@ -2002,7 +2280,7 @@ function ballApproachDir(p, ball){
 function resolveAerialStrikeType(p, ball, manualL2, actionButton){
   if(ball.z <= AIR_AERIAL_MIN_Z) return null;
   const d = dist2D(p, ball);
-  const radius = p.pendingAction ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
+  const radius = (p.pendingActionParams || p.pendingActionChargeStart > 0) ? PENDING_ACTION_EXECUTE_RADIUS : AIR_CONTACT_RADIUS;
   if(d >= radius) return null;
 
   const z = ball.z;
@@ -2142,29 +2420,33 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   // nunca salta solo a otro jugador — solo cambia con L1 (al mas cercano a la pelota) o con el
   // flick del stick derecho (al jugador mas alineado con esa direccion).
   const now = performance.now();
+  const kickoffTaker = isKickoffWaiting() ? getKickoffTaker() : null;
+  const kickoffLocksTeam = kickoffTaker && kickoffTaker.team === team;
   const teamOwnsBall = ball.owner && ball.owner.team===team;
   const curHome = controlledPlayer();
   const curAway = controlledPlayer2();
   const lockHome = isPlayerAssignmentLocked(curHome);
   const lockAway = isPlayerAssignmentLocked(curAway);
-  if(isHome){
-    const holdForWallRun = !!getActiveWallRunner('home');
-    if(!holdForWallRun && now > Game.manualOverrideUntil && teamOwnsBall && !isBallLocked() && !lockHome){
-      setControlled(ball.owner);
-    }
-    if(input.pressSwitch && !holdForWallRun && !lockHome){
-      // L1: cambia manualmente al jugador mas cercano a la pelota
-      Game.manualOverrideUntil = now+250; // evita que el auto-seguimiento del poseedor lo pise en el mismo instante
-      setControlled(nearestToBall('home'));
-    }
-  } else {
-    const holdForWallRun2 = !!getActiveWallRunner('away');
-    if(!holdForWallRun2 && now > Game.manualOverrideUntil2 && teamOwnsBall && !isBallLocked() && !lockAway){
-      setControlled2(ball.owner);
-    }
-    if(input.pressSwitch && !holdForWallRun2 && !lockAway){
-      Game.manualOverrideUntil2 = now+250;
-      setControlled2(nearestToBall('away'));
+  if(!kickoffLocksTeam){
+    if(isHome){
+      const holdForWallRun = !!getActiveWallRunner('home');
+      if(!holdForWallRun && now > Game.manualOverrideUntil && teamOwnsBall && !isBallLocked() && !lockHome){
+        setControlled(ball.owner);
+      }
+      if(input.pressSwitch && !holdForWallRun && !lockHome){
+        // L1: cambia manualmente al jugador mas cercano a la pelota
+        Game.manualOverrideUntil = now+250; // evita que el auto-seguimiento del poseedor lo pise en el mismo instante
+        setControlled(nearestToBall('home'));
+      }
+    } else {
+      const holdForWallRun2 = !!getActiveWallRunner('away');
+      if(!holdForWallRun2 && now > Game.manualOverrideUntil2 && teamOwnsBall && !isBallLocked() && !lockAway){
+        setControlled2(ball.owner);
+      }
+      if(input.pressSwitch && !holdForWallRun2 && !lockAway){
+        Game.manualOverrideUntil2 = now+250;
+        setControlled2(nearestToBall('away'));
+      }
     }
   }
 
@@ -2172,6 +2454,52 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   if(!p) return;
 
   if(isPlayerStunned(p) || isPlayerStaggered(p)) return;
+
+  if(isKickoffWaiting()){
+    const taker = getKickoffTaker();
+    if(taker){
+      if(taker.team === 'home') setControlled(taker);
+      else if(Game.twoPlayerMode) setControlled2(taker);
+    }
+    maintainKickoffPlacement();
+
+    if(!taker || p.id !== taker.id){
+      updateHumanMovement(p, dt, input, team);
+      return;
+    }
+
+    if(taker.kickoffAnim){
+      updateKickoffManeuver(taker, dt);
+      return;
+    }
+
+    syncStickDir(taker, input.move);
+    const aimDir = taker.lastAim;
+    const curve = resolveInputCurve(input);
+
+    if(input.heldShot || input.heldPass || input.heldThrough || input.heldCross){
+      console.log('[KICKOFF] input charge', {
+        heldShot: input.heldShot,
+        heldPass: input.heldPass,
+        heldThrough: input.heldThrough,
+        heldCross: input.heldCross,
+        ballOwnerId: ball.owner?.id ?? null,
+        takerId: taker.id,
+      });
+    }
+
+    if(handleShotChargeInput(taker, input, aimDir, curve)) return;
+    if(taker.pendingKick) return;
+    if(ball.owner === taker){
+      handleBallOwnerKicks(taker, input, team, aimDir, curve);
+    } else {
+      console.warn('[KICKOFF] saque bloqueado: pelota no vinculada al sacador', {
+        takerId: taker.id,
+        ballOwnerId: ball.owner?.id ?? null,
+      });
+    }
+    return;
+  }
 
   syncStickDir(p, input.move);
 
@@ -2196,8 +2524,8 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
 
   if(isPlayerStunned(p) || isPlayerStaggered(p)) return;
 
-  // Interrumpir forced_chase si el usuario intenta tiro/pase/centro
-  if(isPlayerForcedChasing(p) && userWantsPossessionAction(input)){
+  // Interrumpir forced_chase solo si la pelota ya esta bajo control fisico
+  if(isPlayerForcedChasing(p) && ball.owner === p && userWantsPossessionAction(input)){
     ensurePlayerBallControlForAction(p);
   }
 
@@ -2291,5 +2619,5 @@ function updateHumanControl(dt, input, team, padIndex, scheme){
   }
 }
 
-export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, resetActionBuffer, clearPendingAction, hasPendingAction, isBallAtPlayerFeet, isBallLooseForPendingAction, canBufferPendingAction, canChargePendingAction, lockPendingActionBuffer, startPendingActionCharge, armPendingFirstTimeAction, heldPendingActionButton, releasedPendingActionButton, tryLooseBallOffensiveInput, pendingActionToAerialButton, updatePendingActionInput, executeBufferedPendingAction, tryExecuteBufferedActionOnPossession, executePendingActionAtContact, updatePendingActionPhysics, canAerialContact, isBallAerialLoose, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
+export { isStandardPad, connectedGamepadIndices, nonStandardGamepadIndices, assignInputSources, updatePadStatus, refreshPadPanel, getPadAt, axisOrZero, anyKey, anyKeyPrev, readRightStick, getActiveWallRunner, calculateForwardVector, findTeammateForRemoteRun, getPlayerRunningSpeed, normalizeRunVector, getForwardRunDirection, getManualRunPartner, getDistToManualRunPartner, shouldIgnoreManualRunPartner, isManualRunInShortGrace, canApplyManualRunStick, startPointingForPass, stopPointingForPass, updatePointingForPass, lockManualRunDirection, normalizeAngleDiff, computePassPointHeadYaw, applyPassPointArmOverlay, tickManualRunGrace, beginManualRunCore, getOffensiveRunDirection, findManualRunOpenSpace, computeManualRunCurvedVector, startRemoteManualRun, tryTriggerRemoteManualRun, startManualRun, resetManualRunState, cancelManualRunForPlayer, cancelManualRunIfBallOwner, cancelManualRunsForTeam, notifyManualRunPossessionChange, syncManualRunWithPossession, readRightStickForManualRun, captureManualRunDirection, resolveManualRunDirection, getManualRunDirection, handleRightStickSwitch, selectPlayerByFlick, padButtons, detectSyncTriggerPress, readInput, snapshotKeys, remapMoveForCamera, chargePowerFromElapsed, syncGlobalChargingShot, syncGlobalCharging, getCurrentPower, clearChargingShotState, isShotFeintBlocked, isPassBlockedAfterFakeShot, isFakeShotInputBlocked, completeFakeShot, updateFakeShotState, canCancelChargeWithFakeShot, handleShotChargeInput, startCharge, releaseCharge, handleBallOwnerKicks, cancelAction, cancelCurrentAction, clampSelfTouchVelocity, calcSelfTouchBurstSpeed, activateSelfTouchCollectBlock, updateSelfTouchCollectBlock, applySelfTouchBrake, applySelfTouchImpulse, beginSelfTouchChase, executeFakeShot, fakeShot, updateForcedChase, updateChasing, resolveSelfTouchDirection, triggerEffort, effortTouch, updatePendingKick, updateFeint, startDragBack, updateDragBack, executeKick, releaseGkBallForKick, applyGkKickImpulse, triggerGoalkeeperKick, handleGoalkeeperKick, updateGkKickAnim, predictBallLanding, estimateKickTarget, nearestTeammateToPoint, findPassReceiverByIntent, handleKickCursorSwitch, resetActionBuffer, clearPendingAction, hasPendingAction, isBallAtPlayerFeet, isBallLooseForPendingAction, canBufferPendingAction, canChargePendingAction, canStartPendingActionCharge, startPendingActionCharge, armPendingFirstTimeAction, heldPendingActionButton, releasedPendingActionButton, tryLooseBallOffensiveInput, pendingActionToAerialButton, updatePendingActionInput, executeBufferedPendingAction, tryExecuteBufferedActionOnPossession, executePendingActionAtContact, updatePendingActionPhysics, canAerialContact, isBallAerialLoose, predictAerialStrikeType, getPendingManualL2, getActiveManualL2, getAerialPositionTarget, updateAerialStrikeMovement, handlePendingActionMovement, syncStickDir, getStickDir, ballApproachDir, resolveAerialStrikeType, resolveAerialDirection, handleAerialContact, updateAirStrikeAnim, updateAirLock, updateHumanControl, startKickoffManeuver, updateKickoffManeuver, Keys, KB_P1_SOLO, KB_P1_SHARED, KB_P2, InputManager, PREP_MIN_MS, PREP_SPEED_FACTOR };
 

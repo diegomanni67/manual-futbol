@@ -4,9 +4,9 @@ import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_H
 
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DISTANCE, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 
-import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearSprintChaseState, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession } from './state.js';
+import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession } from './state.js';
 
-import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition } from './state.js';
+import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard } from './state.js';
 
 import { getPadAt, padButtons, remapMoveForCamera, snapshotKeys, syncStickDir, PREP_SPEED_FACTOR } from './input.js';
 
@@ -111,7 +111,7 @@ export function checkBallCapture(p, opts = {}){
     (forceEnd || !p.effortTouchAnim);
 
   if(!forceEnd && !isLogicalOwner){
-    if(p.releaseCooldown > 0 || p.pendingAction) return false;
+    if(p.releaseCooldown > 0) return false;
   }
   if(isPlayerStunned(p) || isPlayerStaggered(p)) return false;
   if(isCpuBlockedFromTeammateLooseBall(p) || isTeammateBlockedFromEffortChase(p)) return false;
@@ -130,7 +130,7 @@ export function checkBallCapture(p, opts = {}){
   }
 
   if(!p.canCollectBall) return false;
-  if(p.releaseCooldown > 0 || p.pendingAction) return false;
+  if(p.releaseCooldown > 0) return false;
 
   const possessSource = isGoalkeeper(p) ? inferGkPossessionSource(p) : null;
   p.tackleCooldown = TACKLE_COOLDOWN * 0.75;
@@ -235,9 +235,8 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   else if(ball.owner===p && !forcedChase && !sprintChase) maxSpeed *= 0.91;
   if(isGkHandsPossession(p)) maxSpeed *= 0.68;
   if(p.stumble) maxSpeed *= 0.3; // tropezando tras perder un duelo: se mueve mucho mas lento un instante
-  // PREPARANDO_ACCION: cargando la barra de pase/tiro, o en el windup posterior a soltar el boton
-  // (ver PREP_MIN_MS) — la pierna esta yendo hacia atras, asi que se corre notablemente mas lento
-  if(p.charging || p.pendingKick) maxSpeed *= PREP_SPEED_FACTOR;
+  // PREPARANDO_ACCION con pelota en pie: cargando o windup post-suelta — no aplica en sprint_chase
+  if((p.charging || p.pendingKick) && !isPlayerSprintChasing(p)) maxSpeed *= PREP_SPEED_FACTOR;
   // ESTADO DE TRANSICION (toque de acomodo del giro): velocidad de desplazamiento casi nula durante
   // los ~100ms del toque — recien cuando p.turnTouch se apaga (ver bloque de abajo) se vuelve a
   // permitir que vx/vy suban hacia la velocidad de carrera normal.
@@ -320,6 +319,10 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   p.x += p.vx*dt; p.y += p.vy*dt;
   p.x = clamp(p.x, 0.3, FIELD_L-0.3);
   p.y = clamp(p.y, 0.3, FIELD_W-0.3);
+  if(isKickoffDefendingTeam(p.team)) clampKickoffDefenderPosition(p);
+  if(isKickoffTaker(p) && !p.kickoffAnim){
+    teleportKickoffTakerHard(p);
+  }
   // SINCRONIZAR EL PASO CON EL AVANCE REAL: el ciclo de piernas ahora avanza segun la distancia
   // que el jugador REALMENTE recorrio este frame (speedAfter*dt / largo-de-zancada), no solo
   // porque paso el tiempo. Antes habia un ritmo minimo aunque el jugador estuviera parado, lo que
@@ -446,6 +449,7 @@ function canUseSlideTackle(p){
 }
 
 function startTackle(p, type, aimDir){
+  if(isKickoffWaiting()) return false;
   const chaining = canChainTackle(p);
   if(!chaining && p.tackleCooldown > 0) return false;
   if(p.tackleAnim && !chaining) return false;
@@ -1293,8 +1297,7 @@ function forcePossessionLoss(){
     p.charging = null;
     p.chargeStart = 0;
     p.pendingKick = null;
-    p.pendingAction = null;
-    p.isPowerLocked = false;
+    clearPlayerPendingAction(p);
     p.isChargingShot = false;
   }
 }
@@ -1311,7 +1314,7 @@ function isBallInValidGoalBox(b, frame){
 }
 
 function onGoal(frame){
-  if(Game.goalRoll || Game.deadBall || Game.isGoal || Game.isGoalScored) return false;
+  if(Game.goalRoll || Game.deadBall || Game.isGoal || Game.isGoalScored || isKickoffWaiting()) return false;
   if(!isBallInValidGoalBox(ball, frame)) return false;
 
   const goalkeeper = getDefendingGoalkeeperForFrame(frame);
@@ -1404,6 +1407,7 @@ function goalKickPositionForGoalLine(side){
 }
 
 function enterDeadBallState(info){
+  clearAirSpamUiState();
   ball.vx = 0; ball.vy = 0; ball.vz = 0;
   ball.curveFactor = 0;
   ball.highKick = false;
@@ -1419,7 +1423,7 @@ function enterDeadBallState(info){
   clearAllChasingStates();
   for(const p of allPlayers){
     clearPlayerAIState(p);
-    p.pendingAction = null;
+    clearPlayerPendingAction(p);
     p.pendingKick = null;
     p.charging = null;
     p.isChargingShot = false;
@@ -1477,6 +1481,7 @@ function computeOutZoneSetPiece(){
 
 function onBallOut(){
   if(Game.outOfPlay) return;
+  clearAirSpamUiState();
   forcePossessionLoss();
   clearEffortChaseLock(true);
   ball.owner = null;
@@ -1485,7 +1490,7 @@ function onBallOut(){
   clearAllChasingStates();
   for(const p of allPlayers){
     clearPlayerAIState(p);
-    p.pendingAction = null;
+    clearPlayerPendingAction(p);
     p.pendingKick = null;
     p.charging = null;
     p.isChargingShot = false;
@@ -1727,7 +1732,7 @@ function idleAllPlayersExceptScorer(scorer){
     p.state = 'idle';
     p.charging = null;
     p.pendingKick = null;
-    p.pendingAction = null;
+    clearPlayerPendingAction(p);
     p.isChargingShot = false;
     p.tackleAnim = null;
     p.diveAnim = null;
@@ -1893,13 +1898,18 @@ function runCelebrationRunSim(dt, rawDt){
 
 function restartAfterGoal(scoringTeam){
   if(Game.matchEnded) return; // si el tiempo se cumplio mientras tanto, no se reinicia mas
-  placeKickoff(scoringTeam==='home'?'away':'home');
-  // el cursor tambien vuelve a un estado limpio (igual que al arrancar el partido), en vez de
-  // quedarse en el jugador donde termino la jugada del gol
+  const kickingTeam = scoringTeam === 'home' ? 'away' : 'home';
+  placeKickoff(kickingTeam);
+  // el cursor vuelve al sacador de centro del equipo que reinicia
   Game.manualOverrideUntil = 0;
   Game.manualOverrideUntil2 = 0;
-  setControlled(nearestToBall('home'));
-  if(Game.twoPlayerMode) setControlled2(nearestToBall('away'));
+  const taker = getKickoffTaker();
+  if(kickingTeam === 'home'){
+    setControlled(taker || nearestToBall('home'));
+  } else {
+    setControlled(nearestToBall('home'));
+    if(Game.twoPlayerMode) setControlled2(taker || nearestToBall('away'));
+  }
   setIsPaused(false);
   Game.paused = false;
 }
