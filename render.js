@@ -1,6 +1,9 @@
 "use strict";
 
-import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, SLIDE_DISTANCE, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, isAirSpamWindowActive, BASE_FIELD_L } from './state.js';
+import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, getLateralSignFromFacing, isAirSpamWindowActive, isFacingAwayFromCamera, isGkHandsPossession, isGoalKickReadyState, isPressureCursorPlayer, BASE_FIELD_L } from './state.js';
+import { GK_AUTO_DISTRIBUTE } from './gameplay_constants.js';
+import { getModeTackleDistance } from './modePhysics.js';
+import { toGameUnits } from './utils.js';
 
 import { isCelebrationMode, isHumanTeam, isSetPieceAwaitingExecution, lastDt, lerp, movePlayer, paintDepth, physicsConfig, practiceGK, practicePlayer, project, projectPractice, setupPractice, touchKickCurve, updatePlayerMeshDir8, getAnimVisualSpeed } from './state.js';
 
@@ -369,6 +372,37 @@ function drawSpamDuelMeter(p, s, h){
   ctx.restore();
 }
 
+function drawPlayerControlCursor(s, h, kind, p){
+  const isPrimary = kind === 'primary';
+  const markColor = isPrimary
+    ? ((Game.twoPlayerMode && p?.id === Game.controlledId2) ? '#ff9d00' : '#fff700')
+    : 'rgba(148,148,148,0.55)';
+  const fillColor = isPrimary
+    ? markColor
+    : 'rgba(148,148,148,0.32)';
+  const lineW = isPrimary ? 2 : 1.4;
+  const rx = isPrimary ? h * 0.27 : h * 0.24;
+  ctx.save();
+  ctx.strokeStyle = markColor;
+  ctx.lineWidth = lineW;
+  ctx.beginPath();
+  ctx.ellipse(s.x, s.y + 2, rx, h * 0.09, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(s.x - 5, s.y - h - 9);
+  ctx.lineTo(s.x + 5, s.y - h - 9);
+  ctx.lineTo(s.x, s.y - h - 2);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  if(!isPrimary){
+    ctx.strokeStyle = 'rgba(148,148,148,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawPlayer(p, isControlledFlag){
   const s = project({x:p.x,y:p.y,z:0});
   const scale = s.s;
@@ -384,18 +418,10 @@ function drawPlayer(p, isControlledFlag){
 
   drawSpamDuelMeter(p, s, h);
 
-  // indicador de jugador controlado (amarillo = jugador 1, naranja = jugador 2 en modo 2P)
   if(isControlledFlag){
-    const markColor = (Game.twoPlayerMode && p.id===Game.controlledId2) ? '#ff9d00' : '#fff700';
-    ctx.save();
-    ctx.strokeStyle=markColor; ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.ellipse(s.x, s.y+2, h*0.27, h*0.09, 0, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(s.x-6, s.y-h-10); ctx.lineTo(s.x+6, s.y-h-10); ctx.lineTo(s.x, s.y-h-2); ctx.closePath();
-    ctx.fillStyle=markColor; ctx.fill();
-    ctx.restore();
+    drawPlayerControlCursor(s, h, 'primary', p);
+  } else if(isPressureCursorPlayer(p)){
+    drawPlayerControlCursor(s, h, 'pressure', p);
   }
   if(ball.owner===p){
     ctx.save();
@@ -751,6 +777,7 @@ function drawNormalPose(p, s, h){
   const draggingBack = !!p.dragBack;
   const throwingIn = !!(p.isThrowingIn || p.throwInAnim);
   const kicking  = !!p.kickAnim;      // EL LATIGAZO: ventana de impacto del tiro/pase en curso
+  const jockeying = !!(p.jockeyState && !prepping && !kicking && !feinting);
   const strideAmp = clamp(0.55+speed*0.06,0.15,1.05) * clamp(1.12-(mass-1)*0.45, 0.72, 1.2) * (p.legIdleBlend??1);
 
   // ============================================================
@@ -795,8 +822,8 @@ function drawNormalPose(p, s, h){
   // altura del jugador en pantalla (quedaba en un pixel o menos, invisible); ahora es proporcional a
   // "h" y ademas se acompaña de un sutil squash&stretch (se achica al pisar, se estira al despegar)
   // para que se note que apoya con peso real, no que flota.
-  const bounceAmp = clamp(speed*0.11, 0, 0.9) * clamp(1.15-(mass-1)*0.5,0.65,1.3);
-  const running = !prepping && !feinting && !kicking && !draggingBack && !throwingIn;
+  const bounceAmp = clamp(speed*0.11, 0,  0.9) * clamp(1.15-(mass-1)*0.5,0.65,1.3);
+  const running = !prepping && !feinting && !kicking && !draggingBack && !throwingIn && !jockeying;
   const bounceN = running ? Math.abs(Math.cos(phaseA)) : 0; // 0=apoyo/pisada, 1=vuelo
   const bounceUp = bounceN * bounceAmp;               // fraccion de h que sube el torso
   const squash = running ? lerp(-1, 1, bounceN)*0.045*clamp(speed*0.25,0,1) : 0; // <0 al pisar, >0 al volar
@@ -826,6 +853,17 @@ function drawNormalPose(p, s, h){
     legA = { thigh: 0.32, knee: 0.36, foot: 0.3 };
     legB = { thigh: 0.38, knee: 0.34, foot: 0.3 };
     neckTilt = 0;
+  }
+
+  // --- JOCKEY_POSE: semi-flexionado, piernas y brazos abiertos (compensado por facingFlip) ---
+  if(jockeying){
+    const openSign = facingFlip(p);
+    legA = { thigh: 0.58 * openSign, knee: 0.92, foot: 0.42 };
+    legB = { thigh: -0.54 * openSign, knee: 0.88, foot: 0.40 };
+    armA = { shoulder: 0.78 * openSign, elbow: 0.92 };
+    armB = { shoulder: -0.74 * openSign, elbow: 0.88 };
+    neckTilt = 0.1;
+    torsoExtra = 0.2 + (p.jockeyRetreat ? 0.12 : 0);
   }
 
   // --- PREPARANDO_ACCION (pelota en pie): pierna de golpeo cargada — reemplaza la carrera ---
@@ -1028,7 +1066,7 @@ function drawNormalPose(p, s, h){
   ctx.closePath(); ctx.fill();
 
   // ===================== CADENA: TORSO -> CUELLO -> CABEZA =====================
-  const facingAway = gameState==='practice' ? Math.cos(p.facing) > 0 : Math.sin(p.facing) > 0;
+  const facingAway = isFacingAwayFromCamera(p);
   ctx.save();
   ctx.translate(0, -h*0.80);
   rotateBone(nT);
@@ -1068,6 +1106,7 @@ function drawStandTackle(p, s, h){
   const a = p.tackleAnim;
   const prog = clamp(a.t/a.dur, 0, 1);
   const lunge = Math.sin(prog*Math.PI); // 0 -> 1 -> 0, el impulso de la pierna
+  const lungeBoost = 1 + lunge * 0.45;
   const flip = facingFlip(p);
   const {shirt, shorts, sock} = teamColors(p);
   const skin = '#e6b98c';
@@ -1085,7 +1124,7 @@ function drawStandTackle(p, s, h){
   ctx.beginPath(); ctx.moveTo(-h*0.05,-h*0.42); ctx.lineTo(-h*0.1,-h*0.02); ctx.stroke();
   ctx.beginPath(); ctx.ellipse(-h*0.1,-h*0.01,h*0.05,h*0.03,0,0,7); ctx.fillStyle='#111'; ctx.fill();
   // pierna de entrada, se extiende hacia la pelota y vuelve
-  const reach = h*0.34*lunge;
+  const reach = h*0.48*lunge*lungeBoost;
   ctx.strokeStyle = sock; ctx.lineWidth = legW;
   ctx.beginPath(); ctx.moveTo(h*0.05,-h*0.42); ctx.lineTo(h*0.1+reach, -h*0.08+lunge*h*0.02); ctx.stroke();
   ctx.beginPath(); ctx.ellipse(h*0.1+reach, -h*0.07+lunge*h*0.02, h*0.055,h*0.032,0,0,7); ctx.fillStyle='#111'; ctx.fill();
@@ -1125,12 +1164,13 @@ function drawSlideTackle(p, s, h){
   const skin = '#e6b98c';
 
   // estela de pasto/polvo detras del jugador, siguiendo la trayectoria del deslizamiento
+  const slideDist = toGameUnits(getModeTackleDistance());
   const trailN = 5;
   for(let i=1;i<=trailN;i++){
     const tt = clamp(prog - i*0.07, 0, 1);
     const eased = 1-Math.pow(1-tt,2);
-    const tx = a.startX + a.dirX*SLIDE_DISTANCE*eased;
-    const ty = a.startY + a.dirY*SLIDE_DISTANCE*eased;
+    const tx = a.startX + a.dirX*slideDist*eased;
+    const ty = a.startY + a.dirY*slideDist*eased;
     const tp = project({x:tx,y:ty,z:0});
     ctx.beginPath();
     ctx.ellipse(tp.x, tp.y+2, h*0.16*(1-i/trailN*0.6), h*0.05, 0, 0, Math.PI*2);
@@ -1300,7 +1340,36 @@ function drawGKDive(p, s, h){
   const prog = clamp(a.t/a.dur, 0, 1);
   const {shirt, shorts, sock} = teamColors(p);
   const skin = '#e6b98c';
-  const sideSign = (a.targetY - a.startY) >= 0 ? 1 : -1; // hacia que lado va
+  const flip = facingFlip(p);
+  const lateralSign = a.type === 'dive_left' ? -1
+    : a.type === 'dive_right' ? 1
+    : getLateralSignFromFacing(p, a.targetX ?? p.x, a.targetY ?? p.y, true);
+  const sideSign = flip * lateralSign;
+
+  if(a.type === 'catch' || a.animState === 'CATCH'){
+    const eased = Math.sin(Math.min(prog, 1) * Math.PI * 0.9);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.scale(flip, 1);
+    ctx.beginPath();
+    ctx.ellipse(0, 3, h*0.28, h*0.08, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
+    ctx.fillStyle = shirt;
+    ctx.beginPath();
+    ctx.ellipse(0, -h*0.42 - eased*h*0.08, h*0.22, h*0.16, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = shorts;
+    ctx.beginPath();
+    ctx.ellipse(0, -h*0.24, h*0.18, h*0.11, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2,h*0.09);
+    ctx.beginPath(); ctx.moveTo(-h*0.18,-h*0.52); ctx.lineTo(-h*0.34,-h*0.72-eased*h*0.12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(h*0.18,-h*0.52); ctx.lineTo(h*0.34,-h*0.72-eased*h*0.12); ctx.stroke();
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(0,-h*0.58,h*0.09,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    return;
+  }
 
   if(a.type==='jump'){
     // salto vertical: el cuerpo se eleva en pantalla siguiendo una curva de salto
@@ -1340,43 +1409,47 @@ function drawGKDive(p, s, h){
     return;
   }
 
-  const eased = Math.sin(Math.min(prog,1)*Math.PI*0.85); // se extiende y llega estirado
+  const eased = Math.sin(Math.min(prog,1)*Math.PI*0.85);
+  const stretch = eased * 1.15;
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  // sombra
   ctx.beginPath();
-  ctx.ellipse(0, 3, h*0.4, h*0.09, 0, 0, Math.PI*2);
+  ctx.ellipse(0, 3, h*0.42, h*0.09, 0, 0, Math.PI*2);
   ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
 
-  // cuerpo estirado horizontal, hacia el lado del salto
   ctx.save();
-  ctx.scale(sideSign,1);
+  ctx.scale(sideSign, 1);
+  ctx.rotate(-0.12 * stretch);
   ctx.fillStyle = shirt;
   ctx.beginPath();
-  ctx.ellipse(0, -h*0.28*eased-h*0.06, h*0.24, h*0.14, -0.35*eased, 0, Math.PI*2);
+  ctx.ellipse(h*0.08 * stretch, -h*0.22 * stretch - h*0.06, h*0.28 * stretch, h*0.13, -0.25, 0, Math.PI*2);
   ctx.fill();
   ctx.fillStyle = shorts;
   ctx.beginPath();
-  ctx.ellipse(-h*0.16, -h*0.14*eased-h*0.04, h*0.13, h*0.09, -0.2*eased, 0, Math.PI*2);
+  ctx.ellipse(-h*0.12, -h*0.12 * stretch, h*0.14, h*0.1, -0.15, 0, Math.PI*2);
   ctx.fill();
-  // piernas juntas, extendidas hacia atras del salto
   ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2,h*0.1); ctx.lineCap='round';
   ctx.beginPath();
-  ctx.moveTo(-h*0.2, -h*0.1*eased); ctx.lineTo(-h*0.48, h*0.02);
+  ctx.moveTo(-h*0.18, -h*0.08 * stretch); ctx.lineTo(-h*0.52, h*0.04);
   ctx.stroke();
-  // brazos extendidos hacia la pelota (arriba, direccion del salto)
+  ctx.beginPath();
+  ctx.moveTo(-h*0.08, -h*0.08 * stretch); ctx.lineTo(-h*0.38, h*0.06);
+  ctx.stroke();
   ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2,h*0.09);
   ctx.beginPath();
-  ctx.moveTo(h*0.1, -h*0.42*eased-h*0.06); ctx.lineTo(h*0.4, -h*0.62*eased-h*0.08);
+  ctx.moveTo(h*0.12, -h*0.38 * stretch - h*0.06); ctx.lineTo(h*0.52 * stretch, -h*0.58 * stretch - h*0.1);
   ctx.stroke();
-  ctx.beginPath(); ctx.arc(h*0.4, -h*0.62*eased-h*0.08, h*0.06, 0, Math.PI*2);
-  ctx.fillStyle = '#e8c400'; ctx.fill(); // guante
-  // cabeza
+  ctx.beginPath(); ctx.arc(h*0.52 * stretch, -h*0.58 * stretch - h*0.1, h*0.07, 0, Math.PI*2);
+  ctx.fillStyle = '#e8c400'; ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(h*0.04, -h*0.34 * stretch - h*0.04); ctx.lineTo(h*0.38 * stretch, -h*0.48 * stretch - h*0.06);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(h*0.38 * stretch, -h*0.48 * stretch - h*0.06, h*0.065, 0, Math.PI*2);
+  ctx.fillStyle = '#e8c400'; ctx.fill();
   ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(h*0.06, -h*0.4*eased-h*0.08, h*0.085, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(h*0.02, -h*0.36 * stretch - h*0.08, h*0.09, 0, Math.PI*2); ctx.fill();
   ctx.restore();
-
   ctx.restore();
 }
 
@@ -1524,9 +1597,17 @@ function drawBall(){
 function drawPowerBar(p){
   if(Game.isInputLocked) return;
   const setPieceWaiting = isSetPieceAwaitingExecution(p);
+  const gkCharging = !!(p.gkKickCharge?.isCharging);
+  const gkHandsHold = isGkHandsPossession(p) && !p.gkKickAnim && !isGoalKickReadyState();
+  const gkHandsSecs = gkHandsHold ? Math.max(0, (p.handsTimer || 0) / 1000) : 0;
+  const gkHandsUrgent = gkHandsHold && gkHandsSecs > 0 && gkHandsSecs <= GK_AUTO_DISTRIBUTE.URGENT_SEC;
+  const gkHandsBlink = gkHandsUrgent && Math.sin(performance.now() * 0.012) > 0;
   let level = 0;
   let pkType = null;
-  if(setPieceWaiting && SetPieceManager.chargeType){
+  if(gkCharging){
+    level = p.gkKickCharge.powerBar ?? 0;
+    pkType = p.gkKickCharge.kickType === 'dropkick' ? 'cross' : 'pass';
+  } else if(setPieceWaiting && SetPieceManager.chargeType){
     level = SetPieceManager.powerBar;
     pkType = SetPieceManager.chargeType === 'short' ? 'pass'
       : (SetPieceManager.chargeType === 'medium' ? 'through' : 'cross');
@@ -1535,14 +1616,15 @@ function drawPowerBar(p){
     const buf = p.actionBuffer;
     pkType = p.pendingKick ? p.pendingKick.type : (getBufferKickType(buf) || buf?.type || p.charging);
   }
-  const chargingNow = !setPieceWaiting && (
+  const chargingNow = !setPieceWaiting && !gkCharging && (
     (p.charging && p.chargeStart > 0) ||
     (p.isChargingShot && p.chargeStart > 0) ||
     (p.actionBuffer?.chargeStart > 0)
   );
   const lockedBuffer = !setPieceWaiting && !!(p.actionBuffer?.type && !p.actionBuffer?.chargeStart);
-  if(!setPieceWaiting && level <= 0 && !p.pendingKick && !chargingNow && !lockedBuffer) return;
-  if(!setPieceWaiting && level <= 0 && !pkType && !chargingNow && !lockedBuffer && !p.isChargingShot) return;
+  const showGkHandsHud = gkHandsHold && gkHandsSecs > 0 && !setPieceWaiting;
+  if(!setPieceWaiting && !gkCharging && level <= 0 && !p.pendingKick && !chargingNow && !lockedBuffer && !showGkHandsHud) return;
+  if(!setPieceWaiting && !gkCharging && level <= 0 && !pkType && !chargingNow && !lockedBuffer && !p.isChargingShot && !showGkHandsHud) return;
   const s = project({x:p.x,y:p.y,z:2.4});
   const w=54,h=8;
   ctx.save();
@@ -1552,13 +1634,37 @@ function drawPowerBar(p){
     let col = pkType==='shot'? '#ff5252' : (pkType==='through'?'#ffd166':(pkType==='cross'?'#5fd0ff':'#7CFC00'));
     ctx.fillStyle=col; ctx.fillRect(2,2,(w-4)*level,h-4);
     ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(0,0,w,h);
+    if(gkHandsBlink){
+      ctx.strokeStyle = 'rgba(255,82,82,0.95)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-1, -1, w + 2, h + 2);
+    }
+  } else if(showGkHandsHud){
+    const frac = clamp(gkHandsSecs / GK_AUTO_DISTRIBUTE.TIME_SEC, 0, 1);
+    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = gkHandsUrgent ? '#ff5252' : '#7CFC00';
+    ctx.fillRect(2, 2, (w - 4) * frac, h - 4);
+    ctx.strokeStyle = gkHandsBlink ? '#ff5252' : '#fff';
+    ctx.lineWidth = gkHandsBlink ? 2 : 1;
+    ctx.strokeRect(0, 0, w, h);
   }
   if(setPieceWaiting && SetPieceManager.timer > 0){
     const urgent = SetPieceManager.timer <= SET_PIECE_COUNTDOWN_URGENT;
+    const setBlink = urgent && Math.sin(performance.now() * 0.012) > 0;
     ctx.fillStyle = urgent ? '#ff5252' : '#fff';
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(Math.ceil(SetPieceManager.timer).toString(), w / 2, level > 0 ? -5 : h + 12);
+    if(setBlink && level > 0){
+      ctx.strokeStyle = 'rgba(255,82,82,0.95)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-1, -1, w + 2, h + 2);
+    }
+  } else if(showGkHandsHud){
+    ctx.fillStyle = gkHandsUrgent ? '#ff5252' : '#fff';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(Math.ceil(gkHandsSecs).toString(), w / 2, level > 0 ? -5 : h + 12);
   }
   ctx.restore();
 }
@@ -1629,14 +1735,24 @@ function drawRadar(){
   ctx.globalAlpha = 0.65;
   for(const p of allPlayers){
     const isCtrl = isControlledByHuman(p);
+    const isPressure = isPressureCursorPlayer(p);
     const rp = radarPoint(box, p.x, p.y);
     ctx.beginPath();
-    ctx.arc(rp.x, rp.y, isCtrl?3.2:2.2, 0, Math.PI*2);
-    ctx.fillStyle = p.team==='home' ? '#5aa4ff' : '#ff5a5a';
+    ctx.arc(rp.x, rp.y, isCtrl ? 3.2 : 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = p.team === 'home' ? '#5aa4ff' : '#ff5a5a';
     ctx.fill();
     if(isCtrl){
-      ctx.strokeStyle = p.id===Game.controlledId2 ? '#ff9d00' : '#fff700'; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(rp.x, rp.y, 4.6, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = p.id === Game.controlledId2 ? '#ff9d00' : '#fff700';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(rp.x, rp.y, 4.6, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if(isPressure){
+      ctx.strokeStyle = 'rgba(148,148,148,0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(rp.x, rp.y, 3.8, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
   const rb = radarPoint(box, ball.x, ball.y);

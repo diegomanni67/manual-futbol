@@ -1,16 +1,19 @@
 "use strict";
 
-import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, physicsConfig, toGameUnits } from './state.js';
+import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, STUN_WALK_MIN_FACTOR, STUN_WALK_SPEED_FACTOR, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, physicsConfig } from './state.js';
 
-import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DISTANCE, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
+import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
+import { getModeTackleDistance } from './modePhysics.js';
+import { JOCKEY_PHYSICS, RECOVERY_STATE, TACKLE_PHYSICS } from './gameplay_constants.js';
+import { toGameUnits } from './utils.js';
 
-import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession } from './state.js';
+import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
 
-import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard } from './state.js';
+import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim } from './state.js';
 
 import { getPadAt, padButtons, remapMoveForCamera, snapshotKeys, syncStickDir, PREP_SPEED_FACTOR } from './input.js';
 
-import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisions, CELEB_TYPES } from './gameplay.js';
+import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisions, onGkBallTriggerEnter, CELEB_TYPES } from './gameplay.js';
 
 /* ============================================================
    FISICA / MOVIMIENTO DE JUGADORES (peso tipo eFootball: acelera y frena gradual)
@@ -71,8 +74,27 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
   const stunned = isPlayerStunned(p);
 
   if(stunned){
-    p.vx = lerp(p.vx, 0, clamp(dt * 2.8, 0, 1));
-    p.vy = lerp(p.vy, 0, clamp(dt * 2.8, 0, 1));
+    const walkMax = getPlayerMoveSpeedBase(p) * STUN_WALK_SPEED_FACTOR;
+    const walkFloor = walkMax * STUN_WALK_MIN_FACTOR;
+    if(wantMove && moveMag > 0.05){
+      const angle = Math.atan2(moveDir.y / moveMag, moveDir.x / moveMag);
+      const tgt = moveMag * walkMax;
+      const curSp = Math.hypot(p.vx, p.vy);
+      const spd = clamp(lerp(curSp, tgt, clamp(dt * 6, 0, 1)), walkFloor, walkMax);
+      p.vx = Math.cos(angle) * spd;
+      p.vy = Math.sin(angle) * spd;
+      p.facing += angDiff(angle, p.facing) * clamp(dt * 4.5, 0, 1);
+    } else {
+      const curSp = Math.hypot(p.vx, p.vy);
+      if(curSp > walkFloor * 0.5){
+        const scale = lerp(1, walkFloor / Math.max(curSp, 0.01), clamp(dt * 4, 0, 1));
+        p.vx *= scale;
+        p.vy *= scale;
+      } else {
+        p.vx = 0;
+        p.vy = 0;
+      }
+    }
     return {prevVX, prevVY};
   }
 
@@ -271,6 +293,37 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
     }
   }
 
+  p.jockeyState = !!jockey;
+  p.jockeyRetreat = false;
+  if(jockey && ball.owner && ball.owner.team !== p.team){
+    const rival = ball.owner;
+    const toRivalX = rival.x - p.x, toRivalY = rival.y - p.y;
+    const distRival = Math.hypot(toRivalX, toRivalY) || 0.001;
+    const awayDir = { x: -toRivalX / distRival, y: -toRivalY / distRival };
+    const rspd = Math.hypot(rival.vx, rival.vy);
+    const toRivalNorm = { x: toRivalX / distRival, y: toRivalY / distRival };
+    const closing = (rival.vx * toRivalNorm.x + rival.vy * toRivalNorm.y);
+    const rivalSprinting = rspd >= JOCKEY_PHYSICS.RIVAL_SPRINT_THRESHOLD;
+    const rivalClosingFast = closing >= JOCKEY_PHYSICS.RIVAL_ACCEL_THRESHOLD;
+    const tooClose = distRival < JOCKEY_PHYSICS.CONTAIN_MIN;
+    const insideContain = distRival < JOCKEY_PHYSICS.CONTAIN_IDEAL;
+
+    if(tooClose || (insideContain && (rivalSprinting || rivalClosingFast)) || (rivalSprinting && rivalClosingFast)){
+      activeMoveDir = awayDir;
+      moveMag = Math.max(moveMag, tooClose ? 0.72 : 0.55);
+      wantMove = true;
+      p.jockeyRetreat = true;
+    } else if(distRival > JOCKEY_PHYSICS.CONTAIN_MAX){
+      activeMoveDir = { x: toRivalNorm.x, y: toRivalNorm.y };
+      moveMag = Math.max(moveMag, 0.35);
+      wantMove = true;
+    } else if(!wantMove){
+      activeMoveDir = awayDir;
+      moveMag = 0.12;
+      wantMove = true;
+    }
+  }
+
   // --- DETECCION DE GIRO CON PELOTA ---
   // si el jugador conduce y el rumbo pedido (moveDir) difiere mucho de hacia donde esta orientado
   // ahora (p.facing), no lo dejamos arrancar a correr directo hacia alla: primero se dispara un
@@ -311,6 +364,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
       maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
       speedLimiters.push(`turnTouch*${TURN_TOUCH_SPEED_FACTOR}`);
     }
+    if(p.jockeyRetreat) maxSpeed = Math.min(maxSpeed, JOCKEY_PHYSICS.SPRINT_RETREAT_SPEED);
     maxSpeed = Math.min(maxSpeed, uniformMax);
   } else {
     maxSpeed = getPlayerMoveSpeedBase(p) * (sprint ? (physicsConfig.sprintMult ?? DEFAULT_SPRINT_MULT) : 1.0) * (jockey?0.55:1.0);
@@ -333,6 +387,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
       maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
       speedLimiters.push(`turnTouch*${TURN_TOUCH_SPEED_FACTOR}`);
     }
+    if(p.jockeyRetreat) maxSpeed = Math.min(maxSpeed, JOCKEY_PHYSICS.SPRINT_RETREAT_SPEED);
   }
 
   const maxSpeedBeforeDirectional = maxSpeed;
@@ -502,7 +557,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
 
 /* ============================================================
    ENTRADA DE PIE (parada) Y BARRIDA (deslizamiento) — con animacion
-   Tacle/barrida: impacto otorga posesion con retardo · stun 800ms · staggered 1000ms
+   Tacle/barrida: impacto otorga posesion con retardo · stun 300ms · staggered 1000ms
    ============================================================ */
 // TackleBox frontal (1.5x tamano del jugador): comprueba si la pelota cae dentro del area
 // orientada hacia dirX/dirY. reach = profundidad maxima (TACKLE_RADIUS).
@@ -551,12 +606,14 @@ function isWithinSlideReceptionZone(p){
 }
 
 function canUseStandingTackle(p){
+  if(p.secondaryPressActive || p.jockeyState) return false;
   if(ball.owner === p || p.role === 'GK') return false;
   if(isBallAboveKnee()) return false;
   return hasRivalPossession(p);
 }
 
 function canUseSlideTackle(p){
+  if(p.secondaryPressActive || p.jockeyState) return false;
   if(ball.owner === p || p.role === 'GK') return false;
   if(isBallAboveKnee()) return false;
   if(hasRivalPossession(p)) return true;
@@ -565,7 +622,9 @@ function canUseSlideTackle(p){
 }
 
 function startTackle(p, type, aimDir){
+  if(p.secondaryPressActive) return false;
   if(isKickoffWaiting()) return false;
+  if(p.recoveryState) return false;
   const chaining = canChainTackle(p);
   if(!chaining && p.tackleCooldown > 0) return false;
   if(p.tackleAnim && !chaining) return false;
@@ -590,7 +649,8 @@ function startTackle(p, type, aimDir){
     resolved: false, success: false, foul: false,
     carryVx: 0, carryVy: 0
   };
-  p.facing = Math.atan2(dir.y, dir.x);
+  p.facing = lookAtFacing(p.x, p.y, p.x + dir.x, p.y + dir.y);
+  syncPlayerDir(p);
   p.vx = 0; p.vy = 0;
   p.charging = null;
   p.pendingKick = null;
@@ -598,6 +658,7 @@ function startTackle(p, type, aimDir){
 }
 
 function tryDefensiveTackleInput(p, input){
+  if(input.jockey) return false;
   if(p.charging) return false;
   if(p.isPreparingToShoot) return false;
   if(isBallAboveKnee()) return false;
@@ -605,7 +666,10 @@ function tryDefensiveTackleInput(p, input){
   if(input.pressSlide && canUseSlideTackle(p)){
     return startTackle(p, 'slide', p.stickDir);
   }
-  if((input.pressTackle || input.pressTackleAlt) && canUseStandingTackle(p)){
+  if(input.pressTackle && canUseStandingTackle(p)){
+    return startTackle(p, 'stand', p.stickDir);
+  }
+  if(input.pressShot && canUseStandingTackle(p)){
     return startTackle(p, 'stand', p.stickDir);
   }
   return false;
@@ -613,16 +677,33 @@ function tryDefensiveTackleInput(p, input){
 
 function resolveStandTackle(p, a){
   if(a.resolved) return;
-  if(!ballInTackleBox(p, a.dirX, a.dirY, TACKLE_RADIUS)) return;
+  const magnetR = TACKLE_RADIUS * TACKLE_PHYSICS.MAGNET_MULT;
+  const inBox = ballInTackleBox(p, a.dirX, a.dirY, magnetR);
+  const distBall = dist2D(p, ball);
+  if(!inBox && distBall > magnetR) return;
 
   const victim = ball.owner;
   if(victim && isGkHandsImmune(victim)) return;
   if(victim && !canTakeBallFromOwner(p, victim)) return;
-  if(dist2D(p, ball) > TACKLE_RADIUS) return;
+  if(distBall > magnetR) return;
 
   a.resolved = true;
   a.success = true;
   grantTacklePossession(p, victim && victim.team !== p.team ? victim : null);
+}
+
+function applyTackleBallMagnet(p, a, prog){
+  if(a.resolved || a.type !== 'stand' || ball.owner === p) return;
+  if(prog < TACKLE_PHYSICS.STAND_ACTIVE_START || prog > TACKLE_PHYSICS.STAND_ACTIVE_END) return;
+  const magnetR = TACKLE_RADIUS * TACKLE_PHYSICS.MAGNET_MULT;
+  const d = dist2D(p, ball);
+  if(d > magnetR) return;
+  const pull = (1 - d / magnetR) * TACKLE_PHYSICS.MAGNET_PULL;
+  const dx = (p.x + a.dirX * 0.6) - ball.x;
+  const dy = (p.y + a.dirY * 0.6) - ball.y;
+  const len = Math.hypot(dx, dy) || 1;
+  ball.x += (dx / len) * pull;
+  ball.y += (dy / len) * pull;
 }
 
 // Barrida: despeje con slideHitbox alineado al pie extendido (ver drawSlideTackle / computeSlideHitbox).
@@ -685,6 +766,10 @@ function resolveTackleImpact(p, a){
   if(a.type !== 'slide') resolveStandTackle(p, a);
 }
 
+function getSlideTackleDistance(){
+  return toGameUnits(getModeTackleDistance());
+}
+
 function updateSlidePosition(p, a, prog, dt){
   if(a.success && a.carryVx){
     p.x += a.carryVx * dt;
@@ -693,7 +778,7 @@ function updateSlidePosition(p, a, prog, dt){
     p.vy = a.carryVy;
   } else {
     const eased = 1 - Math.pow(1 - prog, 2);
-    const travelled = SLIDE_DISTANCE * eased;
+    const travelled = getSlideTackleDistance() * eased;
     p.x = a.startX + a.dirX * travelled;
     p.y = a.startY + a.dirY * travelled;
   }
@@ -733,11 +818,13 @@ function updateTackleAnim(p, dt){
       p.vx = a.carryVx;
       p.vy = a.carryVy;
     } else {
-      const travelled = STAND_TACKLE_LUNGE * Math.min(1, prog * 1.6);
+      applyTackleBallMagnet(p, a, prog);
+      const lungeScale = 1.0 + Math.sin(prog * Math.PI) * 0.35;
+      const travelled = STAND_TACKLE_LUNGE * Math.min(1, prog * 1.45) * lungeScale;
       p.x = clamp(a.startX + a.dirX * travelled, 0.3, FIELD_L - 0.3);
       p.y = clamp(a.startY + a.dirY * travelled, 0.3, FIELD_W - 0.3);
     }
-    if(!a.resolved && prog >= 0.35 && prog <= 0.75){
+    if(!a.resolved && prog >= TACKLE_PHYSICS.STAND_ACTIVE_START && prog <= TACKLE_PHYSICS.STAND_ACTIVE_END){
       resolveTackleImpact(p, a);
     }
   }
@@ -748,6 +835,7 @@ function updateTackleAnim(p, dt){
       p.vy = a.carryVy || p.vy;
     }
     p.tackleAnim = null;
+    p.recoveryState = { t: 0, dur: RECOVERY_STATE.TACKLE_DURATION };
     if(a.type === 'slide') p.tackleCooldown = a.success ? SLIDE_RECOVERY_HIT : SLIDE_RECOVERY_MISS;
     else p.tackleCooldown = STAND_RECOVERY;
   }
@@ -756,22 +844,47 @@ function updateTackleAnim(p, dt){
 /* ============================================================
    ESTIRADA DEL ARQUERO — con animacion, no siempre llega
    ============================================================ */
-function startGKDive(p, targetY, availableTime, predZ){
+function startGKDive(p, targetY, availableTime, predZ, opts = {}){
   const goalX = p.ownGoalX();
   const dir = p.attackDir();
-  const diveType = predZ >= GK_JUMP_MIN_Z ? 'jump' : 'dive';
+  const saveMode = opts.saveMode || 'dive';
+  const targetX = saveMode === 'catch' ? p.x : goalX + dir * 0.35;
+  const clampedY = clamp(targetY, CENTER.y - GOAL_HALF - 1.2, CENTER.y + GOAL_HALF + 1.2);
+  const diveSideAnim = getDiveSideAnim(p, clampedY, targetX);
+  const animState = opts.animState ||
+    (saveMode === 'catch' ? 'CATCH' : (predZ >= GK_JUMP_MIN_Z ? 'jump' : diveSideAnim));
+  const diveType = animState === 'CATCH' ? 'catch'
+    : animState === 'DIVE_LEFT' ? 'dive_left'
+    : animState === 'DIVE_RIGHT' ? 'dive_right'
+    : (predZ >= GK_JUMP_MIN_Z ? 'jump' : 'dive');
+  p.gkAnimState = animState;
   p.diveAnim = {
     type: diveType,
+    animState,
+    saveMode,
     t: 0,
     dur: clamp(availableTime, GK_DIVE_MIN_DUR, GK_DIVE_MAX_DUR),
     startX: p.x, startY: p.y,
-    targetX: goalX + dir*0.35,
-    targetY: clamp(targetY, CENTER.y-GOAL_HALF-1.2, CENTER.y+GOAL_HALF+1.2),
-    jumpHeight: clamp(predZ||0, 0.6, 2.3),
-    resolved: false, success: false
+    targetX,
+    targetY: clampedY,
+    jumpHeight: clamp(predZ || 0, 0.6, 2.3),
+    resolved: false,
+    success: false,
+    parryChance: opts.parryChance ?? GK_CATCH_CHANCE,
+    forceCatch: !!opts.forceCatch,
   };
-  p.facing = Math.atan2(p.diveAnim.targetY-p.y, dir*2.5);
+  p.facing = lookAtFacing(p.x, p.y, targetX, clampedY);
+  syncPlayerDir(p);
   p.vx = 0; p.vy = 0;
+}
+
+function startGKCatchSave(p, targetY, availableTime, predZ, opts = {}){
+  startGKDive(p, targetY, availableTime, predZ, {
+    saveMode: 'catch',
+    animState: 'CATCH',
+    forceCatch: opts.forceCatch ?? false,
+    parryChance: opts.parryChance ?? GK_CATCH_CHANCE,
+  });
 }
 
 function updateGKDive(p, dt){
@@ -783,23 +896,8 @@ function updateGKDive(p, dt){
   p.y = lerp(a.startY, a.targetY, eased);
 
   if(!a.resolved && prog>0.2 && !ball.owner){
-    const d = dist2D(p, ball);
-    if(d < GK_SAVE_RADIUS){
-      a.resolved = true; a.success = true;
-      ball.highKick = false; // atajada del arquero: no es un tiro/centro, fisica normal
-      if(Math.random() < GK_CATCH_CHANCE){
-        setBallStateInPossession(p, 'save');
-      } else {
-        setBallStateLoose(true);
-        ball.lastTouchedBy = p.id;
-        ball.lastTouchTeam = p.team;
-        const dir = p.attackDir();
-        const away = norm({x: dir, y: (Math.random()-0.5)*1.6});
-        ball.vx = away.x*7 + Math.random()*1.5;
-        ball.vy = away.y*6;
-        ball.vz = 1.6 + Math.random()*1.4;
-      }
-      ball.lastTouchTeam = p.team;
+    if(dist2D(p, ball) < GK_SAVE_RADIUS){
+      onGkBallTriggerEnter(p, ball);
     }
   }
 
@@ -1607,12 +1705,13 @@ function computeOutZoneSetPiece(){
     const lastTouch = ball.lastTouchTeam || 'home';
     const takingTeam = lastTouch === 'home' ? 'away' : 'home';
     const side = outTop ? 'top' : 'bottom';
+    const pos = throwInLinePosition(side, ball.x);
     return {
       type: SET_PIECE.THROW_IN,
       team: takingTeam,
       side,
-      x: clamp(ball.x, 0.8, FIELD_L - 0.8),
-      y: side === 'top' ? 0.18 : FIELD_W - 0.18,
+      x: pos.x,
+      y: pos.y,
     };
   }
   return null;
@@ -2053,5 +2152,5 @@ function restartAfterGoal(scoringTeam){
   Game.paused = false;
 }
 
-export { updateMovement, movePlayer, ballInTackleBox, applyTackleCarryInertia, tackleAnimProgress, canChainTackle, isBallAboveKnee, hasRivalPossession, isLooseBallForDefense, isWithinSlideReceptionZone, canUseStandingTackle, canUseSlideTackle, startTackle, tryDefensiveTackleInput, resolveStandTackle, computeSlideHitbox, ballIntersectsSlideHitbox, randomDirInCone, slideTackle, resolveTackleImpact, updateSlidePosition, checkSlideFoul, updateTackleAnim, startGKDive, updateGKDive, buildBoundaryWalls, rebuildFieldGeometry, resetGoalZoneTracking, clearGoalNetTriggerState, buildGoalFrame, isBallPastGoalLine, isBallInGoalMouth, isBallInsideGoalVolume, getGoalNetSide, getGoalNetFrictionMult, isInsideGoalTrigger, isBallTouchingNetMesh, updateGoalNetTriggerPhysics, isBallNearGoalArea, getOutZoneFrictionMult, getGoalAreaFrictionMult, getGoalBackLineX, getGoalExitMarginX, registerGoalOnLineCross, ballCrossedGoalLinePlane, ballPassedGoalZone, isBallInGoalZone, isValidGoalTrigger, markGoalZonePassed, onGoalZoneTriggerEnter, tryRegisterGoal, checkGoalLinePosition, checkBallStuck, updateGoalZoneTriggers, dampGoalStructureBounce, isInsideGoalCavity, resolveGoalSolid, resolveGoalLateralNets, resolveBackNet, resolveGoalFrameCollisions, resolveGoalStructureCollisions, forcePossessionLoss, isBallInValidGoalBox, onGoal, isBallOutsideFieldLines, isBallInOutZone, resolveBoundaryWallAbsorb, resolveBoundaryWallCollisions, defendingTeamForGoalLine, attackingTeamForGoalLine, cornerPositionForGoalLineExit, goalKickPositionForGoalLine, enterDeadBallState, computeOutZoneSetPiece, onBallOut, updateWaitingForRetrieval, checkFieldLimits, checkGoalsAndBounds, resumeFromDeadBall, updateDeadBallRestart, resetPracticeOutOfPlay, updateGoalRoll, scoreGoal, showGoalOverlay, hideGoalOverlay, isGoalOverlayVisible, resolveCelebrationScorer, idleAllPlayersExceptScorer, pickCelebrationFestejo, triggerScorerCelebrationAnim, celebrationResumePressed, triggerGoalCelebrationState, beginCelebrationRun, finishCelebrationRun, updateCelebrationRunCpuMovement, updateCelebrationRunControl, updateCelebrationRun, runCelebrationRunSim, restartAfterGoal, fieldBoundary, stadiumBounds, OutZone, BoundaryWalls };
+export { updateMovement, movePlayer, ballInTackleBox, applyTackleCarryInertia, tackleAnimProgress, canChainTackle, isBallAboveKnee, hasRivalPossession, isLooseBallForDefense, isWithinSlideReceptionZone, canUseStandingTackle, canUseSlideTackle, startTackle, tryDefensiveTackleInput, resolveStandTackle, computeSlideHitbox, ballIntersectsSlideHitbox, randomDirInCone, slideTackle, resolveTackleImpact, updateSlidePosition, checkSlideFoul, updateTackleAnim, startGKDive, startGKCatchSave, updateGKDive, buildBoundaryWalls, rebuildFieldGeometry, resetGoalZoneTracking, clearGoalNetTriggerState, buildGoalFrame, isBallPastGoalLine, isBallInGoalMouth, isBallInsideGoalVolume, getGoalNetSide, getGoalNetFrictionMult, isInsideGoalTrigger, isBallTouchingNetMesh, updateGoalNetTriggerPhysics, isBallNearGoalArea, getOutZoneFrictionMult, getGoalAreaFrictionMult, getGoalBackLineX, getGoalExitMarginX, registerGoalOnLineCross, ballCrossedGoalLinePlane, ballPassedGoalZone, isBallInGoalZone, isValidGoalTrigger, markGoalZonePassed, onGoalZoneTriggerEnter, tryRegisterGoal, checkGoalLinePosition, checkBallStuck, updateGoalZoneTriggers, dampGoalStructureBounce, isInsideGoalCavity, resolveGoalSolid, resolveGoalLateralNets, resolveBackNet, resolveGoalFrameCollisions, resolveGoalStructureCollisions, forcePossessionLoss, isBallInValidGoalBox, onGoal, isBallOutsideFieldLines, isBallInOutZone, resolveBoundaryWallAbsorb, resolveBoundaryWallCollisions, defendingTeamForGoalLine, attackingTeamForGoalLine, cornerPositionForGoalLineExit, goalKickPositionForGoalLine, enterDeadBallState, computeOutZoneSetPiece, onBallOut, updateWaitingForRetrieval, checkFieldLimits, checkGoalsAndBounds, resumeFromDeadBall, updateDeadBallRestart, resetPracticeOutOfPlay, updateGoalRoll, scoreGoal, showGoalOverlay, hideGoalOverlay, isGoalOverlayVisible, resolveCelebrationScorer, idleAllPlayersExceptScorer, pickCelebrationFestejo, triggerScorerCelebrationAnim, celebrationResumePressed, triggerGoalCelebrationState, beginCelebrationRun, finishCelebrationRun, updateCelebrationRunCpuMovement, updateCelebrationRunControl, updateCelebrationRun, runCelebrationRunSim, restartAfterGoal, fieldBoundary, stadiumBounds, OutZone, BoundaryWalls };
 

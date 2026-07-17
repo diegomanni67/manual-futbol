@@ -3,7 +3,7 @@
 import {
   GLOBAL_TIME_SCALE, Game, gameState, isPaused,
   ball, CAM, PCAM, FIELD_L, lastTs, lastDt, practicePlayer,
-  clamp, lerp,
+  clamp, lerp, updateCameraZoom,
   resetMatchForStart, setupPractice, resetPractice, updateClock, endMatch, bindBallBeforeRender,
   setLastTs, setLastDt, setGameState, setIsPaused, setGameMode,
   setControlled, setControlled2, nearestToBall,
@@ -306,6 +306,7 @@ function tick(ts) {
     } else if (Game.celebration) {
       updateCelebrationCamera();
     } else {
+      updateCameraZoom();
       const effortFocus = getEffortCameraFocusPlayer();
       let targetCamX;
       if (effortFocus) targetCamX = clamp(effortFocus.x, 10, FIELD_L - 10);
