@@ -151,6 +151,33 @@ export function positionCornerAttackers(attackingTeam, defendingGoalSide, corner
   return attackers;
 }
 
+/** Marca zonal en el area: defensores rivales frente a los atacantes del corner. */
+export function positionCornerDefenders(defendingTeam, attackingTeam, defendingGoalSide){
+  const goalX = defendingGoalSide === 'left' ? 0 : FIELD_L;
+  const dir = defendingGoalSide === 'left' ? 1 : -1;
+  const attackers = allPlayers.filter(p => p.team === attackingTeam && p.cornerSlot);
+  const defenders = allPlayers
+    .filter(p => p.team === defendingTeam && p.role !== 'GK')
+    .sort((a, b) => dist2D(a, ball) - dist2D(b, ball))
+    .slice(0, Math.max(attackers.length, 4));
+
+  defenders.forEach((p, i) => {
+    const mark = attackers[i];
+    if(mark){
+      p.x = clamp(mark.x + dir * 1.05, 2, FIELD_L - 2);
+      p.y = clamp(mark.y + (mark.y >= CENTER.y ? -1.15 : 1.15), 2, FIELD_W - 2);
+    } else {
+      p.x = clamp(goalX + dir * (PBOX_D * 0.52), 2, FIELD_L - 2);
+      p.y = clamp(CENTER.y + (i - 1.5) * 4.8, 2, FIELD_W - 2);
+    }
+    p.vx = 0;
+    p.vy = 0;
+    p.targetPosition = { x: p.x, y: p.y };
+    p.aiMode = 'set_piece';
+  });
+  return defenders;
+}
+
 /** Micro-movimiento en el area mientras espera el centro desde el corner. */
 export function maintainCornerAttackPositions(dt, attackingTeam){
   const t = performance.now() * 0.001;

@@ -24,7 +24,7 @@ import { planGoalkeeperAI, resetPracticeGoalkeeperAI } from './gkAi.js';
 import {
   clearInterceptPassState, getPassDetectRadius, isDeepInterceptPassLocked,
   isInterceptingPass, registerThroughPass, tickInterceptPassStates,
-  positionCornerAttackers, aiSuggestThrowInTargets, maintainCornerAttackPositions,
+  positionCornerAttackers, positionCornerDefenders, aiSuggestThrowInTargets, maintainCornerAttackPositions,
 } from './passingManager.js';
 
 import { SECONDARY_PRESS, AI_SECONDARY_PRESSING, AI_RUPTURA, AI_RUPTURA_MANUAL, MOVING_TO_BALL } from './gameplay_constants.js';
@@ -35,7 +35,7 @@ import { AERIAL_PHYSICS, AIR_AERIAL_MIN_Z, AIR_BICYCLE_MAX_Z, AIR_BICYCLE_MIN_Z,
 
 import { Game, IA_BALL_MOVING_MIN, IA_LANDING_JOG_FACTOR, IA_LANDING_TIMING_MARGIN, IA_LANDING_WAIT_DIST, IA_SEEKING_RADIUS, IA_SEEKING_SLOW_DIST, INTERCEPTION_REACT_MAX, INTERCEPTION_REACT_MIN, LONGPASS_SWITCH_LOCK_MS, MAN_MARK_ACTIVATE_DIST, MAN_MARK_MIN_DIST, NEAREST_PLAYER_UPDATE_INTERVAL, PBOX_D, PBOX_HALFW, PENDING_ACTION_EXECUTE_RADIUS, PrivateChaseEvents, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_FORCE_MULT, SET_PIECE_POWER_MAX_MS, SET_PIECE_TIMER_DURATION, SET_PIECE_UNSTICK_DIST, STAGGERED_DURATION, STUMBLE_DURATION, STUN_IMPACT_DURATION, TACKLE_COOLDOWN, THROW_IN_ANIM_RELEASE, THROW_IN_ANIM_WINDUP, THROW_IN_APPROACH_DIST, THROW_IN_FORCE, THROW_IN_HAND_Z, THROW_IN_LINE_Y, ZONE_MARK_RADIUS, allPlayers, applyBallLateralCurve, applyStaggered, applyStun, assignBallPossession, awayTeam, updateGlobalReinstatementCooldown } from './state.js';
 
-import { ball, canvas, clamp, clearAirSpamUiState, clearBallLock, clearChasingState, clearEffortChaseLock, clearEffortSprintState, clearForcedChaseState, clearGkPossessionType, clearPlayerAIState, dist2D, fakeShotOwnerId, finalizeBallFrame, gameState, getBallAirGravity, getBallLogicalOwner, getChaseInterceptTarget, getDefaultDribbleDistance, getEffortChaseOwner, getPlayerMoveSpeedBase, homeTeam, inferGkPossessionSource, initGkPossessionType, interruptForcedChaseForAction, isBallContestedRival, isBallContestedSeekAllowed, isBallDead, isBallLocked, isBallSetPieceFrozen, isBallWaitingForRetrieval, isChaseOwner, isEffortTouchDefenderFrozen, isExtendedDribbleActive, isFakeShotActive, isGkBallCollidable, isGkFeetPossession, isGkGrabBlockedForSetPiece, isGkHandsImmune, isGkHandsPossession, isGkKickInProgress, isGoalKickReadyState, isGoalkeeper, isPlayerSprintChasing, setAirSpamWindowUiActive, applyBallAirHorizontalDrag } from './state.js';
+import { ball, canvas, clamp, clearAirSpamUiState, clearBallLock, clearChasingState, clearEffortChaseLock, clearEffortSprintState, clearForcedChaseState, clearGkPossessionType, clearPlayerAIState, dist2D, fakeShotOwnerId, finalizeBallFrame, gameState, getBallAirGravity, getBallLogicalOwner, getChaseInterceptTarget, getDefaultDribbleDistance, getEffortChaseOwner, getPlayerMoveSpeedBase, homeTeam, inferGkPossessionSource, initGkPossessionType, interruptForcedChaseForAction, isBallContestedRival, isBallContestedSeekAllowed, isBallDead, isBallLocked, isBallSetPieceFrozen, isBallWaitingForRetrieval, isChaseOwner, isEffortTouchDefenderFrozen, isExtendedDribbleActive, isFakeShotActive, isGkBallCollidable, isGkFeetPossession, isGkGrabBlockedForSetPiece, isGkHandsImmune, isGkHandsPossession, isGkKickInProgress, isGoalKickReadyState, isGoalkeeper, isPlayerPerformingSkill, isPlayerSprintChasing, setAirSpamWindowUiActive, applyBallAirHorizontalDrag } from './state.js';
 
 import { isManualAction, isManualMode, isPlayerChasing, isPlayerForcedChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isTacklePossessionPending, isTeammateBlockedFromEffortChase, isThrowInPossessionBlocked, isThrowInTakerBlocked, lerp, norm, playerInControlRange, playerInStrictControlRange, practiceGK, projScale, recoverFakeShotPossession, resetDribbleDistance, resolveInputCurve, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, startForcedChase, syncPlayerDir, updateBallContested, updateEffortTouchDefenderFreeze, updateGkHandsTimer, updateGkPossessionTransitions, updateIgnorePossession, userWantsPossessionAction, isCpuBlockedFromTeammateLooseBall, getTeammateSupportTarget, getTacticalBlockSlot, syncHumanTeamControlOnPossession, canTakeBallFromOwner, isEffortTouchPendingReclaim, clearSprintChaseState, applyKickoffOccupationTarget, updateKickoffOccupationTimer, isKickoffBallContestable, getDiveSideAnim, lookAtFacing, purgeCpuMovementForHuman } from './state.js';
 
@@ -1348,12 +1348,22 @@ function refreshIASeekingState(p){
 
 // Mueve al jugador hacia targetPosition con velocidad normal (via movePlayer), sin teletransporte.
 // Si la recepcion es aerea, ajusta el ritmo para llegar al landingPoint cuando pique la pelota.
+function cpuStopInPlace(p){
+  p.vx = 0;
+  p.vy = 0;
+  p.sprinting = false;
+  p.accelRampDist = 0;
+}
+
 function moveTowardSeekTarget(p, dt, target, sprint, opts){
   opts = opts || {};
   const sprintChase = opts.sprintChase || isPlayerSprintChasing(p);
   const movingToBall = !!opts.movingToBall;
   const forceSeek = !!opts.forceSeek;
   if(isPlayerForcedChasing(p) && !forceSeek) return;
+  if(isEffortTouchDefenderFrozen(p)) return;
+  const skillOwner = getBallLogicalOwner();
+  if(skillOwner && isPlayerPerformingSkill(skillOwner) && skillOwner.team !== p.team) return;
   if(p.state === 'chasing' && isManualAction(p) && !movingToBall && !forceSeek) return;
   if(!target) target = {x: ball.x, y: ball.y};
   p.targetPosition = target;
@@ -1384,7 +1394,18 @@ function moveTowardSeekTarget(p, dt, target, sprint, opts){
     p.iaSeekingBrake = true;
   }
 
-  const md = moveMag > 0.05 ? {x: dx/d, y: dy/d} : {x: 0, y: 0};
+  if(moveMag <= 0.05){
+    if(isCpuPlayer(p)) cpuStopInPlace(p);
+    else {
+      const damp = Math.pow(0.12, dt);
+      p.vx *= damp;
+      p.vy *= damp;
+    }
+    p.iaSeekingBrake = false;
+    return;
+  }
+
+  const md = {x: dx/d, y: dy/d};
   movePlayer(p, dt, md, useSprint || sprintChase, false, sprintChase ? {sprintChase: true} : null);
   p.iaSeekingBrake = false;
 }
@@ -1552,8 +1573,12 @@ function isTeamNearestSeeker(p){
 
 function seekBall(p, dt){
   if(isControlledByHuman(p)) return false;
+  if(isEffortTouchDefenderFrozen(p)) return false;
 
   const logicalOwner = getBallLogicalOwner();
+  if(logicalOwner && isPlayerPerformingSkill(logicalOwner) && logicalOwner.team !== p.team){
+    return false;
+  }
   if(logicalOwner && logicalOwner.team === p.team && logicalOwner.id !== p.id){
     p.isAttackingBall = false;
     clearInterceptionSeek(p);
@@ -1607,6 +1632,9 @@ function seekBall(p, dt){
 }
 
 function moveDirectTowardBall(p, dt, sprint){
+  if(isEffortTouchDefenderFrozen(p)) return;
+  const skillOwner = getBallLogicalOwner();
+  if(skillOwner && isPlayerPerformingSkill(skillOwner) && skillOwner.team !== p.team) return;
   const dx = ball.x - p.x;
   const dy = ball.y - p.y;
   const d = Math.hypot(dx, dy);
@@ -1821,7 +1849,7 @@ function aiDecide(p, dt){
   }
 
   if(p.aiMode === 'set_piece' && p.targetPosition){
-    if(p.cornerSlot && Game.setPiece?.type === SET_PIECE.CORNER){
+    if(Game.setPiece?.type === SET_PIECE.CORNER){
       moveToward(p, dt, p.targetPosition, false);
       return;
     }
@@ -2144,7 +2172,11 @@ function moveToward(p, dt, target, sprint){
   const adjusted = applyKickoffOccupationTarget(p, target);
   const dx=adjusted.x-p.x, dy=adjusted.y-p.y;
   const d=Math.hypot(dx,dy);
-  const md = d>0.15? {x:dx/d,y:dy/d} : {x:0,y:0};
+  if(d <= 0.15){
+    cpuStopInPlace(p);
+    return;
+  }
+  const md = {x:dx/d,y:dy/d};
   if(p.runTarget && d > 0.15){
     if(p.aiMode !== AI_RUPTURA_MANUAL) p.aiMode = AI_RUPTURA;
     movePlayerRuptura(p, dt, md, getRupturaRunMaxSpeed(p));
@@ -2342,6 +2374,7 @@ function updateSetPiecePositioning(dt){
   const sp = Game.setPiece;
   if(sp?.type === SET_PIECE.CORNER && !Game.isBallInPlay && !SetPieceManager.executed && !Game.cornerPositioned){
     positionCornerAttackers(sp.team, sp.side, sp.y ?? ball.y);
+    positionCornerDefenders(sp.team === 'home' ? 'away' : 'home', sp.team, sp.side);
     Game.cornerPositioned = true;
   }
   if(sp?.type === SET_PIECE.CORNER && !Game.isBallInPlay && !SetPieceManager.executed){

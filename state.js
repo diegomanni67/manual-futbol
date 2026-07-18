@@ -157,29 +157,18 @@ export function applyMatchCamera(preset){
 }
 
 /**
- * CameraController — zoom adaptativo solo en 11vs11.
- * 6vs6 mantiene fixedZoom sin alteraciones.
+ * CameraController — zoom fijo en partido (6vs6 y 11vs11 comparten la misma camara base).
  */
 export function updateCameraZoom(){
-  if(Game.matchFormat !== '11vs11'){
-    CAM.zoom = CAM.fixedZoom ?? CAM_MATCH_DEFAULTS.zoom;
-    return;
-  }
-  if(gameState === 'practice') return;
-
-  const fieldHeight = FIELD_W;
-  const ballY = clamp(ball.y, 0, fieldHeight);
-  // Y bajo (cerca) → zoom mínimo; Y alto (lejos) → zoom máximo
-  const targetZoom = CAM.baseZoom + (CAM.maxZoomFactor * (ballY / fieldHeight));
-  const smooth = CAM.zoomSmoothing ?? CAM_11VS11_DYNAMIC.smoothingFactor;
-  CAM.zoom += (targetZoom - CAM.zoom) * smooth;
+  CAM.zoom = CAM.fixedZoom ?? CAM_MATCH_DEFAULTS.zoom;
 }
 
 /** Velocidad visual de zancada — sincronizada con traslacion real (m/s → u/s). */
 export function getAnimVisualSpeed(p){
   const speed = Math.hypot(p.vx, p.vy);
   if(speed <= 0.25) return 0;
-  if(physicsConfig.animStrideSpeed != null) return toGameUnits(physicsConfig.animStrideSpeed);
+  const wantsMove = p.moveInputDir && Math.hypot(p.moveInputDir.x, p.moveInputDir.y) > 0.05;
+  if(wantsMove && physicsConfig.animStrideSpeed != null) return toGameUnits(physicsConfig.animStrideSpeed);
   return speed;
 }
 
@@ -232,10 +221,10 @@ export const CONTROL_TOUCH_DUR = 0.3;   // toque de control al ganar posesion (a
 
   // --- Conduccion extendida (FakeShot): offset con lerp; effort touch suelta la pelota ---
 export const DRIBBLE_DIST_R1 = toGameUnits(2.0);           // R1 + stick der.: toque corto / progresion (m reales)
-export const DRIBBLE_DIST_R2 = toGameUnits(4.0);           // R2 + stick der.: toque largo / carrera (m reales)
+export const DRIBBLE_DIST_R2 = toGameUnits(4.0);           // legacy: distancia larga (ya no se usa en effort touch)
 export const DRIBBLE_DIST_FAKE = toGameUnits(2.0);         // FakeShot (X cancela carga): offset hacia adelante
 export const DRIBBLE_DIST_LERP = 0.2;         // suavizado al cambiar de distancia
-export const EFFORT_AI_FREEZE_DURATION = 0.3; // 300ms: freeze defensivo ante proyeccion del offset
+export const EFFORT_AI_FREEZE_DURATION = 0.45; // 450ms: desorientacion defensiva durante effort touch
 export const EFFORT_SPRINT_NORMAL_OFFSET = 0.3; // offset de conduccion normal tras convergencia
 export const EFFORT_OFFSET_DRAG_LERP = 0.06;  // freno suave: la pelota se arrastra hacia el jugador
 export const EFFORT_DETACHED_BALL_LERP = 0.22; // suavizado del offset pelota-jugador durante R2 (sin teletransporte)
@@ -257,7 +246,7 @@ export const SELF_TOUCH_COLLECT_BLOCK = 0.5;  // 500ms: prohibido reposeer la pe
 export const SELF_TOUCH_BURST_MULT = 25.0;    // impulso inicial seco = targetDist * mult
 export const SELF_TOUCH_PLAYER_BRAKE = 0.14; // freno momentaneo del jugador al soltar el toque
 
-// --- EFFORT TOUCH (R2/R1 + stick): persecucion de balon suelto (Loose Ball Chase) ---
+// --- EFFORT TOUCH (R1 + flick stick der.): persecucion de balon suelto (Loose Ball Chase) ---
 export const GRASS_FRICTION = 0.98;             // legacy alias — ver getModeBallDrag() en modePhysics.js
 export const EFFORT_TOUCH_COOLDOWN = 0.5;       // 500ms entre toques (largo o corto) / ventana minima sin owner
 export const EFFORT_CHASE_TEAMMATE_BLOCK = 0.5; // 500ms: compañeros no pueden interceptar tras effort touch
@@ -278,7 +267,7 @@ export const INTERCEPT_SIM_STEP = 0.04;         // paso de simulacion para predi
 export const INTERCEPT_MAX_TIME = 3.5;          // horizonte maximo de prediccion (s)
 export const INTERCEPT_TIME_TOLERANCE = 0.10;   // margen jugador-llega-antes-que-pelota (s)
 export const EFFORT_RS_MIN = 0.45;              // magnitud minima del stick derecho para disparar
-export const EFFORT_DOUBLE_TAP_WINDOW_MS = 1000; // ventana entre 1er y 2do toque del stick derecho
+export const EFFORT_DOUBLE_TAP_WINDOW_MS = 1000; // legacy (effort touch usa un solo flick)
 export const EFFORT_TOUCH_ANIM_LONG = 0.28;     // animacion mas larga / postura marcada (toque largo)
 export const EFFORT_TOUCH_ANIM_SHORT = 0.20;    // animacion rapida y sutil (toque corto)
 export const IGNORE_POSSESSION_T = 0.2;         // 200ms: nadie puede reposeer tras effort touch / fake shot
@@ -355,11 +344,11 @@ export const PHYSICS_PRESETS = {
     label: '11 vs 11',
     formationKey: '11vs11',
     worldScale: 1.6,
-    camZoomMult: 0.554,
-    camNearMult: 1.22,
-    horizonShift: -0.035,
+    camZoomMult: 1,
+    camNearMult: 1,
+    horizonShift: 0,
     viewExtentMult: 1.45,
-    camMaxZoomFactor: 12,
+    camMaxZoomFactor: 0,
     camZoomSmoothing: 0.05,
     ...SHARED_PHYSICS,
   },
@@ -733,8 +722,8 @@ export const CAM = {
                           // de abajo son los que le dan la Altura y el Pitch hacia abajo)
   horizonFrac: 0.30,      // cuanto "cielo" se ve arriba: define el angulo de inclinacion (Pitch)
   groundFrac: 0.95,
-  zoom: 42,               // FOV/zoom: fijo en 6vs6; dinámico en 11vs11 (ver updateCameraZoom)
-  fixedZoom: 42,          // zoom base del modo (6vs6 siempre; 11vs11 = mínimo dinámico)
+  zoom: 42,               // FOV/zoom fijo en partido (6vs6 y 11vs11)
+  fixedZoom: 42,          // zoom base del modo
   baseZoom: 42,
   maxZoomFactor: 12,
   zoomSmoothing: 0.05,
@@ -1148,6 +1137,7 @@ export const BASE_CORNER_FLAG_INSET = FIELD_RULES_BASE.CORNER_FLAG_INSET;
 export let THROW_IN_LINE_Y = BASE_THROW_IN_LINE_Y;
 export let THROW_IN_CLAMP_X = BASE_THROW_IN_CLAMP_X;
 export let CORNER_FLAG_INSET = BASE_CORNER_FLAG_INSET;
+export const THROW_IN_OPPONENT_MIN_DIST = 2.0; // m reales: rivales a 2m del punto de saque
 export const THROW_IN_APPROACH_DIST = 1.8;  // distancia para activar isThrowingIn
 
 export function playerInStrictControlRange(p, b = ball){
@@ -1257,6 +1247,10 @@ export function isCpuBlockedFromTeammateLooseBall(p){
 
 export function isEffortTouchActive(p){
   return !!(p && (p.isEffortTouching || p.effortTouchAnim));
+}
+
+export function isPlayerPerformingSkill(p){
+  return isEffortTouchActive(p);
 }
 
 export function lockPlayerSwitchForEffort(p){
@@ -2022,7 +2016,6 @@ export function detectEffortTouchInput(p, input, padIndex, scheme){
   const stKey = 'e' + p.id;
   if(!effortRsState[stKey]) effortRsState[stKey] = {prevMag: 0, pendingTap: null};
   const st = effortRsState[stKey];
-  expireEffortTouchPendingTap(st);
 
   let dir = null;
   let type = null;
@@ -2032,10 +2025,9 @@ export function detectEffortTouchInput(p, input, padIndex, scheme){
   const rsFlick = rsMag >= EFFORT_RS_MIN && st.prevMag < EFFORT_RS_MIN;
   st.prevMag = rsMag;
 
-  if(rsFlick && rs){
-    if(input.heldR2) type = 'long';
-    else if(input.heldR1) type = 'short';
-    if(type) dir = {x: rs.x, y: rs.y};
+  if(rsFlick && rs && input.heldR1){
+    type = 'short';
+    dir = {x: rs.x, y: rs.y};
   }
 
   if(!type && scheme){
@@ -2043,15 +2035,13 @@ export function detectEffortTouchInput(p, input, padIndex, scheme){
     if(moveMag >= 0.35){
       const dirKb = norm(input.move);
       const r1Now = anyKey(scheme.curveLeft);
-      const r2Now = anyKey(scheme.sprint);
       const r1Just = r1Now && !anyKeyPrev(scheme.curveLeft);
-      if(r2Now && r1Just){ type = 'long'; dir = dirKb; }
-      else if(r1Just && !r2Now){ type = 'short'; dir = dirKb; }
+      if(r1Just){ type = 'short'; dir = dirKb; }
     }
   }
 
   if(!type || !dir) return null;
-  return confirmEffortTouchDoubleTap(st, dir, type);
+  return {dir, type};
 }
 
 export function ensurePlayerBallControlForAction(p){
@@ -2661,21 +2651,37 @@ export function recoverFakeShotPossession(p){
   return true;
 }
 
+// Pausa la persecucion de pelota de un defensor CPU durante un effort touch rival.
+export function stopDefenderTrackingFor(p, duration){
+  if(!p || duration <= 0) return;
+  if(p.effortTouchDefenderFreezeT >= duration) return;
+  p.effortTouchDefenderFreezeT = duration;
+  p.vx = 0;
+  p.vy = 0;
+  p.sprinting = false;
+  p.accelRampDist = 0;
+  p.isAttackingBall = false;
+  p.iaSeeking = false;
+  p.iaSeekingBrake = false;
+  p.targetPosition = null;
+  clearChasingState(p);
+  clearForcedChaseState(p);
+  if(p.aiMode === 'seeking') p.aiMode = 'positioning';
+}
+
 // Freeze momentaneo de defensores CPU ante la proyeccion del offset (evita falsa intercepcion).
 export function applyEffortTouchDefenderFreeze(owner, offsetDist, dir){
   if(!owner || !dir) return;
   const projX = owner.x + dir.x * offsetDist;
   const projY = owner.y + dir.y * offsetDist;
-  const freezeRange = offsetDist + 0.8;
+  const freezeRange = offsetDist + 1.2;
+  const freezeDuration = Math.max(EFFORT_AI_FREEZE_DURATION, EFFORT_TOUCH_ANIM_SHORT + 0.12);
   for(const p of allPlayers){
-    if(!isCpuPlayer(p) || p.team === owner.team) continue;
-    if(p.aiMode !== 'positioning') continue;
+    if(!isCpuPlayer || !isCpuPlayer(p) || p.team === owner.team) continue;
     const dProj = Math.hypot(p.x - projX, p.y - projY);
     const dOwner = dist2D(p, owner);
     if(Math.min(dProj, dOwner) > freezeRange) continue;
-    p.effortTouchDefenderFreezeT = EFFORT_AI_FREEZE_DURATION;
-    p.vx = 0;
-    p.vy = 0;
+    stopDefenderTrackingFor(p, freezeDuration);
     enforceCpuNoCarrierChase(p, owner);
   }
 }
@@ -2686,6 +2692,7 @@ export function updateEffortTouchDefenderFreeze(dt){
     p.effortTouchDefenderFreezeT = Math.max(0, p.effortTouchDefenderFreezeT - dt);
     p.vx = 0;
     p.vy = 0;
+    p.sprinting = false;
   }
 }
 
@@ -3344,19 +3351,88 @@ function clampTeamOwnHalf(p, team){
   }
 }
 
-export function enforceRestartPositionRestrictions(){
-  if(!isRestartAwaiting()) return;
-  const kickingTeam = getRestartKickingTeam();
-  if(!kickingTeam) return;
-  const takerId = getRestartTakerId();
+function pushPlayerOutsideRadius(p, cx, cy, minDist){
+  const dx = p.x - cx, dy = p.y - cy;
+  const d = Math.hypot(dx, dy);
+  if(d >= minDist - 0.02) return;
+  const ang = d > 0.01 ? Math.atan2(dy, dx) : (p.id % 7) * 0.91;
+  p.x = cx + Math.cos(ang) * minDist;
+  p.y = cy + Math.sin(ang) * minDist;
+  p.x = clamp(p.x, 0.3, FIELD_L - 0.3);
+  p.y = clamp(p.y, 0.3, FIELD_W - 0.3);
+  p.vx = 0;
+  p.vy = 0;
+}
 
+function enforceKickoffRestartRestrictions(kickingTeam, takerId){
   for(const p of allPlayers){
-    if(isKickoffWaiting() && isKickoffDefendingTeam(p.team)){
+    if(isKickoffDefendingTeam(p.team)){
       clampKickoffDefenderPosition(p);
     }
     if(p.team === kickingTeam && p.id !== takerId){
       clampTeamOwnHalf(p, kickingTeam);
     }
+  }
+}
+
+function enforceCornerRestartRestrictions(kickingTeam, takerId){
+  const cx = ball.x, cy = ball.y;
+  const minDist = CCIRCLE_R;
+  for(const p of allPlayers){
+    if(p.id === takerId) continue;
+    if(p.team === kickingTeam && p.cornerSlot) continue;
+    if(p.team !== kickingTeam){
+      pushPlayerOutsideRadius(p, cx, cy, minDist);
+    }
+  }
+}
+
+function enforceThrowInRestartRestrictions(kickingTeam, takerId){
+  const cx = ball.x, cy = ball.y;
+  const minDist = toGameUnits(THROW_IN_OPPONENT_MIN_DIST);
+  for(const p of allPlayers){
+    if(p.id === takerId) continue;
+    if(p.team === kickingTeam) continue;
+    pushPlayerOutsideRadius(p, cx, cy, minDist);
+  }
+}
+
+function enforceGoalKickRestartRestrictions(kickingTeam, takerId, goalSide){
+  const goalX = goalSide === 'left' ? 0 : FIELD_L;
+  const dir = goalX === 0 ? 1 : -1;
+  const penLineX = goalX + dir * PBOX_D;
+  for(const p of allPlayers){
+    if(p.id === takerId) continue;
+    if(p.team === kickingTeam) continue;
+    const inPenDepth = goalX === 0 ? (p.x < penLineX + 0.05) : (p.x > penLineX - 0.05);
+    const inPenWidth = Math.abs(p.y - CENTER.y) <= PBOX_HALFW + 0.05;
+    if(!inPenDepth || !inPenWidth) continue;
+    p.x = goalX === 0 ? penLineX + 0.35 : penLineX - 0.35;
+    p.vx = 0;
+    p.vy = 0;
+  }
+}
+
+export function enforceRestartPositionRestrictions(){
+  if(!isRestartAwaiting()) return;
+
+  if(isKickoffWaiting()){
+    const kickingTeam = getRestartKickingTeam();
+    if(!kickingTeam) return;
+    enforceKickoffRestartRestrictions(kickingTeam, getRestartTakerId());
+    return;
+  }
+
+  const sp = Game.setPiece;
+  if(!sp) return;
+  const takerId = sp.takerId;
+
+  if(sp.type === SET_PIECE.CORNER){
+    enforceCornerRestartRestrictions(sp.team, takerId);
+  } else if(sp.type === SET_PIECE.THROW_IN){
+    enforceThrowInRestartRestrictions(sp.team, takerId);
+  } else if(sp.type === SET_PIECE.GOAL_KICK){
+    enforceGoalKickRestartRestrictions(sp.team, takerId, sp.side);
   }
 }
 
@@ -3752,7 +3828,7 @@ export function restartSetPieceForTeam(db){
     y: ballPos.y,
     fromY: db.fromY,
   });
-  if(db.type === SET_PIECE.CORNER && Game.matchFormat === '11vs11'){
+  if(db.type === SET_PIECE.CORNER){
     Game.cornerPositioned = false;
   }
 }
@@ -3825,6 +3901,10 @@ export function clearPlayerSetPieceState(p){
   p.isStuck = false;
   p.blockDribbling = false;
   p.inSetPieceZone = false;
+  p.cornerSlot = null;
+  p.cornerBasePosition = null;
+  p.throwInRunTarget = null;
+  if(p.aiMode === 'set_piece' || p.aiMode === 'throw_in_run') p.aiMode = 'normal';
   if(p.state === STATE_FIXED) p.state = 'idle';
 }
 
@@ -4551,6 +4631,7 @@ function getKickoffHoldingCm(team){
 }
 
 export function applyKickoffOccupationTarget(p, target){
+  if(Game.setPieceMode && !Game.isBallInPlay) return target;
   if(!isKickoffOccupationActive(p.team)) return target;
   const mustHold = p.posRole === 'CAM' || (p.posRole === 'CM' && getKickoffHoldingCm(p.team) === p);
   if(!mustHold) return target;

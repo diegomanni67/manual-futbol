@@ -6,7 +6,7 @@ import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_HITBOX_MAX_XY, AIR_AERIAL_M
 
 import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, ACTION_BUFFER_GROUND_PASS, ACTION_BUFFER_LOBBED_PASS, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getChaseInterceptTarget, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getPressureCursorId, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getChaseInterceptTarget, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getPressureCursorId, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isEffortTouchDefenderFrozen, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerPerformingSkill, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
 
 import { clampPlayerVelocity, setRupturaRunVelocity, getRupturaRunMaxSpeed } from './physics.js';
 
@@ -662,9 +662,8 @@ function isEffortRightStickIntent(team, padIndex){
   if(!effortRsState[stKey]) effortRsState[stKey] = {prevMag:0};
   const effortSt = effortRsState[stKey];
   const rsFlick = mag >= EFFORT_RS_MIN && effortSt.prevMag < EFFORT_RS_MIN;
-  const heldR2 = pad.buttons[7] && pad.buttons[7].value>0.15;
   const heldR1 = pad.buttons[5] && (pad.buttons[5].pressed || pad.buttons[5].value>0.5);
-  return rsFlick && (heldR1 || heldR2);
+  return rsFlick && heldR1;
 }
 
 function isGameplayInputBlocked(){
@@ -717,7 +716,7 @@ function handleRightStickSwitch(dt, team, padIndex){
     return;
   }
 
-  // Effort touch (R1/R2 + flick RS): el input de direccion no debe disparar cambio de jugador.
+  // Effort touch (R1 + flick RS): el input de direccion no debe disparar cambio de jugador.
   if(isEffortRightStickIntent(team, padIndex)){
     st.prevMag = mag;
     st.lockout = RS_FLICK_LOCKOUT;
@@ -1484,7 +1483,7 @@ function resolveSelfTouchDirection(inputDir, p){
   return {x: Math.cos(p.facing), y: Math.sin(p.facing)};
 }
 
-// Effort touch unificado: autopase direccionado + STATE_SPRINT_CHASE (R1 corto / R2 largo).
+// Effort touch: autopase direccionado + STATE_SPRINT_CHASE (R1 + flick stick derecho).
 function triggerEffort(p, power, stickDir, type){
   if(ball.owner !== p || isGkHandsPossession(p)) return false;
 
@@ -2324,6 +2323,7 @@ function shouldMaintainBallHunt(p, input){
 
 // Velocity directa hacia ball.x/y — sin targetPosition, intercept ni reposicionamiento tactico.
 function moveDirectTowardBall(p, dt, sprint){
+  if(isEffortTouchDefenderFrozen(p)) return;
   const dx = ball.x - p.x;
   const dy = ball.y - p.y;
   const d = Math.hypot(dx, dy);
@@ -2338,6 +2338,9 @@ function moveDirectTowardBall(p, dt, sprint){
 
 function seekBall(p, dt, input){
   if(isControlledByHuman(p)) return false;
+  if(isEffortTouchDefenderFrozen(p)) return false;
+  const skillOwner = getPlayerById(ball.possessedBy) || getPlayerById(ball.lastTouchedBy);
+  if(skillOwner && isPlayerPerformingSkill(skillOwner) && skillOwner.team !== p.team) return false;
   if(!shouldMaintainBallHunt(p, input)) return false;
   if(!isBallAvailableForHunt()) return false;
 

@@ -633,7 +633,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   // "patinar" sobre el cesped. Ahora, si no hay desplazamiento real, el ciclo queda congelado.
   const strideLen = clamp(1.55*clamp(1.15-(mass-1)*0.4, 0.8, 1.25), 1.15, 1.95); // distancia (unidades) de una zancada completa
   const animDrive = speed > 0.25
-    ? (physicsConfig.animStrideSpeed != null ? toGameUnits(physicsConfig.animStrideSpeed) : speed)
+    ? (wantMove && physicsConfig.animStrideSpeed != null ? toGameUnits(physicsConfig.animStrideSpeed) : speed)
     : 0;
   p.animPhase += (animDrive * dt / strideLen) * Math.PI*2;
   // AMORTIGUACION DE REPOSO: cuando el jugador esta quieto (o casi), el ciclo de piernas ya no
