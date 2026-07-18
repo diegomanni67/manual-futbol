@@ -5,92 +5,108 @@
 <title>Manual Fútbol — Modular</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html,body{margin:0;padding:0;overflow:hidden;background:#04170c;font-family:'Segoe UI',Arial,sans-serif;height:100%;}
-  #game{display:block;width:100vw;height:100vh;background:#04170c;}
+  :root {
+    --grass-primary: #26B36A;
+    --grass-secondary: #1FA35F;
+    --line-white: #FFFFFF;
+    --ui-blue: #1E88FF;
+    --ui-cyan: #00D4FF;
+    --ui-dark: #0E1624;
+    --ui-panel: #152238;
+    --ui-border: #1E3A5F;
+    --text-muted: #A8C4E8;
+    --team-away: #FF4D4D;
+    --btn-shadow: #0D4A9E;
+    --practice-shadow: #007A99;
+  }
+  html,body{margin:0;padding:0;overflow:hidden;background:#020B1F;font-family:'Segoe UI',Arial,sans-serif;height:100%;}
+  #game{display:block;width:100vw;height:100vh;background:#020B1F;}
 
-  .hud{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;color:#fff;}
+  .hud{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;color:var(--line-white);}
   .scoreboard{position:absolute;top:14px;left:50%;transform:translateX(-50%);
-    background:linear-gradient(180deg,#111827ee,#0b0f19ee);border:1px solid #2b3550;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--ui-panel) 93%,transparent),color-mix(in srgb,var(--ui-dark) 93%,transparent));
+    border:1px solid var(--ui-border);
     border-radius:10px;padding:8px 22px;display:flex;gap:16px;align-items:center;
     font-weight:700;font-size:20px;letter-spacing:1px;box-shadow:0 6px 18px rgba(0,0,0,.5);}
   .scoreboard .team{width:44px;text-align:center;font-size:15px;letter-spacing:.5px;}
-  .scoreboard .team.home{color:#5fa8ff;}
-  .scoreboard .team.away{color:#ff6b6b;}
+  .scoreboard .team.home{color:var(--ui-blue);}
+  .scoreboard .team.away{color:var(--team-away);}
   .scoreboard .score{font-size:24px;min-width:70px;text-align:center;}
-  .scoreboard .clock{font-size:15px;color:#ffd166;min-width:56px;text-align:center;border-left:1px solid #33405c;padding-left:12px;}
+  .scoreboard .clock{font-size:15px;color:var(--ui-cyan);min-width:56px;text-align:center;border-left:1px solid var(--ui-border);padding-left:12px;}
 
-  .status{position:absolute;top:16px;right:16px;background:#00000088;border-radius:8px;
-    padding:6px 12px;font-size:12px;color:#9be89b;border:1px solid #223;}
+  .status{position:absolute;top:16px;right:16px;background:rgba(14,22,36,.53);border-radius:8px;
+    padding:6px 12px;font-size:12px;color:var(--text-muted);border:1px solid var(--ui-border);}
   .status.off{color:#ffb4b4;}
 
   .msgbanner{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);
-    font-size:54px;font-weight:900;letter-spacing:3px;color:#fff;text-shadow:0 0 20px #000,0 4px 0 #000;
+    font-size:54px;font-weight:900;letter-spacing:3px;color:var(--line-white);text-shadow:0 0 20px #000,0 4px 0 #000;
     opacity:0;transition:opacity .25s, transform .25s;}
   .msgbanner.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
 
-  .startscreen{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0d3b1e,#02120a 75%);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:20;}
+  .startscreen{position:fixed;inset:0;background:radial-gradient(ellipse at center,var(--grass-secondary),var(--ui-dark) 75%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--line-white);z-index:20;}
   .startscreen h1{font-size:44px;margin:0 0 6px;letter-spacing:2px;text-shadow:0 4px 12px #000;}
   .startscreen p{opacity:.8;margin:2px 0;font-size:14px;}
-  .startbtn{margin-top:22px;padding:14px 34px;font-size:18px;font-weight:700;color:#04170c;
-    background:linear-gradient(180deg,#9be89b,#5fbf6a);border:none;border-radius:8px;cursor:pointer;
-    box-shadow:0 6px 0 #2e7d34;}
-  .startbtn:active{transform:translateY(4px);box-shadow:0 2px 0 #2e7d34;}
-  .practicebtn{margin-top:14px;padding:12px 30px;font-size:15px;font-weight:700;color:#04170c;
-    background:linear-gradient(180deg,#ffd166,#e0a72e);border:none;border-radius:8px;cursor:pointer;
-    box-shadow:0 6px 0 #a8780f;letter-spacing:.5px;}
-  .practicebtn:active{transform:translateY(4px);box-shadow:0 2px 0 #a8780f;}
+  .startbtn{margin-top:22px;padding:14px 34px;font-size:18px;font-weight:700;color:var(--ui-dark);
+    background:linear-gradient(180deg,var(--ui-blue),#1565C0);border:none;border-radius:8px;cursor:pointer;
+    box-shadow:0 6px 0 var(--btn-shadow);}
+  .startbtn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--btn-shadow);}
+  .practicebtn{margin-top:14px;padding:12px 30px;font-size:15px;font-weight:700;color:var(--ui-dark);
+    background:linear-gradient(180deg,var(--ui-cyan),#0099BB);border:none;border-radius:8px;cursor:pointer;
+    box-shadow:0 6px 0 var(--practice-shadow);letter-spacing:.5px;}
+  .practicebtn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--practice-shadow);}
   .practicebtn span{display:block;font-weight:400;font-size:10px;opacity:.8;margin-top:2px;}
 
   .practiceHud{position:fixed;top:58px;right:16px;display:flex;gap:10px;z-index:15;pointer-events:auto;}
-  .practiceHudBtn{padding:10px 16px;font-size:13px;font-weight:700;color:#fff;background:#00000088;
-    border:1px solid #3a3;border-radius:8px;cursor:pointer;letter-spacing:.5px;box-shadow:0 4px 12px rgba(0,0,0,.4);}
+  .practiceHudBtn{padding:10px 16px;font-size:13px;font-weight:700;color:var(--line-white);background:rgba(14,22,36,.53);
+    border:1px solid var(--ui-border);border-radius:8px;cursor:pointer;letter-spacing:.5px;box-shadow:0 4px 12px rgba(0,0,0,.4);}
   .practiceHudBtn:active{transform:translateY(2px);}
-  .practiceHudBtn.menu{border-color:#556;}
-  .practiceHudBtn.reset{border-color:#e0a72e;color:#ffd166;}
-  .practiceLabel{position:fixed;top:16px;left:16px;background:#00000088;border:1px solid #3a3;
-    border-radius:8px;padding:8px 14px;font-size:12px;color:#9be89b;letter-spacing:.5px;z-index:15;}
+  .practiceHudBtn.menu{border-color:var(--ui-border);}
+  .practiceHudBtn.reset{border-color:var(--ui-cyan);color:var(--ui-cyan);}
+  .practiceLabel{position:fixed;top:16px;left:16px;background:rgba(14,22,36,.53);border:1px solid var(--ui-border);
+    border-radius:8px;padding:8px 14px;font-size:12px;color:var(--text-muted);letter-spacing:.5px;z-index:15;}
   .startgrid{display:flex;gap:36px;margin-top:26px;font-size:12px;opacity:.9;}
-  .startgrid div{background:#00000055;border:1px solid #2a2;border-radius:8px;padding:12px 16px;min-width:200px;}
-  .startgrid h3{margin:0 0 8px;color:#ffd166;font-size:13px;}
+  .startgrid div{background:rgba(14,22,36,.33);border:1px solid var(--ui-border);border-radius:8px;padding:12px 16px;min-width:200px;}
+  .startgrid h3{margin:0 0 8px;color:var(--ui-cyan);font-size:13px;}
   .modeSelect{display:flex;gap:14px;margin-top:22px;}
-  .modebtn{padding:10px 18px;font-size:14px;font-weight:700;color:#cfe;background:#00000055;
-    border:1px solid #2a2;border-radius:8px;cursor:pointer;letter-spacing:.5px;}
+  .modebtn{padding:10px 18px;font-size:14px;font-weight:700;color:var(--text-muted);background:rgba(14,22,36,.33);
+    border:1px solid var(--ui-border);border-radius:8px;cursor:pointer;letter-spacing:.5px;}
   .modebtn span{display:block;font-weight:400;font-size:10px;opacity:.75;margin-top:2px;}
-  .modebtn.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;}
+  .modebtn.active{color:var(--ui-dark);background:linear-gradient(180deg,var(--ui-blue),#1565C0);border-color:var(--btn-shadow);}
   .modebtn.selected,.startbtn.selected,.practicebtn.selected{
-    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.45);}
+    outline:3px solid var(--ui-cyan);box-shadow:0 0 18px rgba(0,212,255,.35);}
   .modeHint{max-width:640px;text-align:center;font-size:11px;opacity:.7;margin-top:14px;}
   .pauseOverlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:30;
     display:none;align-items:center;justify-content:center;pointer-events:auto;}
-  .pausePanel{background:linear-gradient(180deg,#111827ee,#0b0f19ee);border:1px solid #2b3550;
-    border-radius:12px;padding:28px 36px;min-width:280px;text-align:center;color:#fff;
+  .pausePanel{background:linear-gradient(180deg,color-mix(in srgb,var(--ui-panel) 93%,transparent),color-mix(in srgb,var(--ui-dark) 93%,transparent));
+    border:1px solid var(--ui-border);
+    border-radius:12px;padding:28px 36px;min-width:280px;text-align:center;color:var(--line-white);
     box-shadow:0 10px 28px rgba(0,0,0,.55);}
-  .pausePanel h2{margin:0 0 18px;font-size:28px;letter-spacing:2px;color:#ffd166;}
+  .pausePanel h2{margin:0 0 18px;font-size:28px;letter-spacing:2px;color:var(--ui-cyan);}
   .pauseOption{display:block;width:100%;margin:10px 0;padding:12px 18px;font-size:16px;font-weight:700;
-    color:#cfe;background:#00000055;border:1px solid #2a2;border-radius:8px;cursor:pointer;letter-spacing:.5px;}
-  .pauseOption.selected,.pauseOption.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;
-    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.45);}
+    color:var(--text-muted);background:rgba(14,22,36,.33);border:1px solid var(--ui-border);border-radius:8px;cursor:pointer;letter-spacing:.5px;}
+  .pauseOption.selected,.pauseOption.active{color:var(--ui-dark);background:linear-gradient(180deg,var(--ui-blue),#1565C0);border-color:var(--btn-shadow);
+    outline:3px solid var(--ui-cyan);box-shadow:0 0 18px rgba(0,212,255,.35);}
   .pauseOption:active{transform:translateY(2px);}
   .padPanelWrap{margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px;}
-  .padPanel{background:#00000070;border:1px solid #2a2;border-radius:8px;padding:10px 16px;
-    font-size:12px;color:#9be89b;min-width:280px;text-align:left;line-height:1.6;}
+  .padPanel{background:rgba(14,22,36,.44);border:1px solid var(--ui-border);border-radius:8px;padding:10px 16px;
+    font-size:12px;color:var(--text-muted);min-width:280px;text-align:left;line-height:1.6;}
   .padPanel .miss{color:#ffb4b4;}
-  .padPanel .p1tag{color:#fff700;font-weight:700;}
-  .padPanel .p2tag{color:#ff9d00;font-weight:700;}
-  .swapbtn{padding:6px 14px;font-size:11px;color:#cfe;background:#00000055;border:1px solid #2a2;
+  .padPanel .p1tag{color:var(--ui-cyan);font-weight:700;}
+  .padPanel .p2tag{color:var(--ui-blue);font-weight:700;}
+  .swapbtn{padding:6px 14px;font-size:11px;color:var(--text-muted);background:rgba(14,22,36,.33);border:1px solid var(--ui-border);
     border-radius:6px;cursor:pointer;}
-  .formatScreen{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0d3b1e,#02120a 75%);
-    display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;z-index:25;}
-  .formatScreen h2{margin:0 0 8px;font-size:32px;letter-spacing:2px;color:#ffd166;}
+  .formatScreen{position:fixed;inset:0;background:radial-gradient(ellipse at center,var(--grass-secondary),var(--ui-dark) 75%);
+    display:none;flex-direction:column;align-items:center;justify-content:center;color:var(--line-white);z-index:25;}
+  .formatScreen h2{margin:0 0 8px;font-size:32px;letter-spacing:2px;color:var(--ui-cyan);}
   .formatScreen p{margin:0 0 22px;opacity:.8;font-size:14px;max-width:520px;text-align:center;line-height:1.5;}
   .formatSelect{display:flex;gap:18px;margin-bottom:18px;}
-  .formatbtn{padding:14px 28px;font-size:16px;font-weight:700;color:#cfe;background:#00000055;
-    border:1px solid #2a2;border-radius:8px;cursor:pointer;letter-spacing:.5px;min-width:160px;}
+  .formatbtn{padding:14px 28px;font-size:16px;font-weight:700;color:var(--text-muted);background:rgba(14,22,36,.33);
+    border:1px solid var(--ui-border);border-radius:8px;cursor:pointer;letter-spacing:.5px;min-width:160px;}
   .formatbtn span{display:block;font-weight:400;font-size:11px;opacity:.75;margin-top:4px;}
-  .formatbtn.selected,.formatbtn.active{color:#04170c;background:linear-gradient(180deg,#9be89b,#5fbf6a);border-color:#2e7d34;
-    outline:3px solid #ffd166;box-shadow:0 0 18px rgba(255,209,102,.45);}
-  .formatBackBtn{padding:8px 18px;font-size:13px;color:#cfe;background:#00000055;border:1px solid #556;
+  .formatbtn.selected,.formatbtn.active{color:var(--ui-dark);background:linear-gradient(180deg,var(--ui-blue),#1565C0);border-color:var(--btn-shadow);
+    outline:3px solid var(--ui-cyan);box-shadow:0 0 18px rgba(0,212,255,.35);}
+  .formatBackBtn{padding:8px 18px;font-size:13px;color:var(--text-muted);background:rgba(14,22,36,.33);border:1px solid var(--ui-border);
     border-radius:8px;cursor:pointer;margin-top:8px;}
 </style>
 </head>

@@ -1,6 +1,7 @@
 "use strict";
 
-import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, getLateralSignFromFacing, isAirSpamWindowActive, isFacingAwayFromCamera, isGkHandsPossession, isGoalKickReadyState, isPressureCursorPlayer, BASE_FIELD_L } from './state.js';
+import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, angDiff, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, getLateralSignFromFacing, isAirSpamWindowActive, isFacingAwayFromCamera, isGkHandsPossession, isGoalKickReadyState, isPressureCursorPlayer, BASE_FIELD_L } from './state.js';
+import { AI_RUPTURA, AI_RUPTURA_MANUAL } from './gameplay_constants.js';
 import { GK_AUTO_DISTRIBUTE } from './gameplay_constants.js';
 import { getModeTackleDistance } from './modePhysics.js';
 import { toGameUnits } from './utils.js';
@@ -11,8 +12,11 @@ import { BoundaryWalls, GOAL_FRAMES, OutZone, fieldBoundary, stadiumBounds } fro
 
 import { chargeLevel, getBufferKickType } from './input.js';
 
+import { drawEntityShadow, litMaterial, flatMaterial, drawStadiumAtmosphere, drawSkyBackground, drawStadiumLights, drawHorizonHaze, drawFieldDepthHaze, fillWithOutline, strokeBone, teamOutlineColor, outlineWidth, CARTOON, BROADCAST } from './fx.js';
+
+
 /* ============================================================
-   RENDER — CANCHA
+   RENDER â€” CANCHA
    ============================================================ */
 function pathFromWorldPts(pts, close){
   ctx.beginPath();
@@ -40,7 +44,7 @@ function drawStadiumFloor(){
   const sb = stadiumBounds;
   const x0 = sb.xMin - pad, x1 = sb.xMax + pad;
   const y0 = sb.yMin - pad, y1 = sb.yMax + pad;
-  ctx.fillStyle = '#243828';
+  ctx.fillStyle = BROADCAST.grassShadow;
   pathFromWorldPts([{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}], true);
   ctx.fill();
 }
@@ -49,7 +53,7 @@ function drawGrassBands(xMin, xMax, yMin, yMax, bands){
   for(let i=0;i<bands;i++){
     const x0 = xMin + (xMax - xMin) * (i / bands);
     const x1 = xMin + (xMax - xMin) * ((i + 1) / bands);
-    ctx.fillStyle = i % 2 === 0 ? '#1c7a34' : '#1a7230';
+    ctx.fillStyle = i % 2 === 0 ? BROADCAST.grassPrimary : BROADCAST.grassSecondary;
     pathFromWorldPts([
       {x:x0,y:yMin},{x:x1,y:yMin},{x:x1,y:yMax},{x:x0,y:yMax}
     ], true);
@@ -62,7 +66,7 @@ function drawOutZoneShade(){
   const sb = stadiumBounds;
   const x0 = sb.xMin - pad, x1 = sb.xMax + pad;
   const y0 = sb.yMin - pad, y1 = sb.yMax + pad;
-  ctx.fillStyle = 'rgba(28, 48, 34, 0.38)';
+  ctx.fillStyle = 'rgba(31, 163, 95, 0.18)';
   pathFromWorldPts([{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}], true);
   ctx.fill();
 }
@@ -73,20 +77,9 @@ function drawField(){
   const grassBands = Math.max(12, Math.round(12 * (FIELD_L / BASE_FIELD_L)));
   // cesped con franjas (zona de juego + OutZone inmediata)
   drawGrassBands(sb.xMin, sb.xMax, sb.yMin, sb.yMax, grassBands);
-  ctx.save();
-  ctx.globalAlpha = 0.14;
-  const shade = ctx.createLinearGradient(0, canvas.height * CAM.horizonFrac, 0, canvas.height * CAM.groundFrac);
-  shade.addColorStop(0, 'rgba(0,0,0,0.55)');
-  shade.addColorStop(1, 'rgba(0,0,0,0)');
-  pathFromWorldPts([
-    {x:sb.xMin,y:sb.yMin},{x:sb.xMax,y:sb.yMin},{x:sb.xMax,y:sb.yMax},{x:sb.xMin,y:sb.yMax}
-  ], true);
-  ctx.fillStyle = shade;
-  ctx.fill();
-  ctx.restore();
-  // lineas
-  const LW = 2.2, col='#eaffea';
-  ctx.globalAlpha = 0.96;
+  // look broadcast — lineas blancas nítidas
+  const LW = 2.7, col = BROADCAST.lineWhite;
+  ctx.globalAlpha = 1.0;
   strokeWorldPts([{x:0,y:0},{x:FIELD_L,y:0},{x:FIELD_L,y:FIELD_W},{x:0,y:FIELD_W}], true, col, LW);
   strokeWorldPts([{x:CENTER.x,y:0},{x:CENTER.x,y:FIELD_W}], false, col, LW);
   strokeWorldPts(circleWorldPts(CENTER.x,CENTER.y,CCIRCLE_R,40), true, col, LW);
@@ -186,7 +179,7 @@ function drawDebugBoundaries(){
 // area penal + area chica + punto de penal de UN arco (extraido de drawField para poder
 // reutilizarlo tal cual desde la Arena de Practica, que solo necesita dibujar el arco objetivo)
 function drawGoalArea(goalX){
-  const LW = 2.6, col='#ffffff';
+  const LW = 2.8, col = BROADCAST.lineWhite;
   const dir = goalX===0?1:-1;
   strokeWorldPts([
     {x:goalX,y:CENTER.y-PBOX_HALFW},{x:goalX+dir*PBOX_D,y:CENTER.y-PBOX_HALFW},
@@ -201,7 +194,7 @@ function drawGoalArea(goalX){
   ctx.beginPath(); ctx.arc(spot.x,spot.y,2.6,0,7); ctx.fill();
 }
 
-// arco (postes + red) de UN lado — proporciones reales, tal como en arco_ok.html: sin escalado
+// arco (postes + red) de UN lado â€” proporciones reales, tal como en arco_ok.html: sin escalado
 // artificial ni flare en la base, postes rectos de punta a punta. La logica de gol evalua estos
 // mismos GOAL_HALF/CROSSBAR_Z reales en checkGoalsAndBounds. Extraido de drawField para poder
 // reutilizarlo desde la Arena de Practica (que solo dibuja el arco objetivo, el del fondo).
@@ -215,7 +208,7 @@ function drawGoal(goalX){
     const p3 = project({x:goalX, y:CENTER.y+halfTop,  z:barZ});
     const p4 = project({x:goalX, y:CENTER.y+halfBase, z:0});
 
-    // red: ya no es un panel plano pegado al fondo — es una "bolsa" 3D real armada con dos paredes
+    // red: ya no es un panel plano pegado al fondo â€” es una "bolsa" 3D real armada con dos paredes
     // laterales (del poste delantero, inclinado, hasta el poste trasero, vertical, en el piso) mas
     // un fondo, todas proyectadas punto a punto con la misma project() de toda la cancha. Asi:
     //  - las horizontales de las paredes laterales van de frente a fondo y CONVERGEN en perspectiva
@@ -245,7 +238,7 @@ function drawGoal(goalX){
       return {x:goalX+dirZ*(GOAL_DEPTH+sag), y:CENTER.y+lerp(-netHalf,netHalf,tx), z:lerp(0,netBarZ,h)};
     }
 
-    ctx.strokeStyle = 'rgba(187,187,187,0.5)'; ctx.lineWidth = 1; // #BBBBBB, opacidad liviana
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1;
 
     // --- paredes laterales ---
     [-1,1].forEach(side=>{
@@ -282,14 +275,14 @@ function drawGoal(goalX){
       ctx.beginPath(); ctx.moveTo(top.x,top.y); ctx.quadraticCurveTo(mid.x,mid.y,bot.x,bot.y); ctx.stroke();
     }
 
-    // --- caños de sosten: delanteros (travesano+postes) y traseros (verticales en el piso) mas los
-    // dos caños diagonales de techo — se dibujan DESPUES de toda la grilla de red de arriba, para
+    // --- caÃ±os de sosten: delanteros (travesano+postes) y traseros (verticales en el piso) mas los
+    // dos caÃ±os diagonales de techo â€” se dibujan DESPUES de toda la grilla de red de arriba, para
     // que la red quede siempre detras de la estructura del arco (requisito 3) ---
     const back1=project(backEdge(-1,0)), back2=project(backEdge(-1,1));
     const back3=project(backEdge(1,1)),  back4=project(backEdge(1,0));
     ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=2; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(p2.x,p2.y); ctx.lineTo(back2.x,back2.y); ctx.stroke(); // caño de techo izq
-    ctx.beginPath(); ctx.moveTo(p3.x,p3.y); ctx.lineTo(back3.x,back3.y); ctx.stroke(); // caño de techo der
+    ctx.beginPath(); ctx.moveTo(p2.x,p2.y); ctx.lineTo(back2.x,back2.y); ctx.stroke(); // caÃ±o de techo izq
+    ctx.beginPath(); ctx.moveTo(p3.x,p3.y); ctx.lineTo(back3.x,back3.y); ctx.stroke(); // caÃ±o de techo der
     ctx.beginPath(); ctx.moveTo(back1.x,back1.y); ctx.lineTo(back2.x,back2.y); ctx.stroke(); // poste trasero izq
     ctx.beginPath(); ctx.moveTo(back4.x,back4.y); ctx.lineTo(back3.x,back3.y); ctx.stroke(); // poste trasero der
     // postes y travesano delanteros (por delante de todo)
@@ -298,8 +291,8 @@ function drawGoal(goalX){
 }
 
 /* ============================================================
-   CANCHA — ARENA DE PRACTICA: perspectiva longitudinal (regla 1). Solo se dibuja el arco del
-   fondo (el objetivo), el tramo de cancha entre la camara y ese arco, y su area — las lineas
+   CANCHA â€” ARENA DE PRACTICA: perspectiva longitudinal (regla 1). Solo se dibuja el arco del
+   fondo (el objetivo), el tramo de cancha entre la camara y ese arco, y su area â€” las lineas
    laterales convergen naturalmente hacia el horizonte porque usan la misma project() de arriba,
    ahora con el eje de profundidad en X (ver projectPractice). El otro arco (detras de la camara)
    y el circulo central no se dibujan: quedan fuera de cuadro, como en una arena de entrenamiento.
@@ -309,46 +302,63 @@ function drawFieldPractice(){
   const nearX = Math.max(stadiumBounds.xMin, PCAM.x - 3);
   const farX = FIELD_L + 3;
 
-  // cesped con franjas transversales (perpendiculares al eje de la camara, para reforzar la fuga)
   drawGrassBands(nearX, farX, stadiumBounds.yMin, stadiumBounds.yMax, 10);
 
-  ctx.save();
-  ctx.globalAlpha = 0.12;
-  const shade = ctx.createLinearGradient(0, canvas.height * PCAM.horizonFrac, 0, canvas.height * PCAM.groundFrac);
-  shade.addColorStop(0, 'rgba(0,0,0,0.5)');
-  shade.addColorStop(1, 'rgba(0,0,0,0)');
-  pathFromWorldPts([
-    {x:nearX,y:stadiumBounds.yMin},{x:farX,y:stadiumBounds.yMin},
-    {x:farX,y:stadiumBounds.yMax},{x:nearX,y:stadiumBounds.yMax}
-  ], true);
-  ctx.fillStyle = shade;
-  ctx.fill();
-  ctx.restore();
-  const LW = 2.2, col='#eaffea';
-  ctx.globalAlpha = 0.96;
-  // lineas laterales (banda): van desde bien cerca de la camara hasta la linea de fondo del arco
-  // objetivo, y convergen hacia un unico punto de fuga en el horizonte (requisito 1)
+  const LW = 2.7, col = BROADCAST.lineWhite;
+  ctx.globalAlpha = 1.0;
   strokeWorldPts([{x:nearX,y:0},{x:FIELD_L,y:0}], false, col, LW);
   strokeWorldPts([{x:nearX,y:FIELD_W},{x:FIELD_L,y:FIELD_W}], false, col, LW);
-  // linea de fondo (linea de gol) del arco objetivo
   strokeWorldPts([{x:FIELD_L,y:0},{x:FIELD_L,y:FIELD_W}], false, col, LW);
-  // area penal + area chica del arco objetivo (mismas lineas que en partido, con la misma fuga)
   drawGoalArea(FIELD_L);
   ctx.globalAlpha = 1;
 
-  // arco del fondo, centrado arriba de la pantalla (requisito 1)
   drawGoal(FIELD_L);
 }
 
 /* ============================================================
-   RENDER — JUGADOR (figura articulada, no cilindro)
+   RENDER â€” JUGADOR (figura articulada, no cilindro)
    ============================================================ */
+function drawKitShorts(h, shorts, team){
+  const ol = teamOutlineColor(team);
+  const olW = outlineWidth(h);
+  ctx.beginPath();
+  ctx.moveTo(-h*0.15, -h*0.55);
+  ctx.lineTo(h*0.15, -h*0.55);
+  ctx.lineTo(h*0.13, -h*0.38);
+  ctx.lineTo(-h*0.13, -h*0.38);
+  ctx.closePath();
+  fillWithOutline(flatMaterial(shorts), ol, olW * 0.85);
+}
+
+function drawKitTorso(h, shirt, team){
+  const ol = teamOutlineColor(team);
+  const olW = outlineWidth(h);
+  ctx.beginPath();
+  ctx.moveTo(-h*0.17, -h*0.8);
+  ctx.quadraticCurveTo(-h*0.19, -h*0.58, -h*0.14, -h*0.53);
+  ctx.lineTo(h*0.14, -h*0.53);
+  ctx.quadraticCurveTo(h*0.19, -h*0.58, h*0.17, -h*0.8);
+  ctx.quadraticCurveTo(0, -h*0.88, -h*0.17, -h*0.8);
+  ctx.closePath();
+  fillWithOutline(litMaterial(shirt, h), ol, olW);
+}
+
 function teamColors(p){
   let shirt, shorts, sock;
-  if(p.role==='GK'){ shirt = p.team==='home'?'#e8c400':'#26c281'; shorts='#222'; sock=shirt; }
-  else if(p.team==='home'){ shirt='#2f6fe0'; shorts='#12234a'; sock='#2f6fe0'; }
-  else { shirt='#d63b3b'; shorts='#1b1b1b'; sock='#d63b3b'; }
-  return {shirt, shorts, sock};
+  if(p.role === 'GK'){
+    shirt = p.team === 'home' ? BROADCAST.gkHome : BROADCAST.gkAway;
+    shorts = '#1a1a28';
+    sock = shirt;
+  } else if(p.team === 'home'){
+    shirt = BROADCAST.teamHome;
+    shorts = BROADCAST.teamHomeShorts;
+    sock = BROADCAST.teamHome;
+  } else {
+    shirt = BROADCAST.teamAway;
+    shorts = BROADCAST.teamAwayShorts;
+    sock = BROADCAST.teamAway;
+  }
+  return { shirt, shorts, sock };
 }
 
 
@@ -374,12 +384,8 @@ function drawSpamDuelMeter(p, s, h){
 
 function drawPlayerControlCursor(s, h, kind, p){
   const isPrimary = kind === 'primary';
-  const markColor = isPrimary
-    ? ((Game.twoPlayerMode && p?.id === Game.controlledId2) ? '#ff9d00' : '#fff700')
-    : 'rgba(148,148,148,0.55)';
-  const fillColor = isPrimary
-    ? markColor
-    : 'rgba(148,148,148,0.32)';
+  const markColor = isPrimary ? '#FFFFFF' : 'rgba(148,148,148,0.55)';
+  const fillColor = isPrimary ? 'rgba(255,255,255,0.88)' : 'rgba(148,148,148,0.32)';
   const lineW = isPrimary ? 2 : 1.4;
   const rx = isPrimary ? h * 0.27 : h * 0.24;
   ctx.save();
@@ -401,6 +407,39 @@ function drawPlayerControlCursor(s, h, kind, p){
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function isPlayerInRunBreakPose(p){
+  if(!p || ball.owner === p) return false;
+  if(p.aiMode === 'throw_in_run') return false;
+  if(p.isMakingManualRun && p.wallRun?.active) return true;
+  if(p.aiMode === AI_RUPTURA_MANUAL || p.aiMode === AI_RUPTURA) return true;
+  if(p.runTarget && ball.owner && ball.owner.team === p.team && ball.owner.id !== p.id) return true;
+  return false;
+}
+
+function getRunBreakDirection(p){
+  if(p.wallRun?.dir) return p.wallRun.dir;
+  if(p.lockedRunVector) return p.lockedRunVector;
+  if(p.runTarget){
+    const dx = p.runTarget.x - p.x, dy = p.runTarget.y - p.y;
+    const d = Math.hypot(dx, dy);
+    if(d > 0.08) return { x: dx / d, y: dy / d };
+  }
+  const gdx = p.oppGoalX() - p.x, gdy = CENTER.y - p.y;
+  const gd = Math.hypot(gdx, gdy);
+  return gd > 0.01 ? { x: gdx / gd, y: gdy / gd } : { x: p.attackDir(), y: 0 };
+}
+
+function applyRunBreakArmOverlay(p, armA, armB){
+  const dir = getRunBreakDirection(p);
+  const runWorld = Math.atan2(dir.y, dir.x);
+  const rel = angDiff(runWorld, p.facing);
+  const pointShoulder = clamp(-rel * 0.95, -1.15, 1.15);
+  const pointArm = { shoulder: pointShoulder, elbow: 0.12 };
+  const headYaw = clamp(angDiff(runWorld, p.facing) * 0.62, -0.72, 0.72);
+  if(rel <= 0) return { armA: pointArm, armB, headYaw, pointLeft: true };
+  return { armA, armB: pointArm, headYaw, pointLeft: false };
 }
 
 function drawPlayer(p, isControlledFlag){
@@ -432,7 +471,7 @@ function drawPlayer(p, isControlledFlag){
 }
 
 /* ============================================================
-   FESTEJOS ICONICOS — dibujo. Gracias a que los jugadores son graficos geometricos/simples, los 4
+   FESTEJOS ICONICOS â€” dibujo. Gracias a que los jugadores son graficos geometricos/simples, los 4
    festejos se simulan modificando escala (X/Y), posicion, rotacion y "velocidad" (fase de animacion)
    del mismo modelo que ya se usa en drawNormalPose, en vez de necesitar sprites nuevos.
    ============================================================ */
@@ -459,50 +498,41 @@ function drawStylizedBody(p, h, opts){
   const rotate = opts.rotate||0;
   const flip = facingFlip(p);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
+  const ol = teamOutlineColor(p.team);
+  const olW = outlineWidth(h);
 
   ctx.rotate(rotate);
   ctx.scale(flip*scaleX, scaleY);
 
   const legW = Math.max(2, h*0.09);
-  ctx.strokeStyle = sock; ctx.lineWidth = legW; ctx.lineCap='round';
+  strokeBone(-h*0.05, -h*0.42, -h*0.05 + Math.sin(legSwing)*h*0.16, -h*0.02 + Math.abs(Math.cos(legSwing))*h*0.02, sock, legW, ol);
+  strokeBone(h*0.05, -h*0.42, h*0.05 - Math.sin(legSwing)*h*0.16, -h*0.02 + Math.abs(Math.cos(legSwing))*h*0.02, sock, legW, ol);
   ctx.beginPath();
-  ctx.moveTo(-h*0.05, -h*0.42);
-  ctx.lineTo(-h*0.05 + Math.sin(legSwing)*h*0.16, -h*0.02 + Math.abs(Math.cos(legSwing))*h*0.02);
-  ctx.stroke();
+  ctx.ellipse(-h*0.05 + Math.sin(legSwing)*h*0.16, -h*0.01, h*0.05, h*0.03, 0, 0, 7);
+  fillWithOutline(CARTOON.boot, ol, olW * 0.7);
   ctx.beginPath();
-  ctx.moveTo(h*0.05, -h*0.42);
-  ctx.lineTo(h*0.05 - Math.sin(legSwing)*h*0.16, -h*0.02 + Math.abs(Math.cos(legSwing))*h*0.02);
-  ctx.stroke();
-  ctx.fillStyle='#111';
-  ctx.beginPath();ctx.ellipse(-h*0.05 + Math.sin(legSwing)*h*0.16, -h*0.01, h*0.05,h*0.03,0,0,7);ctx.fill();
-  ctx.beginPath();ctx.ellipse(h*0.05 - Math.sin(legSwing)*h*0.16, -h*0.01, h*0.05,h*0.03,0,0,7);ctx.fill();
+  ctx.ellipse(h*0.05 - Math.sin(legSwing)*h*0.16, -h*0.01, h*0.05, h*0.03, 0, 0, 7);
+  fillWithOutline(CARTOON.boot, ol, olW * 0.7);
 
-  ctx.fillStyle = shorts;
   ctx.beginPath();
   ctx.moveTo(-h*0.15,-h*0.55); ctx.lineTo(h*0.15,-h*0.55); ctx.lineTo(h*0.13,-h*0.38); ctx.lineTo(-h*0.13,-h*0.38);
-  ctx.closePath(); ctx.fill();
+  ctx.closePath();
+  fillWithOutline(flatMaterial(shorts), ol, olW * 0.85);
 
   if(!opts.hideArms){
-    ctx.strokeStyle = skin; ctx.lineWidth = legW*0.85;
-    ctx.beginPath();
-    ctx.moveTo(-h*0.15,-h*0.78);
-    ctx.lineTo(-h*0.15+Math.sin(armSwing)*h*0.13, -h*0.62);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(h*0.15,-h*0.78);
-    ctx.lineTo(h*0.15-Math.sin(armSwing)*h*0.13, -h*0.62);
-    ctx.stroke();
+    strokeBone(-h*0.15, -h*0.78, -h*0.15 + Math.sin(armSwing)*h*0.13, -h*0.62, skin, legW * 0.85, CARTOON.skinOutline);
+    strokeBone(h*0.15, -h*0.78, h*0.15 - Math.sin(armSwing)*h*0.13, -h*0.62, skin, legW * 0.85, CARTOON.skinOutline);
   }
 
-  ctx.fillStyle = shirt;
   ctx.beginPath();
   ctx.moveTo(-h*0.17,-h*0.8);
   ctx.quadraticCurveTo(-h*0.19,-h*0.58,-h*0.14,-h*0.53);
   ctx.lineTo(h*0.14,-h*0.53);
   ctx.quadraticCurveTo(h*0.19,-h*0.58,h*0.17,-h*0.8);
   ctx.quadraticCurveTo(0,-h*0.88,-h*0.17,-h*0.8);
-  ctx.closePath(); ctx.fill();
+  ctx.closePath();
+  fillWithOutline(litMaterial(shirt, h), ol, olW);
 
   // el numero de camiseta va en la ESPALDA, no en el pecho: solo se dibuja cuando opts.backView
   // esta activo (festejo de espaldas a la camara), igual que en drawNormalPose. Con esto se
@@ -517,22 +547,20 @@ function drawStylizedBody(p, h, opts){
 }
 
 // fase comun a los 4 festejos (primeros 0.5s): corren unos metros hacia la mitad de la cancha
-// antes de empezar el gesto especifico — nadie festeja parado en seco donde convirtio.
+// antes de empezar el gesto especifico â€” nadie festeja parado en seco donde convirtio.
 function drawCelebRunPhase(p, s, h, t){
   const legSwing = Math.sin(t*20) * 0.9;
   const armSwing = Math.sin(t*20+Math.PI) * 0.7;
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 2, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fill();
+  drawEntityShadow(0, 2, h*0.24, h*0.08, 0.38);
   drawStylizedBody(p, h, {legSwing, armSwing});
   ctx.restore();
 }
 
 // BOTON X ("Siuuuu" de Cristiano Ronaldo): corre de frente hacia la mitad de cancha, da un salto
-// vertical (sin invertirse ni girar el cuerpo) y al caer queda DE ESPALDAS a la camara — unico
-// festejo que termina asi — abriendo los dos brazos en diagonal hacia abajo y hacia atras, en la
+// vertical (sin invertirse ni girar el cuerpo) y al caer queda DE ESPALDAS a la camara â€” unico
+// festejo que termina asi â€” abriendo los dos brazos en diagonal hacia abajo y hacia atras, en la
 // pose clasica, sostenida con camara lenta en el instante del impacto.
 function drawCelebSiuu(p, s, h, a){
   const t = a.t;
@@ -554,13 +582,11 @@ function drawCelebSiuu(p, s, h, a){
 
   ctx.save();
   ctx.translate(s.x, s.y + jumpPx);
-  ctx.beginPath();
-  ctx.ellipse(0, h*0.02 - jumpPx*0.12, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fill();
+  drawEntityShadow(0, h*0.02 - jumpPx*0.12, h*0.24, h*0.08, 0.30);
   drawStylizedBody(p, h, {legSwing, armSwing, scaleX, scaleY, hideArms:landed, backView:landed});
 
   if(landed){
-    const skin='#e6b98c';
+    const skin=CARTOON.skin;
     const legW = Math.max(2,h*0.09);
     ctx.strokeStyle = skin; ctx.lineWidth = legW*0.85; ctx.lineCap='round';
     // brazos abiertos en diagonal, hacia abajo y hacia atras (se abre angulo con el torso)
@@ -572,7 +598,7 @@ function drawCelebSiuu(p, s, h, a){
 
 // BOTON CUADRADO ("No Escucho", el clasico de Messi/Riquelme llevandose las manos a las orejas):
 // corre hacia la mitad de cancha, frena y ahi levanta los codos hasta la altura del hombro
-// (brazo en angulo, no estirado) para llevar las manos, ahuecadas, justo pegadas a las orejas —
+// (brazo en angulo, no estirado) para llevar las manos, ahuecadas, justo pegadas a las orejas â€”
 // como diciendo "no los escucho".
 function drawCelebTopo(p, s, h, a){
   const t = a.t;
@@ -581,14 +607,12 @@ function drawCelebTopo(p, s, h, a){
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 2, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fill();
+  drawEntityShadow(0, 2, h*0.24, h*0.08, 0.38);
   drawStylizedBody(p, h, {legSwing:0, hideArms:true});
 
   if(t2>0.08){
     const raise = clamp(t2/0.3, 0, 1); // el codo sube y se abre hacia afuera, y la mano se pega a la oreja
-    const skin='#e6b98c';
+    const skin=CARTOON.skin;
     const legW = Math.max(2,h*0.09);
     ctx.strokeStyle = skin; ctx.lineWidth = legW*0.85; ctx.lineCap='round';
     const elbowX = lerp(h*0.15, h*0.31, raise), elbowY = lerp(-h*0.78, -h*0.7, raise);
@@ -612,7 +636,7 @@ function drawCelebTopo(p, s, h, a){
 }
 
 // BOTON TRIANGULO ("Brazos Cruzados"): corre hacia la mitad de cancha y ahi cruza los dos brazos
-// sobre el pecho en una pose serena y erguida — cada mano queda apoyada sobre el hombro/biceps
+// sobre el pecho en una pose serena y erguida â€” cada mano queda apoyada sobre el hombro/biceps
 // opuesto (no solo dos lineas que se tocan en el medio), el brazo derecho cruza por encima.
 function drawCelebMbappe(p, s, h, a){
   const t = a.t;
@@ -623,14 +647,12 @@ function drawCelebMbappe(p, s, h, a){
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 2, h*0.26, h*0.09, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fill();
+  drawEntityShadow(0, 2, h*0.26, h*0.09, 0.38);
   drawStylizedBody(p, h, {legSwing:0.03, scaleY, rotate:chinUp, hideArms:true});
 
   if(t2 >= 0.1){
     const crossT = clamp((t2-0.1)/0.25, 0, 1); // los brazos se cruzan progresivamente sobre el pecho
-    const skin='#e6b98c';
+    const skin=CARTOON.skin;
     const legW = Math.max(2,h*0.09);
     ctx.strokeStyle = skin; ctx.lineWidth = legW*0.95; ctx.lineCap='round';
     // brazo derecho: cruza primero (queda por ENCIMA) y termina apoyado sobre el hombro/biceps izq
@@ -665,9 +687,7 @@ function drawCelebRobot(p, s, h, a){
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 2, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fill();
+  drawEntityShadow(0, 2, h*0.24, h*0.08, 0.38);
   drawStylizedBody(p, h, {legSwing, armSwing, rotate});
   ctx.restore();
 }
@@ -682,7 +702,7 @@ function drawCelebRobot(p, s, h, a){
    antebrazo desde el codo y no desde el hombro, etc.
    Cadena: Torso (raiz)
              -> Cuello -> Cabeza
-             -> Hombro Izq/Der -> Brazo -> Antebrazo -> Muñeca/Mano
+             -> Hombro Izq/Der -> Brazo -> Antebrazo -> MuÃ±eca/Mano
              -> Cadera Izq/Der -> Muslo -> Pantorrilla(rodilla) -> Pie(tobillo)
    Convencion de angulos: en esta funcion "positivo" siempre significa
    "hacia adelante" (misma semantica que el viejo legSwing/armSwing), por
@@ -701,46 +721,43 @@ function kickImpactCurve(t, dur){
 
 // dibuja UNA pierna completa (cadera->muslo->rodilla->pantorrilla->tobillo->pie), pivotando cada
 // articulacion desde su punto de union real. hipX/hipY = punto de union con la cadera (padre=torso).
-function drawLegBone(hipX, hipY, thighLen, calfLen, thighAngle, kneeAngle, footAngle, sockColor, legW){
+function drawLegBone(hipX, hipY, thighLen, calfLen, thighAngle, kneeAngle, footAngle, sockColor, legW, outlineColor){
+  const ol = outlineColor || CARTOON.outlineDefault;
   ctx.save();
-  ctx.translate(hipX, hipY);          // PIVOTE: cadera
+  ctx.translate(hipX, hipY);
   rotateBone(thighAngle);
-  ctx.strokeStyle = sockColor; ctx.lineWidth = legW; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, thighLen); ctx.stroke(); // muslo
+  strokeBone(0, 0, 0, thighLen, sockColor, legW, ol);
 
-  ctx.translate(0, thighLen);         // PIVOTE: rodilla (union muslo->pantorrilla)
+  ctx.translate(0, thighLen);
   rotateBone(kneeAngle);
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, calfLen); ctx.stroke(); // pantorrilla
+  strokeBone(0, 0, 0, calfLen, sockColor, legW, ol);
 
-  ctx.translate(0, calfLen);          // PIVOTE: tobillo (union pantorrilla->pie)
+  ctx.translate(0, calfLen);
   rotateBone(footAngle);
-  // pie: del tobillo hacia la punta. Con footAngle alto (plantiflexion) el pie queda "en punta",
-  // exactamente el gesto que se pide para el instante del impacto del tiro.
-  const footLen = calfLen*0.42;
-  ctx.fillStyle = '#111';
+  const footLen = calfLen * 0.42;
   ctx.beginPath();
-  ctx.ellipse(footLen*0.5, footLen*0.12, footLen*0.62, footLen*0.34, 0, 0, Math.PI*2);
-  ctx.fill();
+  ctx.ellipse(footLen * 0.5, footLen * 0.12, footLen * 0.62, footLen * 0.34, 0, 0, Math.PI * 2);
+  fillWithOutline(CARTOON.boot, ol, Math.max(0.9, legW * 0.48));
   ctx.restore();
-  return {footLen}; // por si el llamador necesita saber donde quedo la punta (contacto con la pelota)
+  return { footLen };
 }
 
-// dibuja UN brazo completo (hombro->brazo->codo->antebrazo->muñeca->mano)
-function drawArmBone(shX, shY, upperLen, foreLen, shoulderAngle, elbowAngle, wristAngle, skinColor, legW){
+function drawArmBone(shX, shY, upperLen, foreLen, shoulderAngle, elbowAngle, wristAngle, skinColor, legW, outlineColor){
+  const ol = outlineColor || CARTOON.skinOutline;
   ctx.save();
-  ctx.translate(shX, shY);            // PIVOTE: hombro
+  ctx.translate(shX, shY);
   rotateBone(shoulderAngle);
-  ctx.strokeStyle = skinColor; ctx.lineWidth = legW*0.85; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, upperLen); ctx.stroke(); // brazo (humero)
+  strokeBone(0, 0, 0, upperLen, skinColor, legW * 0.85, ol);
 
-  ctx.translate(0, upperLen);         // PIVOTE: codo
+  ctx.translate(0, upperLen);
   rotateBone(elbowAngle);
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, foreLen); ctx.stroke(); // antebrazo
+  strokeBone(0, 0, 0, foreLen, skinColor, legW * 0.85, ol);
 
-  ctx.translate(0, foreLen);          // PIVOTE: muñeca (bamboleo relajado al esprintar)
+  ctx.translate(0, foreLen);
   rotateBone(wristAngle);
-  ctx.fillStyle = skinColor;
-  ctx.beginPath(); ctx.arc(0, foreLen*0.16, legW*0.4, 0, Math.PI*2); ctx.fill(); // mano
+  ctx.beginPath();
+  ctx.arc(0, foreLen * 0.16, legW * 0.4, 0, Math.PI * 2);
+  fillWithOutline(skinColor, ol, Math.max(0.85, legW * 0.42));
   ctx.restore();
 }
 
@@ -751,15 +768,29 @@ function drawArmBone(shX, shY, upperLen, foreLen, shoulderAngle, elbowAngle, wri
 // siempre se desliza desde el angulo real que tenian un instante antes.
 function smoothPose(p, target, rate){
   const k = clamp(1 - Math.pow(0.0001, (lastDt||0.016)*rate/6), 0, 1);
-  if(!p._pose) p._pose = JSON.parse(JSON.stringify(target));
+  if(!p._pose){
+    p._pose = {
+      legA: { ...target.legA },
+      legB: { ...target.legB },
+      armA: { ...target.armA },
+      armB: { ...target.armB },
+      wristA: target.wristA,
+      wristB: target.wristB,
+      neckTilt: target.neckTilt,
+      headYaw: target.headYaw,
+      bounceUp: target.bounceUp,
+      squash: target.squash,
+      torsoExtra: target.torsoExtra,
+    };
+  }
   const dst = p._pose;
   for(const key in target){
     const t = target[key];
     if(t && typeof t === 'object'){
-      if(!dst[key]) dst[key] = {...t};
-      for(const kk in t) dst[key][kk] = lerp(dst[key][kk]??t[kk], t[kk], k);
+      if(!dst[key]) dst[key] = { ...t };
+      for(const kk in t) dst[key][kk] = lerp(dst[key][kk] ?? t[kk], t[kk], k);
     } else {
-      dst[key] = lerp(dst[key]??t, t, k);
+      dst[key] = lerp(dst[key] ?? t, t, k);
     }
   }
   return dst;
@@ -781,11 +812,11 @@ function drawNormalPose(p, s, h){
   const strideAmp = clamp(0.55+speed*0.06,0.15,1.05) * clamp(1.12-(mass-1)*0.45, 0.72, 1.2) * (p.legIdleBlend??1);
 
   // ============================================================
-  // REGLA 1 — COORDINACION Y DESFASE: pierna A y pierna B corren en oposicion total de fase
+  // REGLA 1 â€” COORDINACION Y DESFASE: pierna A y pierna B corren en oposicion total de fase
   // (medio ciclo = PI de diferencia): cuando una va al frente, la otra va atras. El muslo oscila
   // con seno; la RODILLA (pivote real = rodilla, no la cadera) se flexiona solo durante la fase de
   // RECUPERACION de cada pierna (cuando el pie esta en el aire volviendo al frente) y se estira del
-  // todo en los dos extremos del paso (apoyo/contacto y despegue) — antes estaba al reves (se
+  // todo en los dos extremos del paso (apoyo/contacto y despegue) â€” antes estaba al reves (se
   // doblaba con la pierna de apoyo, plantada, lo que se veia como si la rodilla "cediera" bajo el
   // peso en vez de despegar el pie limpio). max(0,cos(phase)) da flexion maxima justo en el punto
   // medio de la recuperacion y CERO en los dos extremos del paso (thigh en su maximo), que es
@@ -798,7 +829,7 @@ function drawNormalPose(p, s, h){
 
   // brazos: DESFASE CRUZADO respecto de la pierna del MISMO lado (brazo A comparte fase con pierna
   // A pero con un +PI extra), asi cuando la pierna A va al frente el brazo A va atras y el brazo B
-  // (el del lado contrario) va al frente — coordinacion contralateral real, la que da equilibrio.
+  // (el del lado contrario) va al frente â€” coordinacion contralateral real, la que da equilibrio.
   const armAmp = (prepping||feinting||kicking||draggingBack||throwingIn) ? 0.15 : clamp(0.4+speed*0.05,0.1,0.9);
   function runArm(phase){
     const shoulder = Math.sin(phase+Math.PI)*armAmp;
@@ -807,7 +838,7 @@ function drawNormalPose(p, s, h){
   }
   let armA = runArm(phaseA), armB = runArm(phaseB);
 
-  // BAMBOLEO RELAJADO DE MUÑECAS al correr a fondo (frecuencia distinta a la del brazo = se ve suelto)
+  // BAMBOLEO RELAJADO DE MUÃ‘ECAS al correr a fondo (frecuencia distinta a la del brazo = se ve suelto)
   const sprintT = clamp((speed-5)/3.5, 0, 1);
   const wristA = Math.sin(phaseA*2.3 + 1.3) * 0.22 * sprintT;
   const wristB = Math.sin(phaseB*2.3 + 1.3) * 0.22 * sprintT;
@@ -815,12 +846,12 @@ function drawNormalPose(p, s, h){
   let neckTilt = sprintT * 0.26 + Math.sin(runT*2)*0.03*sprintT;
 
   // ============================================================
-  // REGLA 3 — EFECTO DE PESO (bounce con apoyo real): el torso sube en el punto medio de cada
+  // REGLA 3 â€” EFECTO DE PESO (bounce con apoyo real): el torso sube en el punto medio de cada
   // recuperacion (cuando ninguna pierna esta del todo estirada, el "vuelo" entre pasos) y baja
   // justo en el contacto/despegue de cada paso (|cos(phase)| tiene sus DOS minimos exactamente ahi,
   // en fase con la extension maxima del muslo de arriba). Antes el offset no se multiplicaba por la
   // altura del jugador en pantalla (quedaba en un pixel o menos, invisible); ahora es proporcional a
-  // "h" y ademas se acompaña de un sutil squash&stretch (se achica al pisar, se estira al despegar)
+  // "h" y ademas se acompaÃ±a de un sutil squash&stretch (se achica al pisar, se estira al despegar)
   // para que se note que apoya con peso real, no que flota.
   const bounceAmp = clamp(speed*0.11, 0,  0.9) * clamp(1.15-(mass-1)*0.5,0.65,1.3);
   const running = !prepping && !feinting && !kicking && !draggingBack && !throwingIn && !jockeying;
@@ -866,7 +897,7 @@ function drawNormalPose(p, s, h){
     torsoExtra = 0.2 + (p.jockeyRetreat ? 0.12 : 0);
   }
 
-  // --- PREPARANDO_ACCION (pelota en pie): pierna de golpeo cargada — reemplaza la carrera ---
+  // --- PREPARANDO_ACCION (pelota en pie): pierna de golpeo cargada â€” reemplaza la carrera ---
   if(prepping && !feinting && !throwingIn){
     const cl = chargeLevel(p);
     legA = { thigh: -0.95 - Math.sin(runT*0.6)*0.06, knee: 1.15*clamp(0.5+cl,0.5,1), foot: 0.25 };
@@ -890,7 +921,7 @@ function drawNormalPose(p, s, h){
     torsoExtra = lerp(torsoExtra, -0.11 * cl, cl * 0.35);
   }
 
-  // --- ANIMACION DE TIRO — EL LATIGAZO ---
+  // --- ANIMACION DE TIRO â€” EL LATIGAZO ---
   if(kicking && !feinting && !throwingIn){
     const ka = p.kickAnim;
     const prog = clamp(ka.t/ka.dur, 0, 1);
@@ -936,7 +967,7 @@ function drawNormalPose(p, s, h){
     armA = { shoulder: 0.15*reach, elbow: 0.4 };
     armB = { shoulder: -0.15*reach, elbow: 0.4 };
     neckTilt = 0;
-    torsoExtra = 0.12*reach; // el torso se va un poco hacia atras, acompañando el arrastre
+    torsoExtra = 0.12*reach; // el torso se va un poco hacia atras, acompaÃ±ando el arrastre
   }
 
   // --- CONDUCCION CON TOQUES / EFFORT TOUCH ---
@@ -964,11 +995,11 @@ function drawNormalPose(p, s, h){
     if(ta.leg===1){ legA = touching; legB = planted; } else { legB = touching; legA = planted; }
   }
 
-  // --- DESMARQUE MANUAL: capa de señal de pase sobre el ciclo de corrida (piernas intactas) ---
+  // --- DESMARQUE: brazo señalando la dirección de carrera (piernas siguen corriendo) ---
   let headYaw = 0;
   let pointWristA = wristA, pointWristB = wristB;
-  if(p.isPointingForPass && p.isMakingManualRun && !prepping && !kicking && !feinting && !draggingBack && !throwingIn){
-    const overlay = applyPassPointArmOverlay(p, armA, armB);
+  if(isPlayerInRunBreakPose(p) && !prepping && !kicking && !feinting && !draggingBack && !throwingIn && !jockeying){
+    const overlay = applyRunBreakArmOverlay(p, armA, armB);
     armA = overlay.armA;
     armB = overlay.armB;
     headYaw = overlay.headYaw;
@@ -981,7 +1012,7 @@ function drawNormalPose(p, s, h){
   // REGLA 4 — SUAVIZADO DE TRANSICIONES: TODOS los angulos de arriba son el "objetivo" del frame
   // actual; nunca se dibujan directo. Se pasan por smoothPose(), que los interpola exponencialmente
   // desde el valor real del frame anterior (guardado en p._pose). Asi, pasar de idle a correr, o de
-  // correr a la carga/patada, desliza los angulos en un puñado de frames en vez de saltar de golpe.
+  // correr a la carga/patada, desliza los angulos en un puÃ±ado de frames en vez de saltar de golpe.
   // El tiro/amague usan un rate mas alto (mas rapido) para no perder la sensacion de latigazo.
   const smoothRate = kicking ? 30 : feinting ? 30 : draggingBack ? 18 : 20;
   const pose = smoothPose(p, {legA, legB, armA, armB, wristA: pointWristA, wristB: pointWristB, neckTilt, headYaw, bounceUp, squash, torsoExtra}, smoothRate);
@@ -990,17 +1021,15 @@ function drawNormalPose(p, s, h){
 
   const flip = facingFlip(p);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
+  const ol = teamOutlineColor(p.team);
+  const olW = outlineWidth(h);
   const legW = Math.max(2, h*0.09);
 
   ctx.save();
   ctx.translate(s.x, s.y);
 
-  // sombra
-  ctx.beginPath();
-  ctx.ellipse(0, 2, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)';
-  ctx.fill();
+  drawEntityShadow(0, 2, h*0.24, h*0.08, 0.44);
 
   drawPlayerMeshDir8Prototype(p, h, 'arrow');
 
@@ -1023,47 +1052,44 @@ function drawNormalPose(p, s, h){
     const pokeT = touchKickCurve(p.effortTouchAnim.t, p.effortTouchAnim.dur);
     ctx.rotate(Math.sin(pokeT*Math.PI) * 0.14);
   }
-  // REGLA 2 — INERCIA: inclinacion extra de preparar/patear (ya suavizada arriba junto al resto)
+  // REGLA 2 â€” INERCIA: inclinacion extra de preparar/patear (ya suavizada arriba junto al resto)
   if(!p.stumble && !p.feint && !p.effortTouchAnim){
     ctx.rotate(torsoExtra);
   }
-  // REGLA 2 — INERCIA DE MOVIMIENTO: p.leanFwd/p.leanSide ya vienen suavizados con LERP desde
+  // REGLA 2 â€” INERCIA DE MOVIMIENTO: p.leanFwd/p.leanSide ya vienen suavizados con LERP desde
   // movePlayer segun la aceleracion real (adelante al arrancar/correr, atras al frenar en seco,
-  // al costado al girar) — el torso "acompaña" el cambio de direccion antes de estabilizarse.
+  // al costado al girar) â€” el torso "acompaÃ±a" el cambio de direccion antes de estabilizarse.
   if(!p.stumble && !p.feint && !p.effortTouchAnim && !prepping && !kicking && !draggingBack && (p.leanFwd || p.leanSide)){
     ctx.rotate((p.leanFwd||0) + (p.leanSide||0));
   }
 
   ctx.scale(flip,1);
-  ctx.scale(1-sq, 1+sq); // REGLA 3: squash&stretch — se achica un poco al pisar, se estira al volar
+  ctx.scale(1-sq, 1+sq); // REGLA 3: squash&stretch â€” se achica un poco al pisar, se estira al volar
 
   // ===================== CADENA: CADERA -> MUSLO -> PANTORRILLA(rodilla) -> PIE(tobillo) =====================
   const hipY = -h*0.42, thighLen = h*0.20, calfLen = h*0.20;
-  drawLegBone(-h*0.05, hipY, thighLen, calfLen, legA.thigh, legA.knee, legA.foot, sock, legW);
-  drawLegBone( h*0.05, hipY, thighLen, calfLen, legB.thigh, legB.knee, legB.foot, sock, legW);
+  drawLegBone(-h*0.05, hipY, thighLen, calfLen, legA.thigh, legA.knee, legA.foot, sock, legW, ol);
+  drawLegBone( h*0.05, hipY, thighLen, calfLen, legB.thigh, legB.knee, legB.foot, sock, legW, ol);
 
-  // shorts (por encima de las piernas, cadera)
-  ctx.fillStyle = shorts;
   ctx.beginPath();
   ctx.moveTo(-h*0.15,-h*0.55); ctx.lineTo(h*0.15,-h*0.55); ctx.lineTo(h*0.13,-h*0.38); ctx.lineTo(-h*0.13,-h*0.38);
-  ctx.closePath(); ctx.fill();
+  ctx.closePath();
+  fillWithOutline(flatMaterial(shorts), ol, olW * 0.85);
 
-  // ===================== CADENA: HOMBRO -> BRAZO -> ANTEBRAZO -> MUÑECA/MANO =====================
   const shY = -h*0.78, upperArmLen = h*0.09, foreArmLen = h*0.085;
-  drawArmBone(-h*0.15, shY, upperArmLen, foreArmLen, armA.shoulder, armA.elbow, wA, skin, legW);
-  drawArmBone( h*0.15, shY, upperArmLen, foreArmLen, armB.shoulder, armB.elbow, wB, skin, legW);
+  drawArmBone(-h*0.15, shY, upperArmLen, foreArmLen, armA.shoulder, armA.elbow, wA, skin, legW, CARTOON.skinOutline);
+  drawArmBone( h*0.15, shY, upperArmLen, foreArmLen, armB.shoulder, armB.elbow, wB, skin, legW, CARTOON.skinOutline);
 
   drawPlayerMeshDir8Prototype(p, h, 'shoulders');
 
-  // torso (padre principal de toda la jerarquia)
-  ctx.fillStyle = shirt;
   ctx.beginPath();
   ctx.moveTo(-h*0.17,-h*0.8);
   ctx.quadraticCurveTo(-h*0.19,-h*0.58,-h*0.14,-h*0.53);
   ctx.lineTo(h*0.14,-h*0.53);
   ctx.quadraticCurveTo(h*0.19,-h*0.58,h*0.17,-h*0.8);
   ctx.quadraticCurveTo(0,-h*0.88,-h*0.17,-h*0.8);
-  ctx.closePath(); ctx.fill();
+  ctx.closePath();
+  fillWithOutline(litMaterial(shirt, h), ol, olW);
 
   // ===================== CADENA: TORSO -> CUELLO -> CABEZA =====================
   const facingAway = isFacingAwayFromCamera(p);
@@ -1085,22 +1111,26 @@ function drawNormalPose(p, s, h){
 // cabeza (piel) + pelo diferenciado: de FRENTE el pelo es solo el nacimiento (cara 100% descubierta);
 // de ESPALDA el pelo es un bloque que cubre la nuca, la parte superior trasera y los laterales.
 function drawHeadHair(cx, cy, r, h, facingAway){
-  const skin = '#e6b98c';
-  const hair = '#2b2117';
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = hair;
+  const skin = CARTOON.skin;
+  const hair = CARTOON.hair;
+  const ol = CARTOON.skinOutline;
+  const lw = Math.max(1.1, h * 0.038);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  fillWithOutline(skin, ol, lw);
   if(facingAway){
-    // bloque de pelo grande: cubre casi toda la cabeza vista desde atras, la cara no se ve
-    ctx.beginPath(); ctx.arc(cx, cy-h*0.005, r*1.22, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy - h * 0.005, r * 1.22, 0, Math.PI * 2);
+    fillWithOutline(hair, ol, lw * 0.9);
   } else {
-    // solo el nacimiento del pelo arriba: deja la cara (frente) 100% descubierta
-    ctx.beginPath(); ctx.arc(cx, cy-h*0.04, r*1.06, Math.PI, 0); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy - h * 0.04, r * 1.06, Math.PI, 0);
+    fillWithOutline(hair, ol, lw * 0.9);
   }
 }
 
 /* ============================================================
-   POSES ANIMADAS — entrada de pie y barrida
+   POSES ANIMADAS â€” entrada de pie y barrida
    ============================================================ */
 function drawStandTackle(p, s, h){
   const a = p.tackleAnim;
@@ -1109,50 +1139,35 @@ function drawStandTackle(p, s, h){
   const lungeBoost = 1 + lunge * 0.45;
   const flip = facingFlip(p);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 2, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fill();
+  drawEntityShadow(0, 2, h*0.24, h*0.08, 0.38);
   ctx.scale(flip,1);
 
   const legW = Math.max(2, h*0.09);
-  // pierna de apoyo
-  ctx.strokeStyle = sock; ctx.lineWidth = legW; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-h*0.05,-h*0.42); ctx.lineTo(-h*0.1,-h*0.02); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(-h*0.1,-h*0.01,h*0.05,h*0.03,0,0,7); ctx.fillStyle='#111'; ctx.fill();
-  // pierna de entrada, se extiende hacia la pelota y vuelve
+  const ol = teamOutlineColor(p.team);
+  const olW = outlineWidth(h);
+  strokeBone(-h*0.05, -h*0.42, -h*0.1, -h*0.02, sock, legW, ol);
+  ctx.beginPath();
+  ctx.ellipse(-h*0.1, -h*0.01, h*0.05, h*0.03, 0, 0, 7);
+  fillWithOutline(CARTOON.boot, ol, olW * 0.65);
   const reach = h*0.48*lunge*lungeBoost;
-  ctx.strokeStyle = sock; ctx.lineWidth = legW;
-  ctx.beginPath(); ctx.moveTo(h*0.05,-h*0.42); ctx.lineTo(h*0.1+reach, -h*0.08+lunge*h*0.02); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(h*0.1+reach, -h*0.07+lunge*h*0.02, h*0.055,h*0.032,0,0,7); ctx.fillStyle='#111'; ctx.fill();
+  strokeBone(h*0.05, -h*0.42, h*0.1 + reach, -h*0.08 + lunge*h*0.02, sock, legW, ol);
+  ctx.beginPath();
+  ctx.ellipse(h*0.1 + reach, -h*0.07 + lunge*h*0.02, h*0.055, h*0.032, 0, 0, 7);
+  fillWithOutline(CARTOON.boot, ol, olW * 0.65);
 
-  // torso inclinado hacia adelante, siguiendo el impulso
   ctx.rotate(-0.2*lunge);
-  ctx.strokeStyle = skin; ctx.lineWidth = legW*0.85;
-  ctx.beginPath(); ctx.moveTo(-h*0.15,-h*0.78); ctx.lineTo(-h*0.28,-h*0.6); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(h*0.15,-h*0.78); ctx.lineTo(h*0.32,-h*0.66); ctx.stroke();
-  ctx.fillStyle = shorts;
-  ctx.beginPath();
-  ctx.moveTo(-h*0.15,-h*0.55); ctx.lineTo(h*0.15,-h*0.55); ctx.lineTo(h*0.13,-h*0.38); ctx.lineTo(-h*0.13,-h*0.38);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = shirt;
-  ctx.beginPath();
-  ctx.moveTo(-h*0.17,-h*0.8);
-  ctx.quadraticCurveTo(-h*0.19,-h*0.58,-h*0.14,-h*0.53);
-  ctx.lineTo(h*0.14,-h*0.53);
-  ctx.quadraticCurveTo(h*0.19,-h*0.58,h*0.17,-h*0.8);
-  ctx.quadraticCurveTo(0,-h*0.88,-h*0.17,-h*0.8);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,0.85)';
+  strokeBone(-h*0.15, -h*0.78, -h*0.28, -h*0.6, skin, legW*0.85, CARTOON.skinOutline);
+  strokeBone(h*0.15, -h*0.78, h*0.32, -h*0.66, skin, legW*0.85, CARTOON.skinOutline);
+  drawKitShorts(h, shorts, p.team);
+  drawKitTorso(h, shirt, p.team);
+  ctx.fillStyle='rgba(255,255,255,0.95)';
   ctx.font = Math.max(6,h*0.14)+'px Arial'; ctx.textAlign='center';
   ctx.fillText(String(p.number), 0, -h*0.62);
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(0,-h*0.92, h*0.09, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#2b2117';
-  ctx.beginPath(); ctx.arc(0,-h*0.96, h*0.095, Math.PI, 0); ctx.fill();
+  drawHeadHair(0, -h*0.92, h*0.09, h, false);
 
   ctx.restore();
 }
@@ -1161,7 +1176,7 @@ function drawSlideTackle(p, s, h){
   const a = p.tackleAnim;
   const prog = clamp(a.t/a.dur, 0, 1);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
 
   // estela de pasto/polvo detras del jugador, siguiendo la trayectoria del deslizamiento
   const slideDist = toGameUnits(getModeTackleDistance());
@@ -1182,36 +1197,30 @@ function drawSlideTackle(p, s, h){
   ctx.save();
   ctx.translate(s.x, s.y);
   // sombra alargada en el piso
-  ctx.beginPath();
-  ctx.ellipse(0, 3, h*0.42, h*0.09, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+  drawEntityShadow(0, 3, h*0.42, h*0.09, 0.35);
   ctx.scale(flip,1);
 
-  // cuerpo tumbado, torso bajo y horizontal
-  ctx.fillStyle = shirt;
+  const ol = teamOutlineColor(p.team);
+  const olW = outlineWidth(h);
+
   ctx.beginPath();
-  ctx.ellipse(-h*0.02, -h*0.16, h*0.26, h*0.13, 0, 0, Math.PI*2);
-  ctx.fill();
-  // shorts
-  ctx.fillStyle = shorts;
+  ctx.ellipse(-h*0.02, -h*0.16, h*0.26, h*0.13, 0, 0, Math.PI * 2);
+  fillWithOutline(litMaterial(shirt, h), ol, olW);
   ctx.beginPath();
-  ctx.ellipse(h*0.14, -h*0.12, h*0.12, h*0.09, 0, 0, Math.PI*2);
-  ctx.fill();
-  // pierna de barrida, extendida hacia adelante
-  ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2,h*0.1); ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(h*0.2,-h*0.1); ctx.lineTo(h*0.5,-h*0.03); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(h*0.5,-h*0.03, h*0.06,h*0.04,0,0,7); ctx.fillStyle='#111'; ctx.fill();
-  // pierna de apoyo, flexionada
-  ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2,h*0.09);
-  ctx.beginPath(); ctx.moveTo(-h*0.05,-h*0.08); ctx.lineTo(h*0.02,-h*0.24); ctx.stroke();
-  // brazo de apoyo contra el piso
-  ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2,h*0.08);
-  ctx.beginPath(); ctx.moveTo(-h*0.2,-h*0.22); ctx.lineTo(-h*0.4,-h*0.06); ctx.stroke();
-  // cabeza
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(-h*0.3,-h*0.22, h*0.085, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle='#2b2117';
-  ctx.beginPath(); ctx.arc(-h*0.32,-h*0.25, h*0.09, Math.PI*0.8, Math.PI*1.9); ctx.fill();
+  ctx.ellipse(h*0.14, -h*0.12, h*0.12, h*0.09, 0, 0, Math.PI * 2);
+  fillWithOutline(flatMaterial(shorts), ol, olW * 0.85);
+  strokeBone(h*0.2, -h*0.1, h*0.5, -h*0.03, sock, Math.max(2, h*0.1), ol);
+  ctx.beginPath();
+  ctx.ellipse(h*0.5, -h*0.03, h*0.06, h*0.04, 0, 0, 7);
+  fillWithOutline(CARTOON.boot, ol, olW * 0.65);
+  strokeBone(-h*0.05, -h*0.08, h*0.02, -h*0.24, sock, Math.max(2, h*0.09), ol);
+  strokeBone(-h*0.2, -h*0.22, -h*0.4, -h*0.06, skin, Math.max(2, h*0.08), CARTOON.skinOutline);
+  ctx.beginPath();
+  ctx.arc(-h*0.3, -h*0.22, h*0.085, 0, Math.PI * 2);
+  fillWithOutline(skin, CARTOON.skinOutline, olW * 0.75);
+  ctx.beginPath();
+  ctx.arc(-h*0.32, -h*0.25, h*0.09, Math.PI * 0.8, Math.PI * 1.9);
+  fillWithOutline(CARTOON.hair, ol, olW * 0.7);
   // numero
   ctx.fillStyle='rgba(255,255,255,0.85)';
   ctx.font = Math.max(6,h*0.13)+'px Arial'; ctx.textAlign='center';
@@ -1225,14 +1234,12 @@ function drawGKKick(p, s, h){
   const a = p.gkKickAnim;
   const prog = clamp(a.t / a.dur, 0, 1);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
   const flip = facingFlip(p);
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 3, h*0.24, h*0.08, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
+  drawEntityShadow(0, 3, h*0.24, h*0.08, 0.32);
 
   if(a.type === 'dropkick'){
     const jump = Math.sin(prog * Math.PI);
@@ -1244,7 +1251,7 @@ function drawGKKick(p, s, h){
     // pierna de apoyo
     ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2, h*0.1); ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-h*0.06, -h*0.42); ctx.lineTo(-h*0.06, -h*0.04); ctx.stroke();
-    ctx.fillStyle = '#111';
+    ctx.fillStyle = CARTOON.boot;
     ctx.beginPath(); ctx.ellipse(-h*0.06, -h*0.02, h*0.05, h*0.03, 0, 0, Math.PI*2); ctx.fill();
 
     // pierna de volea: muslo + pantorrilla estirados hacia adelante (lerp 300ms)
@@ -1257,7 +1264,7 @@ function drawGKKick(p, s, h){
     ctx.translate(0, h*0.24);
     ctx.rotate(-kneeAngle);
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, h*0.22); ctx.stroke();
-    ctx.fillStyle = '#111';
+    ctx.fillStyle = CARTOON.boot;
     ctx.beginPath(); ctx.ellipse(0, h*0.24, h*0.06, h*0.035, 0, 0, Math.PI*2); ctx.fill();
     ctx.restore();
 
@@ -1267,7 +1274,7 @@ function drawGKKick(p, s, h){
     ctx.rotate(lean);
     ctx.fillStyle = shorts;
     ctx.beginPath(); ctx.ellipse(0, -h*0.48, h*0.14, h*0.1, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = shirt;
+    ctx.fillStyle = litMaterial(shirt, h);
     ctx.beginPath(); ctx.ellipse(0, -h*0.66, h*0.16, h*0.17, 0, 0, Math.PI*2); ctx.fill();
     // brazos de equilibrio
     ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2, h*0.085);
@@ -1298,13 +1305,13 @@ function drawGKKick(p, s, h){
     ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2, h*0.1); ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-h*0.05, -h*0.42); ctx.lineTo(-h*0.05, -h*0.02); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(h*0.05, -h*0.42); ctx.lineTo(h*0.05, -h*0.02); ctx.stroke();
-    ctx.fillStyle = '#111';
+    ctx.fillStyle = CARTOON.boot;
     ctx.beginPath(); ctx.ellipse(-h*0.05, -h*0.01, h*0.05, h*0.03, 0, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(h*0.05, -h*0.01, h*0.05, h*0.03, 0, 0, Math.PI*2); ctx.fill();
 
     ctx.fillStyle = shorts;
     ctx.beginPath(); ctx.ellipse(0, -h*0.48, h*0.14, h*0.1, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = shirt;
+    ctx.fillStyle = litMaterial(shirt, h);
     ctx.beginPath(); ctx.ellipse(0, -h*0.66, h*0.16, h*0.17, 0, 0, Math.PI*2); ctx.fill();
 
     // brazo lanzador (derecho / delante segun flip)
@@ -1339,7 +1346,7 @@ function drawGKDive(p, s, h){
   const a = p.diveAnim;
   const prog = clamp(a.t/a.dur, 0, 1);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
   const flip = facingFlip(p);
   const lateralSign = a.type === 'dive_left' ? -1
     : a.type === 'dive_right' ? 1
@@ -1351,10 +1358,8 @@ function drawGKDive(p, s, h){
     ctx.save();
     ctx.translate(s.x, s.y);
     ctx.scale(flip, 1);
-    ctx.beginPath();
-    ctx.ellipse(0, 3, h*0.28, h*0.08, 0, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
-    ctx.fillStyle = shirt;
+    drawEntityShadow(0, 3, h*0.28, h*0.08, 0.32);
+    ctx.fillStyle = litMaterial(shirt, h);
     ctx.beginPath();
     ctx.ellipse(0, -h*0.42 - eased*h*0.08, h*0.22, h*0.16, 0, 0, Math.PI*2);
     ctx.fill();
@@ -1381,9 +1386,7 @@ function drawGKDive(p, s, h){
     ctx.save();
     ctx.translate(s.x, s.y);
     // sombra en el piso (se queda abajo, no sube con el jugador)
-    ctx.beginPath();
-    ctx.ellipse(0, 3, h*0.24*(1-lean*0.4), h*0.08, 0, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
+    drawEntityShadow(0, 3, h*0.24*(1-lean*0.4), h*0.08, 0.32*(1-lean*0.35));
 
     ctx.translate(0, offsetY);
     ctx.scale(sideSign,1);
@@ -1393,13 +1396,13 @@ function drawGKDive(p, s, h){
     // torso
     ctx.fillStyle = shorts;
     ctx.beginPath(); ctx.ellipse(0,-h*0.5,h*0.13,h*0.1,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle = shirt;
+    ctx.fillStyle = litMaterial(shirt, h);
     ctx.beginPath(); ctx.ellipse(0,-h*0.68,h*0.15,h*0.16,0,0,Math.PI*2); ctx.fill();
     // brazos bien arriba, estirados hacia la pelota
     ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2,h*0.09);
     ctx.beginPath(); ctx.moveTo(-h*0.08,-h*0.8); ctx.lineTo(-h*0.22,-h*1.12*lean-h*0.75*(1-lean)); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(h*0.08,-h*0.8); ctx.lineTo(h*0.22,-h*1.12*lean-h*0.75*(1-lean)); ctx.stroke();
-    ctx.fillStyle = '#e8c400';
+    ctx.fillStyle = BROADCAST.gkHome;
     ctx.beginPath(); ctx.arc(-h*0.22,-h*1.12*lean-h*0.75*(1-lean), h*0.06,0,Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(h*0.22,-h*1.12*lean-h*0.75*(1-lean), h*0.06,0,Math.PI*2); ctx.fill();
     // cabeza
@@ -1414,14 +1417,12 @@ function drawGKDive(p, s, h){
 
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0, 3, h*0.42, h*0.09, 0, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fill();
+  drawEntityShadow(0, 3, h*0.42, h*0.09, 0.32);
 
   ctx.save();
   ctx.scale(sideSign, 1);
   ctx.rotate(-0.12 * stretch);
-  ctx.fillStyle = shirt;
+  ctx.fillStyle = litMaterial(shirt, h);
   ctx.beginPath();
   ctx.ellipse(h*0.08 * stretch, -h*0.22 * stretch - h*0.06, h*0.28 * stretch, h*0.13, -0.25, 0, Math.PI*2);
   ctx.fill();
@@ -1441,12 +1442,12 @@ function drawGKDive(p, s, h){
   ctx.moveTo(h*0.12, -h*0.38 * stretch - h*0.06); ctx.lineTo(h*0.52 * stretch, -h*0.58 * stretch - h*0.1);
   ctx.stroke();
   ctx.beginPath(); ctx.arc(h*0.52 * stretch, -h*0.58 * stretch - h*0.1, h*0.07, 0, Math.PI*2);
-  ctx.fillStyle = '#e8c400'; ctx.fill();
+  ctx.fillStyle = BROADCAST.gkHome; ctx.fill();
   ctx.beginPath();
   ctx.moveTo(h*0.04, -h*0.34 * stretch - h*0.04); ctx.lineTo(h*0.38 * stretch, -h*0.48 * stretch - h*0.06);
   ctx.stroke();
   ctx.beginPath(); ctx.arc(h*0.38 * stretch, -h*0.48 * stretch - h*0.06, h*0.065, 0, Math.PI*2);
-  ctx.fillStyle = '#e8c400'; ctx.fill();
+  ctx.fillStyle = BROADCAST.gkHome; ctx.fill();
   ctx.fillStyle = skin;
   ctx.beginPath(); ctx.arc(h*0.02, -h*0.36 * stretch - h*0.08, h*0.09, 0, Math.PI*2); ctx.fill();
   ctx.restore();
@@ -1457,7 +1458,7 @@ function drawAirStrike(p, s, h){
   const a = p.airStrikeAnim;
   const prog = clamp(a.t/a.dur, 0, 1);
   const {shirt, shorts, sock} = teamColors(p);
-  const skin = '#e6b98c';
+  const skin = CARTOON.skin;
   const flip = facingFlip(p);
   const scale = h/2;
 
@@ -1468,9 +1469,7 @@ function drawAirStrike(p, s, h){
     const offsetY = -airZ*scale*1.7;
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.beginPath();
-    ctx.ellipse(0,3,h*0.2*(1-lean*0.4),h*0.07,0,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+    drawEntityShadow(0, 3, h*0.2*(1-lean*0.4), h*0.07, 0.30*(1-lean*0.35));
     ctx.translate(0, offsetY);
     ctx.scale(flip,1);
     // piernas flexionadas
@@ -1482,7 +1481,7 @@ function drawAirStrike(p, s, h){
     ctx.beginPath(); ctx.ellipse(0,-h*0.5,h*0.13,h*0.1,0,0,Math.PI*2); ctx.fill();
     ctx.save();
     ctx.rotate(-0.22*lean);
-    ctx.fillStyle=shirt;
+    ctx.fillStyle = litMaterial(shirt, h);
     ctx.beginPath(); ctx.ellipse(0,-h*0.7,h*0.16,h*0.18,0,0,Math.PI*2); ctx.fill();
     // brazos abiertos, para el equilibrio
     ctx.strokeStyle=skin; ctx.lineWidth=Math.max(2,h*0.08);
@@ -1498,15 +1497,13 @@ function drawAirStrike(p, s, h){
 
   if(a.type==='volley' || a.type==='volley_power'){
     const powerShot = a.type === 'volley_power';
-    // volea: pierna de pateo bien alta, cuerpo inclinado hacia atras para acompañar
+    // volea: pierna de pateo bien alta, cuerpo inclinado hacia atras para acompaÃ±ar
     const kick = Math.sin(clamp(prog,0,1)*Math.PI);
     const legLift = powerShot ? 0.58 : 0.44;
     const torsoLean = powerShot ? 0.38 : 0.28;
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.beginPath();
-    ctx.ellipse(0,2,h*0.22,h*0.08,0,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fill();
+    drawEntityShadow(0, 2, h*0.22, h*0.08, 0.35);
     ctx.scale(flip,1);
     // pierna de apoyo
     ctx.strokeStyle=sock; ctx.lineWidth=Math.max(2,h*0.1); ctx.lineCap='round';
@@ -1516,13 +1513,13 @@ function drawAirStrike(p, s, h){
     ctx.moveTo(h*0.04,-h*0.42);
     ctx.lineTo(h*0.32, -h*0.42 - kick*h*legLift);
     ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(h*0.32,-h*0.42-kick*h*legLift,h*0.06,h*0.035,0,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill();
-    // torso inclinado hacia atras acompañando el gesto
+    ctx.beginPath(); ctx.ellipse(h*0.32,-h*0.42-kick*h*legLift,h*0.06,h*0.035,0,0,Math.PI*2); ctx.fillStyle=CARTOON.boot; ctx.fill();
+    // torso inclinado hacia atras acompaÃ±ando el gesto
     ctx.save();
     ctx.rotate(torsoLean*kick);
     ctx.fillStyle=shorts;
     ctx.beginPath(); ctx.ellipse(-h*0.02,-h*0.55,h*0.13,h*0.1,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=shirt;
+    ctx.fillStyle = litMaterial(shirt, h);
     ctx.beginPath(); ctx.ellipse(-h*0.06,-h*0.76,h*0.15,h*0.17,0,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle=skin; ctx.lineWidth=Math.max(2,h*0.08);
     ctx.beginPath(); ctx.moveTo(-h*0.18,-h*0.84); ctx.lineTo(-h*0.34,-h*0.62); ctx.stroke();
@@ -1542,15 +1539,13 @@ function drawAirStrike(p, s, h){
   const offsetY = -airZ*scale*1.7;
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.beginPath();
-  ctx.ellipse(0,3,h*0.22,h*0.07,0,0,Math.PI*2);
-  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fill();
+  drawEntityShadow(0, 3, h*0.22, h*0.07, 0.30);
   ctx.translate(0, offsetY);
   ctx.scale(flip,1);
   ctx.save();
   ctx.rotate(rot);
   // torso, casi horizontal/invertido
-  ctx.fillStyle=shirt;
+  ctx.fillStyle = litMaterial(shirt, h);
   ctx.beginPath(); ctx.ellipse(0,-h*0.5,h*0.17,h*0.14,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle=shorts;
   ctx.beginPath(); ctx.ellipse(-h*0.05,-h*0.32,h*0.12,h*0.09,0,0,Math.PI*2); ctx.fill();
@@ -1558,7 +1553,7 @@ function drawAirStrike(p, s, h){
   ctx.strokeStyle=sock; ctx.lineWidth=Math.max(2,h*0.1); ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(-h*0.1,-h*0.28); ctx.lineTo(-h*0.34,-h*0.44); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(h*0.12,-h*0.6); ctx.lineTo(h*0.4,-h*0.86); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(h*0.4,-h*0.86,h*0.06,h*0.035,0,0,Math.PI*2); ctx.fillStyle='#111'; ctx.fill();
+  ctx.beginPath(); ctx.ellipse(h*0.4,-h*0.86,h*0.06,h*0.035,0,0,Math.PI*2); ctx.fillStyle=CARTOON.boot; ctx.fill();
   // brazos, apoyo hacia el piso (cae de espaldas)
   ctx.strokeStyle=skin; ctx.lineWidth=Math.max(2,h*0.08);
   ctx.beginPath(); ctx.moveTo(-h*0.15,-h*0.42); ctx.lineTo(-h*0.4,-h*0.2); ctx.stroke();
@@ -1572,23 +1567,25 @@ function drawBall(){
   const shadowS = project({x:ball.x,y:ball.y,z:0});
   const s = project({x:ball.x,y:ball.y,z:ball.z});
   const r = Math.max(3, s.s*BALL_RADIUS*2.1);
-  ctx.beginPath();
-  ctx.ellipse(shadowS.x, shadowS.y+2, r*0.9, r*0.35, 0,0,Math.PI*2);
-  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fill();
+  drawEntityShadow(shadowS.x, shadowS.y + 2, r * 0.9, r * 0.35, 0.46);
 
   ctx.save();
-  ctx.translate(s.x,s.y);
+  ctx.translate(s.x, s.y);
   ctx.rotate(ball.rollAngle);
-  const grad = ctx.createRadialGradient(-r*0.3,-r*0.3,r*0.1, 0,0,r);
-  grad.addColorStop(0,'#ffffff'); grad.addColorStop(1,'#cfcfcf');
-  ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle=grad; ctx.fill();
-  ctx.strokeStyle='#333'; ctx.lineWidth=Math.max(0.6,r*0.08);
-  ctx.beginPath(); ctx.arc(0,0,r*0.42,0,Math.PI*2); ctx.stroke();
-  for(let i=0;i<5;i++){
-    const a = (i/5)*Math.PI*2;
+  const olW = Math.max(1.4, r * 0.14);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  fillWithOutline(CARTOON.ball, CARTOON.outlineDefault, olW);
+  ctx.strokeStyle = CARTOON.ballPanel;
+  ctx.lineWidth = Math.max(0.85, r * 0.09);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.42, 0, Math.PI * 2);
+  ctx.stroke();
+  for(let i = 0; i < 5; i++){
+    const a = (i / 5) * Math.PI * 2;
     ctx.beginPath();
-    ctx.moveTo(Math.cos(a)*r*0.42, Math.sin(a)*r*0.42);
-    ctx.lineTo(Math.cos(a)*r*0.92, Math.sin(a)*r*0.92);
+    ctx.moveTo(Math.cos(a) * r * 0.42, Math.sin(a) * r * 0.42);
+    ctx.lineTo(Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92);
     ctx.stroke();
   }
   ctx.restore();
@@ -1631,9 +1628,9 @@ function drawPowerBar(p){
   ctx.translate(s.x-w/2, s.y);
   if(level > 0 || pkType){
     ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,w,h);
-    let col = pkType==='shot'? '#ff5252' : (pkType==='through'?'#ffd166':(pkType==='cross'?'#5fd0ff':'#7CFC00'));
+    let col = pkType==='shot'? BROADCAST.powerShot : (pkType==='through'?BROADCAST.powerThrough:(pkType==='cross'?BROADCAST.powerCross:BROADCAST.powerPass));
     ctx.fillStyle=col; ctx.fillRect(2,2,(w-4)*level,h-4);
-    ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(0,0,w,h);
+    ctx.strokeStyle=BROADCAST.lineWhite; ctx.lineWidth=1; ctx.strokeRect(0,0,w,h);
     if(gkHandsBlink){
       ctx.strokeStyle = 'rgba(255,82,82,0.95)';
       ctx.lineWidth = 2;
@@ -1642,16 +1639,16 @@ function drawPowerBar(p){
   } else if(showGkHandsHud){
     const frac = clamp(gkHandsSecs / GK_AUTO_DISTRIBUTE.TIME_SEC, 0, 1);
     ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,w,h);
-    ctx.fillStyle = gkHandsUrgent ? '#ff5252' : '#7CFC00';
+    ctx.fillStyle = gkHandsUrgent ? BROADCAST.urgent : BROADCAST.powerPass;
     ctx.fillRect(2, 2, (w - 4) * frac, h - 4);
-    ctx.strokeStyle = gkHandsBlink ? '#ff5252' : '#fff';
+    ctx.strokeStyle = gkHandsBlink ? BROADCAST.urgent : BROADCAST.lineWhite;
     ctx.lineWidth = gkHandsBlink ? 2 : 1;
     ctx.strokeRect(0, 0, w, h);
   }
   if(setPieceWaiting && SetPieceManager.timer > 0){
     const urgent = SetPieceManager.timer <= SET_PIECE_COUNTDOWN_URGENT;
     const setBlink = urgent && Math.sin(performance.now() * 0.012) > 0;
-    ctx.fillStyle = urgent ? '#ff5252' : '#fff';
+    ctx.fillStyle = urgent ? BROADCAST.urgent : BROADCAST.lineWhite;
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(Math.ceil(SetPieceManager.timer).toString(), w / 2, level > 0 ? -5 : h + 12);
@@ -1661,7 +1658,7 @@ function drawPowerBar(p){
       ctx.strokeRect(-1, -1, w + 2, h + 2);
     }
   } else if(showGkHandsHud){
-    ctx.fillStyle = gkHandsUrgent ? '#ff5252' : '#fff';
+    ctx.fillStyle = gkHandsUrgent ? BROADCAST.urgent : BROADCAST.lineWhite;
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(Math.ceil(gkHandsSecs).toString(), w / 2, level > 0 ? -5 : h + 12);
@@ -1671,7 +1668,7 @@ function drawPowerBar(p){
 
 
 /* ============================================================
-   RADAR (minimapa) — vista cenital fija en una esquina, estilo TV/videojuego
+   RADAR (minimapa) â€” vista cenital fija en una esquina, estilo TV/videojuego
    ============================================================ */
 const RADAR_W = 190;
 const RADAR_H = RADAR_W * (FIELD_W/FIELD_L); // mantiene la proporcion real de la cancha
@@ -1703,15 +1700,15 @@ function drawRadar(){
 
   // --- fondo de cancha (muy sutil) ---
   ctx.globalAlpha = 0.3;
-  ctx.fillStyle = 'rgb(6,20,12)';
+  ctx.fillStyle = BROADCAST.radarBg;
   roundRectPath(box.x-6, box.y-6, box.w+12, box.h+12, 8);
   ctx.fill();
-  ctx.fillStyle = 'rgb(28,90,48)';
+  ctx.fillStyle = BROADCAST.radarGrass;
   ctx.fillRect(box.x, box.y, box.w, box.h);
 
   // --- bordes y lineas de cancha ---
   ctx.globalAlpha = 0.4;
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = BROADCAST.lineWhite;
   ctx.lineWidth = 1.5;
   roundRectPath(box.x-6, box.y-6, box.w+12, box.h+12, 8);
   ctx.stroke();
@@ -1739,10 +1736,10 @@ function drawRadar(){
     const rp = radarPoint(box, p.x, p.y);
     ctx.beginPath();
     ctx.arc(rp.x, rp.y, isCtrl ? 3.2 : 2.2, 0, Math.PI * 2);
-    ctx.fillStyle = p.team === 'home' ? '#5aa4ff' : '#ff5a5a';
+    ctx.fillStyle = p.team === 'home' ? BROADCAST.teamHome : BROADCAST.teamAway;
     ctx.fill();
     if(isCtrl){
-      ctx.strokeStyle = p.id === Game.controlledId2 ? '#ff9d00' : '#fff700';
+      ctx.strokeStyle = p.id === Game.controlledId2 ? BROADCAST.cursorP2 : BROADCAST.cursorP1;
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(rp.x, rp.y, 4.6, 0, Math.PI * 2);
@@ -1758,7 +1755,7 @@ function drawRadar(){
   const rb = radarPoint(box, ball.x, ball.y);
   ctx.beginPath();
   ctx.arc(rb.x, rb.y, 2.4, 0, Math.PI*2);
-  ctx.fillStyle = '#ffffff'; ctx.fill();
+  ctx.fillStyle = BROADCAST.lineWhite; ctx.fill();
   ctx.strokeStyle = '#000000'; ctx.lineWidth = 0.8; ctx.stroke();
 
   ctx.globalAlpha = 1.0;
@@ -1774,24 +1771,38 @@ function roundRectPath(x,y,w,h,r){
   ctx.closePath();
 }
 
-// cruz amarilla en el pasto que marca donde va a picar el ultimo centro (boton circulo/○):
-// ayuda a ubicarse para llegar a tiempo a un cabezazo o una volea.
+// cruz amarilla en el pasto que marca donde picará una pelota aérea
+function drawLandingCrossAt(wx, wy, fade){
+  const pr = project({x: wx, y: wy, z: 0});
+  const size = Math.max(6, pr.s * 0.55);
+  const lw = Math.max(2, pr.s * 0.09);
+  const olw = lw + Math.max(0.8, pr.s * 0.025);
+  ctx.save();
+  ctx.globalAlpha = 0.92 * fade;
+  ctx.lineCap = 'round';
+  const drawX = (stroke, width)=>{
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(pr.x - size, pr.y - size * 0.42); ctx.lineTo(pr.x + size, pr.y + size * 0.42);
+    ctx.moveTo(pr.x + size, pr.y - size * 0.42); ctx.lineTo(pr.x - size, pr.y + size * 0.42);
+    ctx.stroke();
+  };
+  drawX('rgba(0,0,0,0.38)', olw);
+  drawX('#F5C400', lw);
+  ctx.restore();
+}
+
 function drawCrossMarker(){
+  if(ball.owner || ball.lastKickType !== 'cross') return;
+
+  if(Game.landingPoint){
+    drawLandingCrossAt(Game.landingPoint.x, Game.landingPoint.y, 1);
+    return;
+  }
   const m = Game.crossMarker;
   if(!m) return;
-  const pr = project({x:m.x, y:m.y, z:0});
-  const fade = clamp(m.t/0.4, 0, 1); // se desvanece en el ultimo tramo, no desaparece de golpe
-  const size = Math.max(6, pr.s*0.55);
-  ctx.save();
-  ctx.globalAlpha = 0.85*fade;
-  ctx.strokeStyle = '#ffe600';
-  ctx.lineWidth = Math.max(2, pr.s*0.09);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(pr.x-size, pr.y-size*0.42); ctx.lineTo(pr.x+size, pr.y+size*0.42);
-  ctx.moveTo(pr.x+size, pr.y-size*0.42); ctx.lineTo(pr.x-size, pr.y+size*0.42);
-  ctx.stroke();
-  ctx.restore();
+  drawLandingCrossAt(m.x, m.y, clamp(m.t / 0.4, 0, 1));
 }
 function drawKickoffCountdownHud(){
   if(Game.matchState !== STATE_KICKOFF || Game.isBallInPlay || KickoffManager.executed || KickoffManager.timer <= 0) return;
@@ -1805,11 +1816,11 @@ function drawKickoffCountdownHud(){
   ctx.strokeStyle = urgent ? 'rgba(255,82,82,0.85)' : 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.fillStyle = urgent ? '#ff5252' : '#fff';
+  ctx.fillStyle = urgent ? BROADCAST.urgent : BROADCAST.lineWhite;
   ctx.font = 'bold 26px Arial';
   ctx.fillText(String(secs), canvas.width / 2, 104);
   ctx.font = '11px Arial';
-  ctx.fillStyle = urgent ? '#ffb4b4' : '#cfe';
+  ctx.fillStyle = urgent ? BROADCAST.urgentSoft : BROADCAST.textMuted;
   ctx.fillText('Saque de centro', canvas.width / 2, 118);
   ctx.restore();
 }
@@ -1833,11 +1844,11 @@ function drawSetPieceCountdownHud(){
   ctx.strokeStyle = urgent ? 'rgba(255,82,82,0.85)' : 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  ctx.fillStyle = urgent ? '#ff5252' : '#fff';
+  ctx.fillStyle = urgent ? BROADCAST.urgent : BROADCAST.lineWhite;
   ctx.font = 'bold 26px Arial';
   ctx.fillText(String(secs), canvas.width / 2, 104);
   ctx.font = '11px Arial';
-  ctx.fillStyle = urgent ? '#ffb4b4' : '#cfe';
+  ctx.fillStyle = urgent ? BROADCAST.urgentSoft : BROADCAST.textMuted;
   ctx.fillText(labels[sp.type] || 'Pelota parada', canvas.width / 2, 118);
   ctx.restore();
 }
@@ -1845,16 +1856,22 @@ function drawSetPieceCountdownHud(){
 function render(){
   if(fieldGrassEl) fieldGrassEl.classList.toggle('practice', gameState === 'practice');
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // cielo/fondo estadio simple
+
   const horizonFrac = gameState==='practice' ? PCAM.horizonFrac : CAM.horizonFrac;
-  const g = ctx.createLinearGradient(0,0,0,canvas.height*horizonFrac);
-  g.addColorStop(0,'#0a2416'); g.addColorStop(1,'#123a22');
-  ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,canvas.height*horizonFrac+4);
+  const groundFrac = gameState==='practice' ? PCAM.groundFrac : CAM.groundFrac;
+
+  drawStadiumAtmosphere();
+  drawSkyBackground(horizonFrac);
+  drawStadiumLights(horizonFrac);
+  drawHorizonHaze(horizonFrac);
 
   if(gameState==='practice') drawFieldPractice(); else drawField();
+  drawFieldDepthHaze(horizonFrac, groundFrac);
+  drawCrossMarker();
 
-  // en la Arena de Practica solo participan el jugador humano y el arquero rival: el resto del
-  // plantel queda aparcado fuera de cuadro (ver setupPractice) y no hace falta dibujarlo
+  // En menú no hay partido activo: saltear entidades, HUD y radar
+  if(!Game.running) return;
+
   const renderPlayers = gameState==='practice' ? [practicePlayer, practiceGK].filter(Boolean) : allPlayers;
   for(const p of renderPlayers) updatePlayerMeshDir8(p);
   const drawable = [...renderPlayers, ball].sort((a,b)=> paintDepth(b)-paintDepth(a));
@@ -1868,48 +1885,13 @@ function render(){
     const cp2 = controlledPlayer2();
     if(cp2) drawPowerBar(cp2);
   }
-  if(gameState!=='practice') drawRadar(); // el radar (minimapa cenital) no aplica a la camara de practica
-  drawSetPieceCountdownHud();
-  drawKickoffCountdownHud();
-  drawCelebrationPrompt();
+  if(gameState!=='practice') drawRadar();
 }
 function isControlledByHuman(p){
   return p.id===Game.controlledId || (Game.twoPlayerMode && p.id===Game.controlledId2);
 }
 function drawCelebrationPrompt(){
-  if(isCelebrationMode && gameState === 'celebration_run' && Game.celebrationRun){
-    const cr = Game.celebrationRun;
-    if(!isHumanTeam(cr.scoringTeam)) return;
-    const kb = cr.scoringTeam === 'home' ? ['J','I','K','L'] : ['.','"',',','/'];
-    ctx.save();
-    ctx.textAlign = 'center';
-    roundRectPath(canvas.width/2-260, canvas.height-96, 520, 64, 10);
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.2; ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 15px Arial';
-    ctx.fillText('FESTEJO OPCIONAL — CORRÉ LIBRE', canvas.width/2, canvas.height-70);
-    ctx.font = '12px Arial';
-    ctx.fillStyle = '#9be89b';
-    ctx.fillText('A/'+kb[0]+' Siuuu   B/'+kb[1]+' Topogiggio   X/'+kb[2]+' Baile   Y/'+kb[3]+' Mbappe   · Start reanuda', canvas.width/2, canvas.height-48);
-    ctx.restore();
-    return;
-  }
-  const c = Game.celebration;
-  if(!c || c.phase!=='choose' || !isHumanTeam(c.team)) return;
-  ctx.save();
-  ctx.textAlign = 'center';
-  roundRectPath(canvas.width/2-235, canvas.height-96, 470, 64, 10);
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.2; ctx.stroke();
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 15px Arial';
-  ctx.fillText('ELEGÍ EL FESTEJO', canvas.width/2, canvas.height-70);
-  ctx.font = '12px Arial';
-  ctx.fillStyle = '#9be89b';
-  const kb = c.team==='home' ? ['J','K','L','I'] : ['.','/',',',"'"];
-  ctx.fillText('✕/'+kb[0]+' Siuuuu   ▢/'+kb[1]+' No Escucho   △/'+kb[2]+' Brazos Cruzados   ○/'+kb[3]+' Baile', canvas.width/2, canvas.height-48);
-  ctx.restore();
+  // UI de festejo deshabilitada — la logica de gameplay se mantiene intacta.
 }
 export { pathFromWorldPts, strokeWorldPts, circleWorldPts, drawStadiumFloor, drawGrassBands, drawOutZoneShade, drawField, drawDebugBoundaries, drawGoalArea, drawGoal, drawFieldPractice, teamColors, drawSpamDuelMeter, drawPlayer, drawCelebAnim, drawStylizedBody, drawCelebRunPhase, drawCelebSiuu, drawCelebTopo, drawCelebMbappe, drawCelebRobot, rotateBone, easeOutQuad, kickImpactCurve, drawLegBone, drawArmBone, smoothPose, drawNormalPose, drawHeadHair, drawStandTackle, drawSlideTackle, drawGKKick, drawGKDive, drawAirStrike, drawBall, drawPowerBar, radarBox, radarPoint, drawRadar, roundRectPath, drawCrossMarker, drawSetPieceCountdownHud, render, isControlledByHuman, drawCelebrationPrompt };
 

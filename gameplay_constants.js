@@ -137,6 +137,18 @@ export const GK_ANIM_STATE = {
 /** Estado IA: presión secundaria activada con R1 (sin tacle). */
 export const AI_SECONDARY_PRESSING = 'AI_SECONDARY_PRESSING';
 
+/** Estado IA: desmarque automático — velocidad de crucero constante hacia runTarget. */
+export const AI_RUPTURA = 'RUPTURA';
+
+/** Estado IA: desmarque manual inteligente — ignora IA pasiva hasta recibir pelota o fin de carrera. */
+export const AI_RUPTURA_MANUAL = 'RUPTURA_MANUAL';
+
+/** Tope de velocidad en desmarques automáticos de CPU (50% del sprint sin pelota). */
+export const CPU_DESMARQUE_SPEED_MULT = 0.5;
+
+/** Prioridad absoluta: persecucion de la pelota (acciones de pase/tiro son secundarias). */
+export const MOVING_TO_BALL = 'moving_to_ball';
+
 /** Presión secundaria (R1): contención a 1 m del poseedor — sin tacle, solo cierre de líneas. */
 export const SECONDARY_PRESS = {
   /** Distancia de seguridad en unidades motor (1 m real; 1 unidad = 0.5 m). */

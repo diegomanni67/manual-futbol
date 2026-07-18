@@ -207,18 +207,17 @@ function executeFormatMenuOption(index) {
   startMatchWithFormat(index === 0 ? '6vs6' : '11vs11');
 }
 
-function startScreenPadLoop(ts) {
+function tickMenuInput(ts) {
   const formatVisible = formatScreenEl && formatScreenEl.style.display !== 'none';
   const mainVisible = startScreenEl.style.display !== 'none';
-  if (mainVisible || formatVisible) {
-    if (typeof _assignInputSources === 'function') _assignInputSources();
-    if (formatVisible && getActiveUIMenu() !== UI_MENU.FORMAT) setUIMenu(UI_MENU.FORMAT);
-    else if (mainVisible && getActiveUIMenu() !== UI_MENU.MAIN) setUIMenu(UI_MENU.MAIN);
-    tickMenuScreenLoop(ts);
-    requestAnimationFrame(startScreenPadLoop);
-  } else {
+  if (!mainVisible && !formatVisible) {
     resetMenuScreenLoopClock();
+    return;
   }
+  if (typeof _assignInputSources === 'function') _assignInputSources();
+  if (formatVisible && getActiveUIMenu() !== UI_MENU.FORMAT) setUIMenu(UI_MENU.FORMAT);
+  else if (mainVisible && getActiveUIMenu() !== UI_MENU.MAIN) setUIMenu(UI_MENU.MAIN);
+  tickMenuScreenLoop(ts);
 }
 
 function initAppChrome() {
@@ -260,6 +259,8 @@ function updateCelebrationCamera() {
 
 function tick(ts) {
   requestAnimationFrame(tick);
+
+  tickMenuInput(ts);
 
   if (Game.running) {
     if (lastTs === null) setLastTs(ts);
@@ -437,11 +438,6 @@ async function boot() {
   updateMainMenuSelectionVisual();
   if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
   if (typeof _renderFn === 'function') _renderFn();
-  requestAnimationFrame(() => {
-    if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
-    if (typeof _renderFn === 'function') _renderFn();
-  });
-  requestAnimationFrame(startScreenPadLoop);
   requestAnimationFrame(tick);
 }
 

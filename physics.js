@@ -1,15 +1,15 @@
 "use strict";
 
-import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, STUN_WALK_MIN_FACTOR, STUN_WALK_SPEED_FACTOR, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, physicsConfig } from './state.js';
+import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, STUN_WALK_MIN_FACTOR, STUN_WALK_SPEED_FACTOR, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, getPlayerAbsoluteMaxVelocity, physicsConfig } from './state.js';
 
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 import { getModeTackleDistance } from './modePhysics.js';
-import { JOCKEY_PHYSICS, RECOVERY_STATE, TACKLE_PHYSICS } from './gameplay_constants.js';
+import { JOCKEY_PHYSICS, RECOVERY_STATE, TACKLE_PHYSICS, AI_RUPTURA, AI_RUPTURA_MANUAL, CPU_DESMARQUE_SPEED_MULT } from './gameplay_constants.js';
 import { toGameUnits } from './utils.js';
 
 import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
 
-import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim } from './state.js';
+import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim, isControlledByHuman } from './state.js';
 
 import { getPadAt, padButtons, remapMoveForCamera, snapshotKeys, syncStickDir, PREP_SPEED_FACTOR } from './input.js';
 
@@ -20,8 +20,111 @@ import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisio
    ============================================================ */
 const UNIFORM_LINEAR_ACCEL_TIME = 0.3; // 11vs11: tiempo maximo para alcanzar maxSpeed desde reposo
 const UNIFORM_LINEAR_ACCEL_FLOOR_M = 6.0; // m/s reales: por debajo se fuerza aceleracion lineal
+const RUPTURA_MANUAL_SPEED_MULT = 0.92; // legacy ref; desmarques usan getPlayerMaxSprintVelocity
 const MOVE_STEP_DT_MIN = 1 / 120;
 const MOVE_STEP_DT_MAX = 1 / 20;
+
+/** Jugador en desmarque activo (manual o IA): crucero instantáneo sin fricción. */
+function isHumanControlledPlayer(p){
+  if(!p) return false;
+  if(typeof isControlledByHuman === 'function' && isControlledByHuman(p)) return true;
+  return p.id === Game.controlledId || (Game.twoPlayerMode && p.id === Game.controlledId2);
+}
+
+export function isPlayerInRupturaRun(p){
+  if(!p || ball.owner === p) return false;
+  if(p.aiMode === 'throw_in_run') return true;
+  if(p.isMakingManualRun && p.wallRun?.active) return true;
+  if(isHumanControlledPlayer(p)) return false;
+  if(p.aiMode === AI_RUPTURA_MANUAL || p.aiMode === AI_RUPTURA) return true;
+  if(p.runTarget && ball.owner && ball.owner.team === p.team && ball.owner.id !== p.id) return true;
+  return false;
+}
+
+function isCpuAutoDesmarque(p){
+  if(!p || isHumanControlledPlayer(p)) return false;
+  if(p.isMakingManualRun && p.wallRun?.active) return false;
+  if(p.aiMode === AI_RUPTURA_MANUAL) return false;
+  return p.aiMode === AI_RUPTURA || p.aiMode === 'throw_in_run';
+}
+
+export function getRupturaRunMaxSpeed(p){
+  if(!p) return 0;
+  const cap = getPlayerMaxSprintVelocity(p);
+  const abs = getPlayerAbsoluteMaxVelocity(p);
+  let max = abs > 0 ? Math.min(cap, abs) : cap;
+  if(isCpuAutoDesmarque(p)) max *= CPU_DESMARQUE_SPEED_MULT;
+  return max;
+}
+
+/** Asigna velocidad de crucero al instante (sin rampa ni fricción). */
+export function setRupturaRunVelocity(p, dir, maxSpeed){
+  if(!p) return;
+  const absCap = getPlayerAbsoluteMaxVelocity(p);
+  const cap = Math.min(
+    (maxSpeed != null && maxSpeed > 0) ? maxSpeed : getRupturaRunMaxSpeed(p),
+    absCap > 0 ? absCap : Infinity,
+  );
+  const len = Math.hypot(dir.x, dir.y);
+  const d = len > 1e-5
+    ? { x: dir.x / len, y: dir.y / len }
+    : { x: Math.cos(p.facing), y: Math.sin(p.facing) };
+  p.vx = d.x * cap;
+  p.vy = d.y * cap;
+  p.runningSpeed = cap;
+  p.sprinting = true;
+  p.accelRampDist = 1e6;
+}
+
+/** Movimiento de desmarque: vector fijo a maxSpeed, sin inercia ni desaceleración. */
+export function movePlayerRuptura(p, dt, dir, maxSpeed){
+  if(!p?.canMove || p.isStuck){
+    p.vx = 0;
+    p.vy = 0;
+    return;
+  }
+  dt = clampMoveStepDt(dt);
+  if(p.airLock && p.airLock.t < p.airLock.dur){
+    p.vx = 0;
+    p.vy = 0;
+    return;
+  }
+  if(isPlayerStaggered(p)){
+    p.vx = lerp(p.vx, 0, clamp(dt * 3.2, 0, 1));
+    p.vy = lerp(p.vy, 0, clamp(dt * 3.2, 0, 1));
+    clampPlayerVelocity(p, getPlayerAbsoluteMaxVelocity(p));
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.x = clamp(p.x, 0.3, FIELD_L - 0.3);
+    p.y = clamp(p.y, 0.3, FIELD_W - 0.3);
+    return;
+  }
+
+  const cap = (maxSpeed != null && maxSpeed > 0) ? maxSpeed : getRupturaRunMaxSpeed(p);
+  setRupturaRunVelocity(p, dir, cap);
+  clampPlayerVelocity(p, cap, cap);
+
+  const len = Math.hypot(dir.x, dir.y);
+  if(len > 1e-5){
+    p.facing = Math.atan2(dir.y / len, dir.x / len);
+  }
+  syncPlayerDir(p);
+
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+  p.x = clamp(p.x, 0.3, FIELD_L - 0.3);
+  p.y = clamp(p.y, 0.3, FIELD_W - 0.3);
+  if(isKickoffDefendingTeam(p.team)) clampKickoffDefenderPosition(p);
+
+  const mass = p.weightFactor || 1;
+  const speed = Math.hypot(p.vx, p.vy);
+  const strideLen = clamp(1.55 * clamp(1.15 - (mass - 1) * 0.4, 0.8, 1.25), 1.15, 1.95);
+  const animDrive = speed > 0.25
+    ? (physicsConfig.animStrideSpeed != null ? toGameUnits(physicsConfig.animStrideSpeed) : speed)
+    : 0;
+  p.animPhase += (animDrive * dt / strideLen) * Math.PI * 2;
+  p.legIdleBlend = lerp(p.legIdleBlend || 0, speed > 0.25 ? 1 : 0, clamp(dt * 5, 0, 1));
+}
 
 function isUniformPlayingMove(){
   return physicsConfig.useUniformSpeed && Game.matchState === STATE_PLAYING;
@@ -64,7 +167,41 @@ function logSprintSpeedDiagnostic(p, diag){
   });
 }
 
+/** Filtro final: ningún vector de velocidad puede superar el tope del frame o del perfil. */
+export function clampPlayerVelocity(p, ceiling, floor){
+  if(!p) return;
+  const absCap = getPlayerAbsoluteMaxVelocity(p);
+  if(absCap <= 0) return;
+  const cap = (ceiling != null && ceiling > 0) ? Math.min(ceiling, absCap) : absCap;
+  let sp = Math.hypot(p.vx, p.vy);
+  let dx, dy;
+  if(sp <= 1e-5){
+    dx = Math.cos(p.facing);
+    dy = Math.sin(p.facing);
+    sp = 0;
+  } else {
+    dx = p.vx / sp;
+    dy = p.vy / sp;
+  }
+  const minSp = (floor != null && floor > 0) ? Math.min(floor, cap) : 0;
+  let targetSp = sp;
+  if(targetSp > cap + 1e-5) targetSp = cap;
+  else if(minSp > 0 && targetSp + 1e-5 < minSp) targetSp = minSp;
+  else if(minSp <= 0 && targetSp <= cap + 1e-5) return;
+  p.vx = dx * targetSp;
+  p.vy = dy * targetSp;
+}
+
+/** Tope duro al final del frame — evita overspeed tras colisiones o impulsos. */
+export function enforceAllPlayerSpeedCaps(){
+  for(const p of allPlayers){
+    if(!p?.canMove || p.isStuck || p.airLock) continue;
+    clampPlayerVelocity(p);
+  }
+}
+
 function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mass){
+  if(isPlayerInRupturaRun(p)) return { prevVX: p.vx, prevVY: p.vy };
   const prevVX = p.vx, prevVY = p.vy;
   const fakeShotRecovery = isFakeShotRecoveryChase(p);
   const looseTouchSprint = isFakeShotLooseChase(p);
@@ -169,6 +306,7 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
         p.vy = Math.sin(newAngle) * boosted;
       }
     }
+    clampPlayerVelocity(p, maxSpeed);
   } else if(!effortSprint) {
     // sin input: frenado gradual (inercia al soltar el stick)
     const brakeRate = clamp(0.0007*mass, 0.0004, 0.0016);
@@ -256,6 +394,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   if(isPlayerStaggered(p)){
     p.vx = lerp(p.vx, 0, clamp(dt * 3.2, 0, 1));
     p.vy = lerp(p.vy, 0, clamp(dt * 3.2, 0, 1));
+    clampPlayerVelocity(p, getPlayerAbsoluteMaxVelocity(p));
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.x = clamp(p.x, 0.3, FIELD_L - 0.3);
@@ -356,10 +495,6 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
     }
     if(isGkHandsPossession(p)){ maxSpeed *= 0.68; speedLimiters.push('gkHands*0.68'); }
     if(p.stumble){ maxSpeed *= 0.3; speedLimiters.push('stumble*0.3'); }
-    if((p.charging || p.pendingKick) && !isPlayerSprintChasing(p)){
-      maxSpeed *= PREP_SPEED_FACTOR;
-      speedLimiters.push(`prep*${PREP_SPEED_FACTOR}`);
-    }
     if(p.turnTouch){
       maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
       speedLimiters.push(`turnTouch*${TURN_TOUCH_SPEED_FACTOR}`);
@@ -379,16 +514,14 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
     }
     if(isGkHandsPossession(p)){ maxSpeed *= 0.68; speedLimiters.push('gkHands*0.68'); }
     if(p.stumble){ maxSpeed *= 0.3; speedLimiters.push('stumble*0.3'); }
-    if((p.charging || p.pendingKick) && !isPlayerSprintChasing(p)){
-      maxSpeed *= PREP_SPEED_FACTOR;
-      speedLimiters.push(`prep*${PREP_SPEED_FACTOR}`);
-    }
     if(p.turnTouch){
       maxSpeed *= TURN_TOUCH_SPEED_FACTOR;
       speedLimiters.push(`turnTouch*${TURN_TOUCH_SPEED_FACTOR}`);
     }
     if(p.jockeyRetreat) maxSpeed = Math.min(maxSpeed, JOCKEY_PHYSICS.SPRINT_RETREAT_SPEED);
   }
+
+  maxSpeed = Math.min(maxSpeed, getPlayerAbsoluteMaxVelocity(p));
 
   const maxSpeedBeforeDirectional = maxSpeed;
   maxSpeed = getDirectionalMaxSpeed(activeMoveDir, moveMag, maxSpeed);
@@ -417,6 +550,8 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   if(p.effortExitBlendT > 0){
     applyEffortExitVelocityBlend(p, dt, activeMoveDir, moveMag, maxSpeed);
   }
+
+  clampPlayerVelocity(p, maxSpeed);
 
   // --- INCLINACION DEL CUERPO (para la animacion, ver drawNormalPose): se calcula a partir de la
   // aceleracion real de este frame proyectada sobre la orientacion del jugador (adelante/atras y
@@ -573,10 +708,12 @@ function ballInTackleBox(p, dirX, dirY, reach){
 
 function applyTackleCarryInertia(p, a){
   const speed = a.type === 'slide' ? SLIDE_TACKLE_CARRY_SPEED : STAND_TACKLE_CARRY_SPEED;
-  a.carryVx = a.dirX * speed;
-  a.carryVy = a.dirY * speed;
+  const cap = Math.min(speed, getPlayerAbsoluteMaxVelocity(p));
+  a.carryVx = a.dirX * cap;
+  a.carryVy = a.dirY * cap;
   p.vx = a.carryVx;
   p.vy = a.carryVy;
+  clampPlayerVelocity(p);
 }
 
 function tackleAnimProgress(p){
@@ -654,6 +791,10 @@ function startTackle(p, type, aimDir){
   p.vx = 0; p.vy = 0;
   p.charging = null;
   p.pendingKick = null;
+  if(isControlledByHuman?.(p)){
+    clearPlayerAIState(p);
+    clearChasingState(p);
+  }
   return true;
 }
 
@@ -776,6 +917,7 @@ function updateSlidePosition(p, a, prog, dt){
     p.y += a.carryVy * dt;
     p.vx = a.carryVx;
     p.vy = a.carryVy;
+    clampPlayerVelocity(p);
   } else {
     const eased = 1 - Math.pow(1 - prog, 2);
     const travelled = getSlideTackleDistance() * eased;
@@ -817,6 +959,7 @@ function updateTackleAnim(p, dt){
       p.y = clamp(p.y, 0.3, FIELD_W - 0.3);
       p.vx = a.carryVx;
       p.vy = a.carryVy;
+      clampPlayerVelocity(p);
     } else {
       applyTackleBallMagnet(p, a, prog);
       const lungeScale = 1.0 + Math.sin(prog * Math.PI) * 0.35;
@@ -833,6 +976,11 @@ function updateTackleAnim(p, dt){
     if(a.success){
       p.vx = a.carryVx || p.vx;
       p.vy = a.carryVy || p.vy;
+      clampPlayerVelocity(p);
+    }
+    if(isControlledByHuman?.(p)){
+      clearPlayerAIState(p);
+      clearChasingState(p);
     }
     p.tackleAnim = null;
     p.recoveryState = { t: 0, dur: RECOVERY_STATE.TACKLE_DURATION };

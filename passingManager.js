@@ -1,7 +1,7 @@
 "use strict";
 
 import { PASS_AI } from './gameplay_constants.js';
-import { allPlayers, ball, clamp, dist2D, simulateBallTrajectory, CENTER, FIELD_L, FIELD_W, GOAL_HALF, PBOX_D } from './state.js';
+import { allPlayers, ball, clamp, dist2D, simulateBallTrajectory, CENTER, FIELD_L, FIELD_W, GOAL_HALF, PBOX_D, PBOX_HALFW } from './state.js';
 
 export const AI_STATE_INTERCEPTING_PASS = 'intercepting_pass';
 
@@ -106,25 +106,27 @@ export function tickInterceptPassStates(dt){
    PositioningSystem — corners y desmarques en laterales
    ============================================================ */
 
-function getCornerAttackSlots(attackingTeam, defendingGoalSide){
+function getCornerAttackSlots(attackingTeam, defendingGoalSide, cornerY = CENTER.y){
   const dir = attackingTeam === 'home' ? 1 : -1;
   const goalX = defendingGoalSide === 'left' ? 0 : FIELD_L;
-  const penSpotX = goalX + dir * (PBOX_D * 0.72);
-  const boxFrontX = goalX + dir * (PBOX_D + 2.8);
-  const reboundX = goalX + dir * (PBOX_D * 0.38);
+  const nearSign = cornerY >= CENTER.y ? -1 : 1;
+  const penSpotX = goalX + dir * (PBOX_D * 0.78);
+  const sixYardX = goalX + dir * 5.8;
+  const edgeBoxX = goalX + dir * (PBOX_D + 1.4);
+  const topBoxX = goalX + dir * (PBOX_D * 0.42);
 
   return [
+    { role: 'near_post', x: sixYardX, y: CENTER.y + nearSign * (GOAL_HALF + 2.2) },
     { role: 'penalty', x: penSpotX, y: CENTER.y },
-    { role: 'near_post', x: penSpotX, y: CENTER.y - GOAL_HALF * 0.55 },
-    { role: 'far_post', x: penSpotX, y: CENTER.y + GOAL_HALF * 0.55 },
-    { role: 'box_front', x: boxFrontX, y: CENTER.y },
-    { role: 'rebound', x: reboundX, y: CENTER.y + dir * 2.2 },
+    { role: 'far_post', x: penSpotX, y: CENTER.y - nearSign * PBOX_HALFW * 0.58 },
+    { role: 'box_front', x: edgeBoxX, y: CENTER.y + nearSign * 3.2 },
+    { role: 'rebound', x: topBoxX, y: CENTER.y - nearSign * 4.5 },
   ];
 }
 
-/** Ubica 5 atacantes en el área en un corner. */
-export function positionCornerAttackers(attackingTeam, defendingGoalSide){
-  const slots = getCornerAttackSlots(attackingTeam, defendingGoalSide);
+/** Ubica 5 atacantes repartidos en el area rival para cabecear en un corner. */
+export function positionCornerAttackers(attackingTeam, defendingGoalSide, cornerY = CENTER.y){
+  const slots = getCornerAttackSlots(attackingTeam, defendingGoalSide, cornerY);
   const attackers = allPlayers
     .filter(p => p.team === attackingTeam && p.role !== 'GK')
     .sort((a, b) => {
@@ -142,10 +144,27 @@ export function positionCornerAttackers(attackingTeam, defendingGoalSide){
     p.vx = 0;
     p.vy = 0;
     p.cornerSlot = slot.role;
+    p.cornerBasePosition = { x: p.x, y: p.y };
     p.targetPosition = { x: p.x, y: p.y };
     p.aiMode = 'set_piece';
   });
   return attackers;
+}
+
+/** Micro-movimiento en el area mientras espera el centro desde el corner. */
+export function maintainCornerAttackPositions(dt, attackingTeam){
+  const t = performance.now() * 0.001;
+  for(const p of allPlayers){
+    if(p.team !== attackingTeam || !p.cornerSlot || p.aiMode !== 'set_piece') continue;
+    const base = p.cornerBasePosition;
+    if(!base) continue;
+    const phase = p.id * 0.73;
+    const jostle = 0.38;
+    p.targetPosition = {
+      x: clamp(base.x + Math.sin(t * 1.85 + phase) * jostle, 2, FIELD_L - 2),
+      y: clamp(base.y + Math.cos(t * 2.15 + phase) * jostle * 0.85, 2, FIELD_W - 2),
+    };
+  }
 }
 
 /** AI_SuggestTarget: compañeros se desmarcan hacia adelante en el lateral. */

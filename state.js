@@ -1,6 +1,6 @@
 "use strict";
 
-import { FIELD_RULES_BASE, GAMEPLAY_PHYSICS, GK_AUTO_DISTRIBUTE, PASS_AI } from './gameplay_constants.js';
+import { FIELD_RULES_BASE, GAMEPLAY_PHYSICS, GK_AUTO_DISTRIBUTE, MOVING_TO_BALL, PASS_AI, AI_RUPTURA, AI_RUPTURA_MANUAL } from './gameplay_constants.js';
 import {
   getBallDragFrictionScaleForBall, getModeBallDrag, getModeBallDragFrictionScale,
   getModePowerMultiplier, loadModePhysics,
@@ -278,6 +278,7 @@ export const INTERCEPT_SIM_STEP = 0.04;         // paso de simulacion para predi
 export const INTERCEPT_MAX_TIME = 3.5;          // horizonte maximo de prediccion (s)
 export const INTERCEPT_TIME_TOLERANCE = 0.10;   // margen jugador-llega-antes-que-pelota (s)
 export const EFFORT_RS_MIN = 0.45;              // magnitud minima del stick derecho para disparar
+export const EFFORT_DOUBLE_TAP_WINDOW_MS = 1000; // ventana entre 1er y 2do toque del stick derecho
 export const EFFORT_TOUCH_ANIM_LONG = 0.28;     // animacion mas larga / postura marcada (toque largo)
 export const EFFORT_TOUCH_ANIM_SHORT = 0.20;    // animacion rapida y sutil (toque corto)
 export const IGNORE_POSSESSION_T = 0.2;         // 200ms: nadie puede reposeer tras effort touch / fake shot
@@ -354,7 +355,7 @@ export const PHYSICS_PRESETS = {
     label: '11 vs 11',
     formationKey: '11vs11',
     worldScale: 1.6,
-    camZoomMult: 0.554, // 30% más zoom que base 0.72 (cámara más cerca en 11vs11)
+    camZoomMult: 0.554,
     camNearMult: 1.22,
     horizonShift: -0.035,
     viewExtentMult: 1.45,
@@ -588,6 +589,7 @@ export function clearPlayerPendingAction(p){
   if(!p) return;
   p.actionBuffer = {type: null, kickType: null, power: 0, chargeStart: 0, curve: 0, manualL2: false, timestamp: 0};
   p.isPreparingToShoot = false;
+  p.chargeMoveLock = null;
   Game.isCharging = false;
 }
 
@@ -637,20 +639,40 @@ export function updateGlobalReinstatementCooldown(dt){
     Game.globalReinstatementCooldownT = 0;
   }
 }
-export const AIR_BICYCLE_CONTACT_RADIUS = 0.8;// chilena: distancia perfecta jugador-pelota
+export const AIR_BICYCLE_CONTACT_RADIUS = 0.8;// chilena: distancia perfecta jugador-pelota (legacy XY)
 export const AIR_BUFFER_RADIUS = 14;          // distancia maxima para empezar a cargar el buffer de accion
 export const AIR_CONTACT_PASSED_EPS = 0.055;  // distancia crece por encima de esto = paso el punto de contacto
 export const AIR_AERIAL_MIN_Z = 0.5;          // altura minima para poder rematar (pelota en el aire)
-export const AIR_HEADER_MIN_Z = 1.5;          // cabezazo: altura cabeza minima
-export const AIR_HEADER_MAX_Z = 2.5;          // cabezazo: altura cabeza maxima
-export const AIR_VOLLEY_MIN_Z = 0.5;          // volea: altura minima (exclusive)
-export const AIR_VOLLEY_MAX_Z = 1.5;          // volea: por debajo de esta altura
-export const FIRST_SHOT_MIN_Z = 0.1;         // tiro de primera: altura minima de impacto
-export const FIRST_SHOT_MAX_Z = 1.5;         // tiro de primera: altura maxima de impacto
-export const FIRST_SHOT_IMPACT_WINDOW = 0.2; // ventana de timing (s) para sincronizar el impacto
-export const FIRST_SHOT_POWER_VEL = 8.0;     // velocidad horizontal: volea con potencia compensatoria
-export const AIR_BICYCLE_MIN_Z = 2.0;         // chilena: altura minima
-export const AIR_LOCK_DURATION = 0.3;         // 300ms: jugador bloqueado durante la animacion aerea
+/** Techo humano absoluto: por encima no hay remate (elimina altura fantasma). */
+export const AIR_MAX_HUMAN_REACH_Z = 2.50;
+/** Cabezazo sin salto: centro de pelota entre 1.70 m y 1.90 m (jugador quieto o lento). */
+export const AIR_HEADER_STAND_MIN_Z = 1.70;
+export const AIR_HEADER_STAND_MAX_Z = 1.90;
+/** Por encima de 1.90 m el cabezazo exige salto hasta AIR_MAX_HUMAN_REACH_Z. */
+export const AIR_HEADER_JUMP_MIN_Z = 1.90;
+export const AIR_HEADER_MIN_Z = AIR_HEADER_STAND_MIN_Z;
+export const AIR_HEADER_MAX_Z = AIR_MAX_HUMAN_REACH_Z;
+/** Volea manual (L2+remate): altura media. */
+export const AIR_VOLLEY_MIN_Z = 0.55;
+export const AIR_VOLLEY_MAX_Z = 1.70;
+export const FIRST_SHOT_MIN_Z = 0.1;
+export const FIRST_SHOT_MAX_Z = 1.50;
+export const FIRST_SHOT_IMPACT_WINDOW = 0.2;
+export const FIRST_SHOT_POWER_VEL = 8.0;
+/** Chilena manual (L2+remate): balón elevado, espalda al objetivo. */
+export const AIR_BICYCLE_MIN_Z = 1.40;
+export const AIR_BICYCLE_MAX_Z = AIR_MAX_HUMAN_REACH_Z;
+export const AIR_LOCK_DURATION = 0.3;
+/** Altura del collider de cabeza (m) con el jugador apoyado. */
+export const AIR_PLAYER_HEAD_STAND_Z = 1.75;
+export const AIR_FOOT_STRIKE_Z = 0.50;
+export const AIR_HEAD_HITBOX_R = 0.30;
+export const AIR_FOOT_HITBOX_R = 0.35;
+export const AIR_AERIAL_HITBOX_MAX_XY = 1.15;
+export const AIR_HEADER_JUMP_APPROACH_DIST = 1.85;
+export const AIR_HEADER_JUMP_APEX_MIN = 0.30;
+export const AIR_HEADER_JUMP_APEX_MAX = 0.78;
+export const AIR_HEADER_SLOW_SPEED_RATIO = 0.42;
 // --- duelos aéreos: spam-battle en los ultimos 400ms antes del contacto ---
 export const AIR_DUEL_RADIUS = 1.0;           // distancia jugador-pelota para disputa activa
 export const AIR_SPAM_WINDOW_MS = 400;        // ventana de spam: ultimos 400ms antes del contacto
@@ -670,8 +692,8 @@ export function clearAirSpamUiState(){
   setAirSpamWindowUiActive(false);
 }
 // jerarquia aerea: sin L2 = cabezazo (seguro) · L2+remate = volea/chilena (arriesgado)
-export const AIR_VOLLEY_L2_MIN_Z = 1.0;       // volea manual (L2+remate): altura minima (exclusive)
-export const AIR_VOLLEY_L2_MAX_Z = 2.0;       // volea manual (L2+remate): altura maxima (inclusive)
+export const AIR_VOLLEY_L2_MIN_Z = AIR_VOLLEY_MIN_Z;
+export const AIR_VOLLEY_L2_MAX_Z = AIR_VOLLEY_MAX_Z;
 export const AIR_FOOT_THRESHOLD_Z = AIR_AERIAL_MIN_Z; // umbral pie: por debajo = accion de suelo
 export const AIR_MANUAL_VOLLEY_STAMINA_COST = 0.35;  // coste extra de estamina (volea manual L2)
 export const AIR_MANUAL_VOLLEY_SPREAD_MULT = 1.85;   // margen de error mayor en volea manual
@@ -984,14 +1006,14 @@ export const PLAYER_DIR8_LABELS = {
 export const MOVE_DIR8_DEAD = 0.05;
 // Registro por estado: .asset queda null hasta tener sprites/modelos definitivos.
 export const PLAYER_DIR8_STATES = {
-  N:  { asset:null, shoulderColor:'#e74c3c', arrowColor:'#e74c3c' },
-  NE: { asset:null, shoulderColor:'#e67e22', arrowColor:'#e67e22' },
-  E:  { asset:null, shoulderColor:'#f1c40f', arrowColor:'#f1c40f' },
-  SE: { asset:null, shoulderColor:'#2ecc71', arrowColor:'#2ecc71' },
-  S:  { asset:null, shoulderColor:'#1abc9c', arrowColor:'#1abc9c' },
-  SW: { asset:null, shoulderColor:'#3498db', arrowColor:'#3498db' },
-  W:  { asset:null, shoulderColor:'#9b59b6', arrowColor:'#9b59b6' },
-  NW: { asset:null, shoulderColor:'#e84393', arrowColor:'#e84393' }
+  N:  { asset:null, shoulderColor:'#1E88FF', arrowColor:'#1E88FF' },
+  NE: { asset:null, shoulderColor:'#2E94FF', arrowColor:'#2E94FF' },
+  E:  { asset:null, shoulderColor:'#00D4FF', arrowColor:'#00D4FF' },
+  SE: { asset:null, shoulderColor:'#00C4EF', arrowColor:'#00C4EF' },
+  S:  { asset:null, shoulderColor:'#26B36A', arrowColor:'#26B36A' },
+  SW: { asset:null, shoulderColor:'#1FA35F', arrowColor:'#1FA35F' },
+  W:  { asset:null, shoulderColor:'#1565C0', arrowColor:'#1565C0' },
+  NW: { asset:null, shoulderColor:'#0E88CC', arrowColor:'#0E88CC' }
 };
 
 export function compassAngleToDir8(rad){
@@ -1274,9 +1296,53 @@ export function syncHumanTeamControlOnPossession(p){
   else if(Game.twoPlayerMode) setControlled2(p);
 }
 
-export function getTeammateSupportTarget(p, carrier){
+export function getTeamBlockPhase(team){
+  const carrier = ball.owner;
+  if(carrier){
+    if(carrier.team === team) return 'attack';
+    return 'defend';
+  }
+  const dir = team === 'home' ? 1 : -1;
+  const ownGoal = team === 'home' ? 0 : FIELD_L;
+  const progress = (ball.x - ownGoal) * dir;
+  return progress > FIELD_L * 0.48 ? 'attack' : 'defend';
+}
+
+/** Slot tactico: el bloque avanza al atacar y retrocede al defender. */
+export function getTacticalBlockSlot(p){
   const base = p.targetSlotWorld();
-  const pushX = base.x + p.attackDir() * 8;
+  const phase = getTeamBlockPhase(p.team);
+  const dir = p.attackDir();
+  const carrier = ball.owner;
+  let shift = 0;
+  let yCompress = 0;
+
+  if(phase === 'attack'){
+    const prog = carrier && carrier.team === p.team
+      ? clamp((carrier.x - p.ownGoalX()) / FIELD_L, 0.15, 1)
+      : 0.55;
+    if(p.role === 'DEF') shift = 8 * (0.5 + prog * 0.5);
+    else if(p.role === 'MID') shift = 12 * (0.55 + prog * 0.45);
+    else shift = 6 * (0.6 + prog * 0.4);
+  } else if(phase === 'defend'){
+    const threat = carrier && carrier.team !== p.team
+      ? clamp((carrier.x - p.ownGoalX()) * dir / FIELD_L, 0, 1)
+      : clamp((ball.x - p.ownGoalX()) * dir / FIELD_L, 0, 1);
+    if(p.role === 'DEF') shift = -7 * (0.6 + threat * 0.4);
+    else if(p.role === 'MID') shift = -11 * (0.55 + threat * 0.45);
+    else shift = -5 * (0.5 + threat * 0.5);
+    yCompress = 0.12;
+  }
+
+  return {
+    x: clamp(base.x + dir * shift, 4, FIELD_L - 4),
+    y: clamp(lerp(base.y, CENTER.y, yCompress), 4, FIELD_W - 4),
+  };
+}
+
+export function getTeammateSupportTarget(p, carrier){
+  const base = getTacticalBlockSlot(p);
+  const pushX = base.x + p.attackDir() * 6;
   let targetX = pushX;
   let targetY = clamp(base.y + (carrier.y - CENTER.y) * -0.25, 4, FIELD_W - 4);
   const dx = targetX - carrier.x;
@@ -1465,7 +1531,7 @@ export function isChaseOwner(p){
 
 export function isPlayerChasing(p){
   if(isPlayerStaggered(p) || isPlayerStunned(p)) return false;
-  return !!p && p.state === 'chasing';
+  return !!p && (p.state === 'chasing' || p.state === MOVING_TO_BALL);
 }
 
 // Persecucion post effort touch / fake shot: chasing inmediato hacia ball.position.
@@ -1780,9 +1846,12 @@ export function startForcedChase(p, ballRef){
   const dx = ballRef.x - p.x, dy = ballRef.y - p.y;
   const td = Math.hypot(dx, dy);
   const md = td > 0.01 ? {x: dx/td, y: dy/td} : {x: Math.cos(p.facing), y: Math.sin(p.facing)};
-  const sprintSp = physicsConfig.useUniformSpeed
-    ? physicsConfig.maxSpeed
-    : getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT;
+  const sprintSp = Math.min(
+    physicsConfig.useUniformSpeed
+      ? toGameUnits(physicsConfig.maxSpeed ?? TARGET_SPRINT_MPS)
+      : getPlayerMaxSprintVelocity(p),
+    getPlayerAbsoluteMaxVelocity(p),
+  );
   p.vx = md.x * sprintSp;
   p.vy = md.y * sprintSp;
   p.facing = Math.atan2(md.y, md.x);
@@ -1919,15 +1988,46 @@ export function canApplyEffortTouch(p){
 // estado del stick derecho para detectar "flick" de effort touch (por jugador)
 export const effortRsState = {};
 
+function clearEffortTouchPendingTap(st){
+  if(st) st.pendingTap = null;
+}
+
+function expireEffortTouchPendingTap(st){
+  if(!st?.pendingTap) return;
+  if(performance.now() - st.pendingTap.time > EFFORT_DOUBLE_TAP_WINDOW_MS){
+    st.pendingTap = null;
+  }
+}
+
+/** 1er toque: registra intencion; 2do toque dentro de 1s: confirma y devuelve el comando. */
+function confirmEffortTouchDoubleTap(st, dir, type){
+  const now = performance.now();
+  expireEffortTouchPendingTap(st);
+  const pending = st.pendingTap;
+  if(pending && (now - pending.time) <= EFFORT_DOUBLE_TAP_WINDOW_MS){
+    clearEffortTouchPendingTap(st);
+    return {dir, type};
+  }
+  st.pendingTap = {time: now, dir: {x: dir.x, y: dir.y}, type};
+  return null;
+}
+
 export function detectEffortTouchInput(p, input, padIndex, scheme){
-  if(input.heldManualCancel) return null;
+  if(input.heldManualCancel){
+    const stKey = 'e' + p.id;
+    if(effortRsState[stKey]) clearEffortTouchPendingTap(effortRsState[stKey]);
+    return null;
+  }
+
+  const stKey = 'e' + p.id;
+  if(!effortRsState[stKey]) effortRsState[stKey] = {prevMag: 0, pendingTap: null};
+  const st = effortRsState[stKey];
+  expireEffortTouchPendingTap(st);
+
   let dir = null;
   let type = null;
 
   const rs = readRightStick(padIndex);
-  const stKey = 'e'+p.id;
-  if(!effortRsState[stKey]) effortRsState[stKey] = {prevMag:0};
-  const st = effortRsState[stKey];
   const rsMag = rs ? rs.mag : 0;
   const rsFlick = rsMag >= EFFORT_RS_MIN && st.prevMag < EFFORT_RS_MIN;
   st.prevMag = rsMag;
@@ -1951,7 +2051,7 @@ export function detectEffortTouchInput(p, input, padIndex, scheme){
   }
 
   if(!type || !dir) return null;
-  return {dir, type};
+  return confirmEffortTouchDoubleTap(st, dir, type);
 }
 
 export function ensurePlayerBallControlForAction(p){
@@ -2009,7 +2109,9 @@ export function clearChasingState(p){
     clearForcedChaseState(p);
     return;
   }
-  p.state = 'idle';
+  if(p.state === 'chasing' || p.state === MOVING_TO_BALL){
+    p.state = 'idle';
+  }
   p.iaSeeking = false;
   p.targetPosition = null;
   p.landingTime = 0;
@@ -2117,8 +2219,10 @@ export function simulateBallTrajectory(b, maxTime = INTERCEPT_MAX_TIME){
 }
 
 function getChasePlanSpeed(p){
-  if(physicsConfig.useUniformSpeed) return Math.max(toGameUnits(physicsConfig.maxSpeed), 0.1);
-  return Math.max(getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT, 0.1);
+  if(physicsConfig.useUniformSpeed){
+    return Math.max(toGameUnits(physicsConfig.maxSpeed ?? TARGET_SPRINT_MPS), 0.1);
+  }
+  return Math.max(getPlayerMaxSprintVelocity(p), 0.1);
 }
 
 // Interseccion predictiva (11vs11): futurePos = ball.position + ball.velocity * timeToReach
@@ -2342,7 +2446,6 @@ export function forceGoalkeeperClearance(gk){
   clearGkHandsTimer(gk);
   const plan = resolveGkAutoDistribution(gk);
   const kickType = plan.type === 'long' ? 'dropkick' : 'throw';
-  if(showBanner) showBanner('Arquero — auto-saque', 1100);
   return triggerGoalkeeperKick(gk, kickType, plan.dir, plan.power);
 }
 
@@ -2406,6 +2509,20 @@ export function getPlayerMaxSprintVelocity(p){
   return base * mult;
 }
 
+/** Tope físico absoluto del perfil — filtro de seguridad final (nunca superar sprint del rol). */
+export function getPlayerAbsoluteMaxVelocity(p){
+  if(!p) return 0;
+  if(isGkFeetPossession(p)){
+    return toGameUnits(physicsConfig.gkFieldMaxSpeed ?? GK_FIELD_MAX_SPEED);
+  }
+  if(physicsConfig.useUniformSpeed){
+    let cap = toGameUnits(physicsConfig.maxSpeed ?? TARGET_SPRINT_MPS);
+    if(isGkHandsPossession(p)) cap *= 0.68;
+    return cap;
+  }
+  return getPlayerMaxSprintVelocity(p);
+}
+
 export function updatePlayerJumpZ(p){
   const a = p.airStrikeAnim;
   if(!a || a.type !== 'header'){
@@ -2441,6 +2558,13 @@ export function applyEffortExitVelocityBlend(p, dt, moveDir, moveMag, maxSpeed){
   const blendT = clamp(dt * 14, 0, 1);
   p.vx = lerp(p.vx, targetVX, blendT);
   p.vy = lerp(p.vy, targetVY, blendT);
+  const cap = maxSpeed > 0 ? Math.min(maxSpeed, getPlayerAbsoluteMaxVelocity(p)) : getPlayerAbsoluteMaxVelocity(p);
+  const sp = Math.hypot(p.vx, p.vy);
+  if(sp > cap + 1e-5 && sp > 0.001){
+    const s = cap / sp;
+    p.vx *= s;
+    p.vy *= s;
+  }
   if(p.effortExitBlendT <= 0) p.effortExitMoveDir = null;
   return true;
 }
@@ -3250,13 +3374,6 @@ export function startSetPieceCharge(forceKey, opts = {}){
   SetPieceManager.chargeType = forceKey;
   SetPieceManager.chargeStart = performance.now();
   SetPieceManager.powerBar = 0.08;
-  if(opts.kickoff && isKickoffWaiting()){
-    console.log('[KICKOFF] input charge', {
-      forceKey,
-      takerId: Game.kickoffTakerId,
-      ballOwnerId: ball.owner?.id ?? null,
-    });
-  }
   return true;
 }
 
@@ -3525,7 +3642,6 @@ export function executeAutoRestart(){
   if(!performAutoSetPieceKick(taker)) return;
 
   enterPlayingAfterAutoRestart(sp.team);
-  showBanner(sp.type === SET_PIECE.CORNER ? 'Corner — auto-saque' : 'Saque de arco — auto-saque', 1400);
 }
 
 export function transferPossessionToOpponent(){
@@ -3550,7 +3666,6 @@ export function transferPossessionToOpponent(){
   ball.throwInBlockOwnerId = null;
 
   setupThrowIn({ type: SET_PIECE.THROW_IN, team: rival, side, x, fromY: ball.y });
-  showBanner('Saque lateral — rival', 1400);
 }
 
 export function handleSetPieceTimeout(){
@@ -3713,6 +3828,59 @@ export function clearPlayerSetPieceState(p){
   if(p.state === STATE_FIXED) p.state = 'idle';
 }
 
+/** Al seleccionar un jugador: quitar posicionamiento tactico, desmarque IA y desbloquear movimiento. */
+export function claimManualControl(p){
+  if(!p) return;
+  clearPlayerAIState(p);
+  clearChasingState(p);
+  clearForcedChaseState(p);
+  if(p.aiMode === 'positioning' || p.aiMode === 'seeking' ||
+     p.aiMode === AI_RUPTURA || p.aiMode === AI_RUPTURA_MANUAL){
+    p.aiMode = 'normal';
+  }
+  p.runTarget = null;
+  p.runTimer = 0;
+  p.chargeMoveLock = null;
+  p.isAttackingBall = false;
+  p.isMakingManualRun = false;
+  p.hasRunDirectionLocked = false;
+  p.lockedRunVector = null;
+  p.targetPosition = null;
+  p.iaSeekingBrake = false;
+  p.manualRunPadIndex = null;
+  if(p.wallRun) p.wallRun.active = false;
+  p.wallRun = null;
+  if(!p.inSetPieceZone && !isSetPieceAwaitingExecution(p)){
+    p.canMove = true;
+    p.isStuck = false;
+    p.accelRampDist = 1e6;
+  }
+}
+
+/** Jugador bajo control del usuario (humano). */
+export function isHumanSelectedPlayer(p){
+  if(!p) return false;
+  if(isControlledByHuman && isControlledByHuman(p)) return true;
+  return p.id === Game.controlledId || (Game.twoPlayerMode && p.id === Game.controlledId2);
+}
+
+/** Cada frame: el jugador seleccionado no puede quedar bajo IA de desmarque/ruptura. */
+export function purgeCpuMovementForHuman(p){
+  if(!isHumanSelectedPlayer(p)) return;
+  if(p.isMakingManualRun && p.wallRun?.active) return;
+  if(p.aiMode === AI_RUPTURA || p.aiMode === AI_RUPTURA_MANUAL ||
+     p.aiMode === 'positioning' || p.aiMode === 'seeking'){
+    p.aiMode = 'normal';
+  }
+  p.runTarget = null;
+  p.lockedRunVector = null;
+  p.hasRunDirectionLocked = false;
+  p.isMakingManualRun = false;
+  p.iaSeekingBrake = false;
+  p.targetPosition = null;
+  if(p.wallRun){ p.wallRun.active = false; p.wallRun = null; }
+}
+
 export function setSetPieceMode(active, info){
   if(active) clearAirSpamUiState();
   Game.setPieceMode = !!active;
@@ -3872,20 +4040,8 @@ export function setupCurvePassTracking(p, type, dir, curve, speed){
   ball.curveLineDir = {x: dir.x, y: dir.y};
   ball.curveMaxSpeed = Math.max(speed, PASS_MAX_SPEED * 0.05);
 
-  let targetPoint = null;
-  if(type === 'pass' || type === 'through'){
-    const receiver = findPassReceiverByIntent(p, dir, p.id);
-    if(receiver) targetPoint = {x: receiver.x, y: receiver.y};
-  }
-  if(!targetPoint){
-    const landing = predictBallLanding(ball);
-    if(landing) targetPoint = {x: landing.x, y: landing.y};
-    else {
-      const estDist = Math.max(speed * 0.85, 6);
-      targetPoint = {x: p.x + dir.x * estDist, y: p.y + dir.y * estDist};
-    }
-  }
-  ball.curvePassTarget = targetPoint;
+  const estDist = Math.max(speed * 0.85, 6);
+  ball.curvePassTarget = {x: p.x + dir.x * estDist, y: p.y + dir.y * estDist};
   const passDist = Math.max(dist2D(ball.curveLineOrigin, ball.curvePassTarget), 1.5);
   ball.curveMaxDrift = passDist * CURVE_DRIFT_CAP_RATIO;
 }
@@ -3922,21 +4078,6 @@ export function applyBallLateralCurve(b, dt){
   // Decaimiento al final: curveIntensity = baseCurve * (speed / maxPassSpeed)
   const maxSp = Math.max(b.curveMaxSpeed || b.initialSpeed || PASS_MAX_SPEED, 0.01);
   cf *= clamp(sp / maxSp, 0, 1);
-
-  // Normalizacion del vector de llegada: ultimos 2 m hacia el pie del receptor
-  if(b.curvePassTarget && b.x != null && b.y != null){
-    const distToTarget = dist2D(b, b.curvePassTarget);
-    if(distToTarget < CURVE_ARRIVAL_LINEAR_DIST){
-      const tx = b.curvePassTarget.x - b.x;
-      const ty = b.curvePassTarget.y - b.y;
-      const tdist = Math.hypot(tx, ty) || 0.01;
-      const tvx = (tx / tdist) * sp;
-      const tvy = (ty / tdist) * sp;
-      b.vx = lerp(b.vx, tvx, CURVE_ARRIVAL_LERP);
-      b.vy = lerp(b.vy, tvy, CURVE_ARRIVAL_LERP);
-      cf *= clamp(distToTarget / CURVE_ARRIVAL_LINEAR_DIST, 0.12, 1);
-    }
-  }
 
   const minSp = b.z > BALL_RADIUS+0.05 ? 0.45 : SHOT_CURVE_GROUND_MIN_SPEED;
   if(sp < minSp) return;
@@ -4090,17 +4231,15 @@ export class Player{
     this.airStrikeAnim = null; // {type, t, dur, action} — golpe aereo en curso
     this.airLock = null;       // {t, dur} — bloqueo de movimiento durante accion aerea (300ms)
     this.stickDir = {x:1, y:0}; // vector del stick al presionar (direccion manual de pase/remate)
-    this.wallRun = null; // {active, dir, timer} — carrera automatica tras dar "la pared" (L1+pase)
+    this.wallRun = null; // {active, dir, timer, isParedActive, canChangeDirection, targetPosition, stickWindowT, stickLocked}
     this.isMakingManualRun = false; // true mientras corre el desmarque manual post L1+X
     this.isEffortTouching = false;  // true durante effort touch (R1/R2) y recuperacion
     this.isFakeShooting = false;    // true durante fake shot activo
     this.isTechnicallyBusy = false; // grace period: bloquea fail-safe de proximidad
     this.ghostBallProximityT = 0;   // acumulador para deteccion de pelota fantasma
     this.runningSpeed = 0;          // velocidad de desmarque (clamp, nunca instantanea)
-    this.hasRunDirectionLocked = false; // true tras el primer flick del stick derecho (one-time capture)
-    this.lockedRunVector = null; // direccion fija del desmarque; ya no lee el stick derecho
-    this.isPointingForPass = false; // brazo extendido pidiendo pase tras fijar direccion de desmarque
-    this.pointingForPassT = 0;      // segundos señalando (max 2 s antes de cancelar visual)
+    this.hasRunDirectionLocked = false; // true tras capturar direccion con stick derecho (one-time)
+    this.lockedRunVector = null; // direccion fija del desmarque
     this.isPreparingToShoot = false; // tiro de primera: ejecuta al contacto con pelota suelta
     this.defaultForwardVector = null; // fallback hacia el arco rival si no hay input del stick derecho
     this.directionListenTimer = 0;    // ventana (seg) para capturar direccion con stick derecho
@@ -4652,11 +4791,8 @@ export function executeAutoKickoff(){
   if(taker.kickoffAnim) return;
   maintainKickoffPlacement();
 
-  console.log('[KICKOFF] executeAutoKickoff', { takerId: taker.id, team: taker.team });
-
   if(startKickoffManeuver){
     startKickoffManeuver(taker, 'pass', 0.38, 0, { x: taker.attackDir(), y: (Math.random() - 0.5) * 0.2 });
-    showBanner('Saque de centro — auto', 1200);
     return;
   }
 
@@ -4665,7 +4801,6 @@ export function executeAutoKickoff(){
     y: (Math.random() - 0.5) * 0.28,
   });
   executeKick(taker, 'pass', dir, 0.45 + Math.random() * 0.2, 0);
-  showBanner('Saque de centro — auto', 1200);
 }
 
 export function updateKickoffManager(dt){
@@ -4842,7 +4977,7 @@ export function setupPractice(){
     pl.tackleAnim = null; pl.diveAnim = null; pl.airStrikeAnim = null; pl.wallRun = null;
     pl.isMakingManualRun = false; pl.hasRunDirectionLocked = false; pl.lockedRunVector = null;
     pl.isPointingForPass = false; pl.pointingForPassT = 0;
-    pl.defaultForwardVector = null; pl.directionListenTimer = 0; pl.manualRunPadIndex = null;
+    pl.defaultForwardVector = null; pl.directionListenTimer = 0;     pl.manualRunPadIndex = null;
     pl.gkKickAnim = null; pl.gkKickAnim = null;
     pl.charging = null; pl.stumble = null; pl.stun = null; pl.staggered = null; pl.state = 'idle';
   });
@@ -4991,8 +5126,22 @@ export const Game = {
   nearestSeekerTimerAway: 0,
 };
 
-export function setControlled(p){ Game.controlledId = p.id; }
-export function setControlled2(p){ Game.controlledId2 = p.id; }
+export function setControlled(p){
+  if(!p){
+    Game.controlledId = null;
+    return;
+  }
+  if(Game.controlledId !== p.id) claimManualControl(p);
+  Game.controlledId = p.id;
+}
+export function setControlled2(p){
+  if(!p){
+    Game.controlledId2 = null;
+    return;
+  }
+  if(Game.controlledId2 !== p.id) claimManualControl(p);
+  Game.controlledId2 = p.id;
+}
 export function controlledPlayer(){ return allPlayers.find(p=>p.id===Game.controlledId); }
 export function controlledPlayer2(){ return allPlayers.find(p=>p.id===Game.controlledId2); }
 
