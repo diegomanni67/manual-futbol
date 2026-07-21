@@ -1,6 +1,6 @@
 "use strict";
 
-import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CORNER_ARC_R, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, PENALTY_ARC_R, PENALTY_SPOT_DIST, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, angDiff, awayTeam, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, dist2D, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, getLateralSignFromFacing, homeTeam, isAirSpamWindowActive, isFacingAwayFromCamera, isFrontal2DSceneActive, isFkPlacementVisualActive, isGkHandsPossession, isGoalKickReadyState, isPressureCursorPlayer, BASE_FIELD_L, FCAM } from './state.js';
+import { AIR_SPAM_METER_MAX, BALL_RADIUS, Ball, CAM, CCIRCLE_R, CENTER, CORNER_ARC_R, CROSSBAR_Z, DEBUG_BOUNDARIES, FIELD_L, FIELD_W, GOAL_DEPTH, GOAL_HALF, GOAL_NET_COLS, GOAL_NET_DEPTH_SHRINK, GOAL_NET_ROWS, GOAL_ZONE_DEPTH, Game, KickoffManager, PBOX_D, PBOX_HALFW, PCAM, PENALTY_ARC_R, PENALTY_SPOT_DIST, SBOX_D, SBOX_HALFW, SET_PIECE, SET_PIECE_COUNTDOWN_URGENT, STADIUM_FLOOR_PAD, SetPieceManager, STATE_KICKOFF, TOUCH_KICK_REACH, allPlayers, angDiff, awayTeam, ball, canvas, clamp, controlledPlayer, controlledPlayer2, ctx, depthOf, dist2D, drawPlayerMeshDir8Prototype, facingFlip, fieldGrassEl, gameState, getLateralSignFromFacing, homeTeam, isAirSpamWindowActive, isFacingAwayFromCamera, isFrontal2DSceneActive, isFkPlacementVisualActive, isGkHandsPossession, isGoalKickReadyState, isPressureCursorPlayer, isTimeFinishFlashActive, BASE_FIELD_L, FCAM } from './state.js';
 import { AI_RUPTURA, AI_RUPTURA_MANUAL } from './gameplay_constants.js';
 import { GK_AUTO_DISTRIBUTE } from './gameplay_constants.js';
 import { getModeTackleDistance } from './modePhysics.js';
@@ -624,12 +624,15 @@ function playerScreenMetrics(p){
  * kind: 'primary' (opaco) | 'assist' | 'pressure' (gris + alpha reducido).
  * P1 activo = cian; P2 activo = rojo; asistencia/presión = gris transparente.
  */
-function drawPlayerHeadCursor(s, h, kind, teamOrPad){
+function drawPlayerHeadCursor(s, h, kind, teamOrPad, playerId = null){
   const isPrimary = kind === 'primary';
   const isP2 = teamOrPad === 'away' || teamOrPad === 'p2';
-  const baseColor = isPrimary
-    ? (isP2 ? BROADCAST.cursorP2 : BROADCAST.cursorP1)
-    : (BROADCAST.cursorAssist || '#9E9E9E');
+  const tfFlash = isPrimary && isTimeFinishFlashActive(playerId);
+  const baseColor = tfFlash
+    ? (BROADCAST.cursorTimeFinish || '#00E676')
+    : (isPrimary
+      ? (isP2 ? BROADCAST.cursorP2 : BROADCAST.cursorP1)
+      : (BROADCAST.cursorAssist || '#9E9E9E'));
   const alpha = isPrimary ? 1 : 0.32;
   const tipY = s.y - h - Math.max(8, h * 0.08);
   const halfW = Math.max(5.5, h * (isPrimary ? 0.11 : 0.10));
@@ -637,6 +640,22 @@ function drawPlayerHeadCursor(s, h, kind, teamOrPad){
 
   ctx.save();
   ctx.globalAlpha = alpha;
+
+  // Destello verde Time Finish: halo expansivo detrás del cursor.
+  if(tfFlash){
+    const flash = Game.timeFinishFlash;
+    const pulse = flash ? clamp(flash.t / 0.55, 0, 1) : 1;
+    const glowR = Math.max(14, h * 0.22) * (1.15 + (1 - pulse) * 0.85);
+    const grd = ctx.createRadialGradient(s.x, tipY - tall * 0.35, 2, s.x, tipY - tall * 0.35, glowR);
+    grd.addColorStop(0, `rgba(0, 230, 118, ${0.55 * pulse})`);
+    grd.addColorStop(0.55, `rgba(0, 230, 118, ${0.22 * pulse})`);
+    grd.addColorStop(1, 'rgba(0, 230, 118, 0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(s.x, tipY - tall * 0.35, glowR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // Triángulo invertido apuntando a la cabeza
   ctx.beginPath();
   ctx.moveTo(s.x, tipY + tall * 0.15);
@@ -645,8 +664,8 @@ function drawPlayerHeadCursor(s, h, kind, teamOrPad){
   ctx.closePath();
   ctx.fillStyle = baseColor;
   ctx.fill();
-  ctx.strokeStyle = isPrimary ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.28)';
-  ctx.lineWidth = isPrimary ? 1.6 : 1.15;
+  ctx.strokeStyle = tfFlash ? 'rgba(0,80,40,0.65)' : (isPrimary ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.28)');
+  ctx.lineWidth = isPrimary ? (tfFlash ? 2.1 : 1.6) : 1.15;
   ctx.stroke();
 
   // Disco sólido bajo el triángulo (ancla visual sobre la cabeza)
@@ -659,6 +678,25 @@ function drawPlayerHeadCursor(s, h, kind, teamOrPad){
   ctx.restore();
 }
 
+/** Destello verde alrededor del balón al acertar Time Finish. */
+function drawTimeFinishBallFlash(){
+  const flash = Game.timeFinishFlash;
+  if(!flash || flash.t <= 0) return;
+  const s = project({ x: ball.x, y: ball.y, z: ball.z });
+  const pulse = clamp(flash.t / 0.55, 0, 1);
+  const r = Math.max(10, s.s * 0.55) * (1.2 + (1 - pulse) * 1.1);
+  ctx.save();
+  const grd = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, r);
+  grd.addColorStop(0, `rgba(0, 230, 118, ${0.45 * pulse})`);
+  grd.addColorStop(0.5, `rgba(0, 230, 118, ${0.18 * pulse})`);
+  grd.addColorStop(1, 'rgba(0, 230, 118, 0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 /** Capa superior: cursores de selección / asistencia / presión (siempre por encima del sprite). */
 function drawPlayerSelectionCursors(players){
   if(!players?.length) return;
@@ -668,7 +706,7 @@ function drawPlayerSelectionCursors(players){
   const paint = (p, kind, pad) => {
     if(!p) return;
     const { s, h } = playerScreenMetrics(p);
-    drawPlayerHeadCursor(s, h, kind, pad);
+    drawPlayerHeadCursor(s, h, kind, pad, p.id);
   };
 
   // 1) Asistencia L1 (semi-transparente)
@@ -2393,6 +2431,7 @@ function render(){
     else drawPlayer(ent, isControlledByHuman(ent));
   }
   // Cursores en capa superior (nunca ocluidos por cuerpo/número)
+  drawTimeFinishBallFlash();
   drawPlayerSelectionCursors(renderPlayers);
   const cp = controlledPlayer();
   if(cp) drawPowerBar(cp);

@@ -190,7 +190,8 @@ function executePauseMenuOption(index) {
 }
 
 function executeMainMenuOption(index) {
-  if (index === 0) { selectMode(false); setGameMode('6vs6'); startMatchFromMenu(); }
+  // 1P y 2P eligen formato (6vs6 / 11vs11); en 1P la visita es CPU.
+  if (index === 0) { selectMode(false); showFormatScreen(); }
   else if (index === 1) { selectMode(true); showFormatScreen(); }
 }
 
@@ -430,6 +431,7 @@ async function boot() {
     triggerGoalkeeperKick: input.triggerGoalkeeperKick,
     resolveSelfTouchDirection: input.resolveSelfTouchDirection,
     checkActionExecution: input.checkActionExecution,
+    tryImmediateFirstTouch: input.tryImmediateFirstTouch,
     rebuildFieldGeometry: physics.rebuildFieldGeometry,
     readRightStick: input.readRightStick,
     anyKey: input.anyKey,

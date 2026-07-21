@@ -28,6 +28,7 @@ export const BROADCAST = {
   cursorP1: '#00D4FF',
   cursorP2: '#E53935',
   cursorAssist: '#9E9E9E',
+  cursorTimeFinish: '#00E676',
   urgent: '#ff5252',
   urgentSoft: '#ffb4b4',
   markerCross: '#00D4FF',

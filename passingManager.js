@@ -1,7 +1,7 @@
 "use strict";
 
 import { PASS_AI } from './gameplay_constants.js';
-import { allPlayers, ball, clamp, dist2D, simulateBallTrajectory, CENTER, FIELD_L, FIELD_W, GOAL_HALF, PBOX_D, PBOX_HALFW, Game } from './state.js';
+import { allPlayers, ball, clamp, dist2D, getPlayerBallReachRadius, simulateBallTrajectory, CENTER, FIELD_L, FIELD_W, GOAL_HALF, PBOX_D, PBOX_HALFW, Game } from './state.js';
 
 export const AI_STATE_INTERCEPTING_PASS = 'intercepting_pass';
 
@@ -13,9 +13,9 @@ export function isDeepInterceptPassLocked(p){
   return isInterceptingPass(p) && p.interceptPassDeep;
 }
 
+/** Radio de alcance real (posición actual / jockey). Sin imán automático. */
 export function getPassDetectRadius(p){
-  if(isInterceptingPass(p)) return PASS_AI.DETECT_RADIUS_INTERCEPTING;
-  return p.passDetectRadius ?? PASS_AI.DETECT_RADIUS_DEFAULT;
+  return getPlayerBallReachRadius(p);
 }
 
 function distPointToSegment(px, py, ax, ay, bx, by){
@@ -49,7 +49,7 @@ export function clearInterceptPassState(p){
   p.interceptPassLockT = 0;
   p.interceptPassDeep = false;
   p.interceptPassTarget = null;
-  p.passDetectRadius = PASS_AI.DETECT_RADIUS_DEFAULT;
+  p.passDetectRadius = getPlayerBallReachRadius(p);
 }
 
 function activateInterceptingPass(p, destination, isDeep){
@@ -59,7 +59,8 @@ function activateInterceptingPass(p, destination, isDeep){
   p.interceptPassLockT = isDeep
     ? PASS_AI.INTERCEPTING_PASS_LOCK
     : PASS_AI.INTERCEPTING_PASS_LOCK * 0.5;
-  p.passDetectRadius = PASS_AI.DETECT_RADIUS_INTERCEPTING;
+  // Alcance real (jockey incluido); no inflar radio tipo imán.
+  p.passDetectRadius = getPlayerBallReachRadius(p);
   p.interceptPassTarget = { x: destination.x, y: destination.y };
   p.targetPosition = { x: destination.x, y: destination.y };
   p.iaSeeking = true;
@@ -124,11 +125,12 @@ function getCornerAttackSlots(attackingTeam, defendingGoalSide, cornerY = CENTER
   ];
 }
 
-/** Ubica 5 atacantes repartidos en el area rival para cabecear en un corner. */
-export function positionCornerAttackers(attackingTeam, defendingGoalSide, cornerY = CENTER.y){
+/** Ubica hasta 5 atacantes en el area rival para cabecear en un corner (nunca al sacador). */
+export function positionCornerAttackers(attackingTeam, defendingGoalSide, cornerY = CENTER.y, excludeId = null){
   const slots = getCornerAttackSlots(attackingTeam, defendingGoalSide, cornerY);
+  const takerId = excludeId ?? Game.setPiece?.takerId ?? null;
   const attackers = allPlayers
-    .filter(p => p.team === attackingTeam && p.role !== 'GK')
+    .filter(p => p.team === attackingTeam && p.role !== 'GK' && p.id !== takerId)
     .sort((a, b) => {
       const ax = a.targetSlotWorld().x * (attackingTeam === 'home' ? 1 : -1);
       const bx = b.targetSlotWorld().x * (attackingTeam === 'home' ? 1 : -1);

@@ -38,7 +38,7 @@ function ballHasLateralCurve(b){
     || b?.shotStyle === 'trivela';
 }
 
-/** Fuente de predicción con curva (R1 colocado / L2 trivela) y tracking de spin. */
+/** Fuente de predicción con curva (R1 colocado / L1+R1 trivela) y tracking de spin. */
 function resolveBallPredictSource(px, py, pz, vx, vy, vz, hint){
   const liveNear = !!(ball && Math.hypot((ball.x - px) || 0, (ball.y - py) || 0) < 0.35);
   const pick = (key, fallback = null) => {

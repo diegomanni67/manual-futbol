@@ -20,7 +20,7 @@ import {
 } from './archetypes.js';
 import { toGameUnits } from './utils.js';
 
-import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, dist2D, executeAutoRestart, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, performAutoSetPieceKick, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
+import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, dist2D, executeAutoRestart, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerBallReachRadius, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, performAutoSetPieceKick, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
 
 import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupCorner, setupFreeKick, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim, getLateralSignFromFacing, isControlledByHuman, keepLiveGkCatchPossession, cornerFlagPosition } from './state.js';
 
@@ -563,6 +563,24 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   }
 
   maxSpeed = Math.min(maxSpeed, getPlayerAbsoluteMaxVelocity(p) * (sprintChase ? effortChaseSpeedMult : 1));
+
+  // Jockey: freno al acercarse a la pelota (evita pasarse de largo al anticipar / marcar).
+  if(jockey && !ball.owner && wantMove){
+    const dBall = dist2D(p, ball);
+    const reachR = getPlayerBallReachRadius(p);
+    const brakeStart = Math.max(reachR * 2.8, 2.2);
+    if(dBall < brakeStart){
+      const toBx = ball.x - p.x, toBy = ball.y - p.y;
+      const toLen = Math.hypot(toBx, toBy) || 1;
+      const closing = (activeMoveDir.x * toBx + activeMoveDir.y * toBy) / toLen;
+      if(closing > 0.12){
+        const t = clamp(dBall / brakeStart, 0.18, 1);
+        maxSpeed *= t;
+        if(dBall <= reachR * 1.2) maxSpeed *= 0.42;
+        speedLimiters.push('jockeyApproachBrake');
+      }
+    }
+  }
 
   const maxSpeedBeforeDirectional = maxSpeed;
   maxSpeed = getDirectionalMaxSpeed(activeMoveDir, moveMag, maxSpeed);
@@ -1507,14 +1525,20 @@ rebuildFieldGeometry();
 
 function isBallPastGoalLine(b, side){
   const r = BALL_RADIUS;
+  // 100% del volumen del balón debe quedar por detrás de la línea de meta.
   if(side === 'left') return b.x + r <= GOAL_LINE_LEFT + GOAL_LINE_SENSOR_EPS;
   if(side === 'right') return b.x - r >= GOAL_LINE_RIGHT - GOAL_LINE_SENSOR_EPS;
   return false;
 }
 
+/** Boca de gol FIFA: balón entero entre postes y completamente bajo el travesaño. */
 function isBallInGoalMouth(b, sensor){
+  const r = BALL_RADIUS;
   const s = sensor || { yNear: CENTER.y - GOAL_HALF, yFar: CENTER.y + GOAL_HALF, zMax: CROSSBAR_Z };
-  return b.y >= s.yNear && b.y <= s.yFar && b.z < s.zMax;
+  if(b.y - r < s.yNear - GOAL_LINE_SENSOR_EPS) return false;
+  if(b.y + r > s.yFar + GOAL_LINE_SENSOR_EPS) return false;
+  if(b.z + r > s.zMax + GOAL_LINE_SENSOR_EPS) return false;
+  return true;
 }
 
 function isBallInsideGoalVolume(b, side){
@@ -1651,7 +1675,8 @@ function registerGoalOnLineCross(frame){
   const goalkeeper = getDefendingGoalkeeperForFrame(frame);
   if(goalkeeper && ball.owner === goalkeeper) return false;
 
-  if(!isBallInGoalMouth(ball, frame.GoalZone)) return false;
+  // Mismo criterio FIFA: marco interior + 100% del volumen tras la línea.
+  if(!isBallInValidGoalBox(ball, frame)) return false;
 
   markGoalZonePassed(ball, frame);
 
@@ -1684,12 +1709,20 @@ function ballCrossedGoalLinePlane(prevBX, b, frame){
   const zone = frame.GoalZone;
   const r = BALL_RADIUS;
   const line = zone.planeX;
-  if(b.y < zone.yNear + r || b.y > zone.yFar - r) return false;
-  if(b.z - r > zone.zMax || b.z + r < zone.zMin) return false;
+  // Solo dentro del marco: volumen completo entre postes y bajo el travesaño.
+  if(b.y - r < zone.yNear - GOAL_LINE_SENSOR_EPS || b.y + r > zone.yFar + GOAL_LINE_SENSOR_EPS) return false;
+  if(b.z + r > zone.zMax + GOAL_LINE_SENSOR_EPS || b.z + r < zone.zMin) return false;
+
   if(zone.inward < 0){
-    return prevBX - r > line && b.x - r <= line + GOAL_LINE_SENSOR_EPS;
+    // Arco izquierdo: campo x>line → gol cuando el balón entero queda en x+r <= line.
+    const wasPast = prevBX + r <= line + GOAL_LINE_SENSOR_EPS;
+    const nowPast = b.x + r <= line + GOAL_LINE_SENSOR_EPS;
+    return !wasPast && nowPast;
   }
-  return prevBX + r < line && b.x + r >= line - GOAL_LINE_SENSOR_EPS;
+  // Arco derecho: campo x<line → gol cuando el balón entero queda en x-r >= line.
+  const wasPast = prevBX - r >= line - GOAL_LINE_SENSOR_EPS;
+  const nowPast = b.x - r >= line - GOAL_LINE_SENSOR_EPS;
+  return !wasPast && nowPast;
 }
 
 function ballPassedGoalZone(b, frame){
@@ -1698,19 +1731,20 @@ function ballPassedGoalZone(b, frame){
 
 function isBallInGoalZone(b, zone){
   const r = BALL_RADIUS;
-  if(b.y < zone.yNear + r || b.y > zone.yFar - r) return false;
-  if(b.z - r > zone.zMax || b.z + r < zone.zMin) return false;
+  // Trigger solo en el espacio interior del marco (volumen completo).
+  if(b.y - r < zone.yNear - GOAL_LINE_SENSOR_EPS || b.y + r > zone.yFar + GOAL_LINE_SENSOR_EPS) return false;
+  if(b.z + r > zone.zMax + GOAL_LINE_SENSOR_EPS || b.z + r < zone.zMin) return false;
   const depth = zone.depth || GOAL_ZONE_DEPTH;
   const line = zone.planeX;
-  // Sensor delgado sobre la linea blanca: solo hacia adentro del arco, nunca antes de cruzar la meta
+  // Sensor delgado: requiere que el balón ya esté (o esté cruzando) completamente tras la línea.
   if(zone.inward < 0){
+    const fullyPast = b.x + r <= line + GOAL_LINE_SENSOR_EPS;
     const xMin = line - depth;
-    const xMax = line + GOAL_LINE_SENSOR_EPS;
-    return b.x + r >= xMin && b.x - r <= xMax;
+    return fullyPast && b.x + r >= xMin;
   }
-  const xMin = line - GOAL_LINE_SENSOR_EPS;
+  const fullyPast = b.x - r >= line - GOAL_LINE_SENSOR_EPS;
   const xMax = line + depth;
-  return b.x + r >= xMin && b.x - r <= xMax;
+  return fullyPast && b.x - r <= xMax;
 }
 
 function isValidGoalTrigger(b, frame){
@@ -1826,10 +1860,12 @@ function updateGoalZoneTriggers(prevBX){
   }
 }
 
-function dampGoalStructureBounce(b){
-  const ret = GOAL_POST_BOUNCE;
-  b.vx *= ret; b.vy *= ret; b.vz *= ret;
-  if(b.curveFactor) b.curveFactor *= ret;
+function dampGoalStructureBounce(b, restScale = 1){
+  const ret = GOAL_POST_BOUNCE * restScale * (0.90 + Math.random() * 0.18);
+  b.vx *= ret;
+  b.vy *= ret;
+  b.vz *= ret;
+  if(b.curveFactor) b.curveFactor *= Math.min(0.65, ret);
 }
 
 function isInsideGoalCavity(b, goalLineX, inward){
@@ -1838,53 +1874,93 @@ function isInsideGoalCavity(b, goalLineX, inward){
   return b.x - r >= goalLineX - GOAL_LINE_SENSOR_EPS;
 }
 
+/** Reflecta velocidad sobre normal unitaria e incorpora efecto (curveFactor) tangencial. */
+function reflectOnGoalStructure(b, nx, ny, nz){
+  const vDot = b.vx * nx + b.vy * ny + b.vz * nz;
+  if(vDot >= 0) return false;
+  b.vx -= 2 * vDot * nx;
+  b.vy -= 2 * vDot * ny;
+  b.vz -= 2 * vDot * nz;
+  // Efecto: desvía el rebote según curva/ángulo (impreciso, no especular puro).
+  if(b.curveFactor){
+    const tx = -ny, ty = nx;
+    const curveKick = b.curveFactor * (0.05 + Math.random() * 0.07);
+    b.vx += tx * curveKick;
+    b.vy += ty * curveKick;
+    b.vz += (Math.random() - 0.45) * Math.abs(b.curveFactor) * 0.04;
+  }
+  // Micro-ruido angular
+  const jitter = (Math.random() - 0.5) * 0.12;
+  const cosJ = Math.cos(jitter), sinJ = Math.sin(jitter);
+  const rx = b.vx * cosJ - b.vy * sinJ;
+  const ry = b.vx * sinJ + b.vy * cosJ;
+  b.vx = rx;
+  b.vy = ry;
+  dampGoalStructureBounce(b);
+  return true;
+}
+
 function resolveGoalSolid(b, frame, solid){
   if(solid.isSolid === false) return;
   if(b.state === BALL_STATE.DEAD_BALL && !Game.goalRoll) return;
   if(b.state === BALL_STATE.GOAL_CELEBRATION && !Game.goalRoll) return;
-  if(b.state === BALL_STATE.GOAL_CELEBRATION && !Game.goalRoll) return;
   const r = BALL_RADIUS;
   const line = frame.goalLineX;
-  const ht = GOAL_POST_HALF_THICK;
+  const postR = GOAL_POST_HALF_THICK;
+  const collideDist = r + postR;
 
   if(solid.type === 'post'){
-    if(b.z > solid.zMax + r) return;
+    // Cilindro vertical FIFA en (goalLineX, postY), z ∈ [0, CROSSBAR_Z] + casquete superior.
     const postY = solid.pos;
+    const zTop = solid.zMax;
     const dx = b.x - line;
     const dy = b.y - postY;
-    const horizDist = Math.hypot(dx, dy);
-    const collideDist = r + ht;
-    if(horizDist >= collideDist) return;
+    const horiz = Math.hypot(dx, dy);
 
-    if(horizDist > 0.001){
-      const nx = dx / horizDist;
-      const ny = dy / horizDist;
+    if(b.z > zTop){
+      const dz = b.z - zTop;
+      const dist3 = Math.hypot(horiz, dz);
+      if(dist3 >= collideDist || dist3 < 1e-6) return;
+      const nx = horiz > 1e-6 ? dx / dist3 : 0;
+      const ny = horiz > 1e-6 ? dy / dist3 : 0;
+      const nz = dz / dist3;
       b.x = line + nx * collideDist;
       b.y = postY + ny * collideDist;
-      const vDot = b.vx * nx + b.vy * ny;
-      if(vDot < 0){
-        b.vx -= vDot * nx * 2;
-        b.vy -= vDot * ny * 2;
-      }
-    } else if(solid.id === 'Poste_Izquierdo'){
-      b.y = postY + collideDist;
-      if(b.vy < 0) b.vy = -b.vy;
-    } else {
-      b.y = postY - collideDist;
-      if(b.vy > 0) b.vy = -b.vy;
+      b.z = zTop + nz * collideDist;
+      reflectOnGoalStructure(b, nx, ny, nz);
+      return;
     }
-    dampGoalStructureBounce(b);
+
+    if(horiz >= collideDist) return;
+    if(horiz < 1e-6){
+      const pushY = solid.id === 'Poste_Izquierdo' ? 1 : -1;
+      b.y = postY + pushY * collideDist;
+      reflectOnGoalStructure(b, 0, pushY, 0);
+      return;
+    }
+    const nx = dx / horiz;
+    const ny = dy / horiz;
+    b.x = line + nx * collideDist;
+    b.y = postY + ny * collideDist;
+    reflectOnGoalStructure(b, nx, ny, 0);
     return;
   }
 
   if(solid.type === 'crossbar'){
-    if(b.y < solid.yMin - r - ht || b.y > solid.yMax + r + ht) return;
-    if(Math.abs(b.x - line) > r + ht) return;
-    if(b.z > solid.z - r){
-      b.z = solid.z - r;
-      if(b.vz > 0) b.vz = -b.vz;
-      dampGoalStructureBounce(b);
-    }
+    // Cilindro horizontal FIFA a lo largo de Y en (goalLineX, CROSSBAR_Z).
+    const cy = clamp(b.y, solid.yMin, solid.yMax);
+    const dx = b.x - line;
+    const dy = b.y - cy;
+    const dz = b.z - solid.z;
+    const dist = Math.hypot(dx, dy, dz);
+    if(dist >= collideDist || dist < 1e-6) return;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const nz = dz / dist;
+    b.x = line + nx * collideDist;
+    b.y = cy + ny * collideDist;
+    b.z = solid.z + nz * collideDist;
+    reflectOnGoalStructure(b, nx, ny, nz);
   }
 }
 
@@ -1940,8 +2016,8 @@ function resolveGoalStructureCollisions(b){
   if(b.state === BALL_STATE.IN_POSSESSION) return;
   if(b.state === BALL_STATE.DEAD_BALL && !Game.goalRoll) return;
   if(b.state === BALL_STATE.GOAL_CELEBRATION && !Game.goalRoll) return;
-  if(b.state === BALL_STATE.GOAL_CELEBRATION && !Game.goalRoll) return;
-  for(let pass = 0; pass < 2; pass++){
+  // Varios pases para evitar tunelizar tiros rápidos contra postes finos.
+  for(let pass = 0; pass < 4; pass++){
     for(const frame of GOAL_FRAMES) resolveGoalFrameCollisions(b, frame);
   }
 }
@@ -1964,12 +2040,12 @@ function forcePossessionLoss(){
   }
 }
 
-// BoundingBox estricto del gol: entre postes y por debajo del travesaño (ball.z < CROSSBAR_Z).
+// BoundingBox FIFA: balón entero entre postes, bajo el travesaño y 100% tras la línea.
 function isBallInValidGoalBox(b, frame){
   const r = BALL_RADIUS;
   const { yNear, yFar } = frame;
-  if(b.y - r < yNear || b.y + r > yFar) return false;
-  if(b.z - r >= CROSSBAR_Z) return false;
+  if(b.y - r < yNear - GOAL_LINE_SENSOR_EPS || b.y + r > yFar + GOAL_LINE_SENSOR_EPS) return false;
+  if(b.z + r > CROSSBAR_Z + GOAL_LINE_SENSOR_EPS) return false;
   if(b.z + r < 0) return false;
   if(!isBallPastGoalLine(b, frame.side)) return false;
   return true;
@@ -2233,15 +2309,9 @@ function checkGoalsAndBounds(prevBX, prevBY, dt){
   checkFieldLimits();
 }
 
-/** Ejecuta de inmediato el saque lateral tras armar el set-piece. El saque de arco espera input. */
+/** Ejecuta de inmediato reinicios que deben ser automáticos. Laterales y saque de arco esperan input. */
 function autoExecuteQuickRestart(){
-  const sp = Game.setPiece;
-  if(!sp) return;
-  const taker = getPlayerById(sp.takerId);
-  if(!taker) return;
-  if(sp.type === SET_PIECE.THROW_IN){
-    performAutoSetPieceKick(taker);
-  }
+  // Throw-in y goal kick: sin auto — el jugador/CPU ejecutan por su flujo.
 }
 
 function resumeFromDeadBall(){
@@ -2257,8 +2327,8 @@ function resumeFromDeadBall(){
   }
 
   if(db.type === SET_PIECE.THROW_IN){
+    // Lateral manual: coloca sacador + pelota y espera input (timer 5s → rival).
     setupThrowIn(db);
-    autoExecuteQuickRestart();
     return;
   }
 

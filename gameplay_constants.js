@@ -103,17 +103,13 @@ export const FIELD_RULES_BASE = {
 /** IA de desmarque ante pases en profundidad (triángulo). */
 
 export const PASS_AI = {
-
-  DETECT_RADIUS_DEFAULT: 1.5,
-
-  DETECT_RADIUS_INTERCEPTING: 5.0,
-
+  /** Radio base de detección = control real (sin imán). */
+  DETECT_RADIUS_DEFAULT: 1.0,
+  /** En recepción de filtrado propio: mismo radio real (no expandir a 5 m). */
+  DETECT_RADIUS_INTERCEPTING: 1.0,
   INTERCEPTING_PASS_LOCK: 1.0,
-
   DEEP_PASS_MIN_DIST: 20,
-
   TRAJECTORY_MAX_TIME: 3.5,
-
 };
 
 
