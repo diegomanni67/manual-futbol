@@ -7,7 +7,7 @@
  */
 
 export const APPEARANCE_LAYERS = Object.freeze([
-  'shirt', 'shorts', 'socks', 'boots', 'hair', 'beard', 'accessory',
+  'shirt', 'shorts', 'socks', 'boots', 'hair', 'beard', 'accessory', 'shirtNumber',
 ]);
 
 export const SKIN_TONES = Object.freeze([
@@ -102,8 +102,34 @@ export function createPlayerAppearance(p){
       hair: { id: hairStyle, color: hairColor },
       beard: { id: beardStyle, color: hairColor },
       accessory: { id: accessory, color: bootColor },
+      shirtNumber: { id: 'back_number', value: clampShirtNumber(p.number) },
     },
   };
+}
+
+function clampShirtNumber(n){
+  const v = Math.round(Number(n));
+  if(!Number.isFinite(v)) return 1;
+  return Math.max(0, Math.min(99, v));
+}
+
+/** Número de camiseta visible en la espalda (capa editable). */
+export function getPlayerShirtNumber(p){
+  if(!p) return 1;
+  const layer = p.appearance?.layers?.shirtNumber;
+  if(layer && layer.value != null) return clampShirtNumber(layer.value);
+  return clampShirtNumber(p.number);
+}
+
+/** Asigna el número de espalda y lo sincroniza con p.number para el editor/equipo. */
+export function setPlayerShirtNumber(p, number){
+  if(!p) return 1;
+  ensurePlayerAppearance(p);
+  const n = clampShirtNumber(number);
+  p.number = n;
+  if(!p.appearance.layers) p.appearance.layers = {};
+  p.appearance.layers.shirtNumber = { id: 'back_number', value: n };
+  return n;
 }
 
 /** Escala visual a partir de altura/peso. */
@@ -146,9 +172,23 @@ export function resolveAppearancePalette(p, kitColors){
   };
 }
 
-/** Asigna apariencia a un jugador si aún no la tiene. */
+/** Asigna apariencia a un jugador si aún no la tiene (persistente / no regenera). */
 export function ensurePlayerAppearance(p){
   if(!p) return null;
-  if(!p.appearance) p.appearance = createPlayerAppearance(p);
+  if(p.appearance){
+    p.appearance._locked = true;
+    if(!p.appearance.layers) p.appearance.layers = {};
+    if(!p.appearance.layers.shirtNumber){
+      p.appearance.layers.shirtNumber = { id: 'back_number', value: clampShirtNumber(p.number) };
+    }
+    return p.appearance;
+  }
+  p.appearance = createPlayerAppearance(p);
+  p.appearance._locked = true;
   return p.appearance;
+}
+
+/** Fuerza re-lectura segura sin reemplazar apariencia existente. */
+export function getLockedAppearance(p){
+  return ensurePlayerAppearance(p);
 }

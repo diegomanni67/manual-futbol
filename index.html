@@ -108,8 +108,6 @@
   .practiceHudBtn:active{transform:translateY(2px);}
   .practiceHudBtn.menu{border-color:var(--ui-border);}
   .practiceHudBtn.reset{border-color:var(--ui-cyan);color:var(--ui-cyan);}
-  .practiceHudBtn.mode{border-color:rgba(255,220,120,.45);color:#ffe08a;}
-  .practiceHudBtn.mode.active{background:rgba(255,200,60,.18);border-color:#ffd24a;color:#fff3c4;}
   .practiceLabel{position:fixed;top:16px;left:16px;background:rgba(14,22,36,.53);border:1px solid var(--ui-border);
     border-radius:8px;padding:8px 14px;font-size:12px;color:var(--text-muted);letter-spacing:.5px;z-index:15;}
   .startgrid{display:flex;gap:36px;margin-top:26px;font-size:12px;opacity:.9;}
@@ -188,11 +186,8 @@
   <div class="msgbanner" id="goal-message" style="display:none;"></div>
 </div>
 
-<div class="practiceLabel" id="practiceLabel" style="display:none;">🎯 ARENA DE PRÁCTICA</div>
+<div class="practiceLabel" id="practiceLabel" style="display:none;">⚽ ENTRENAMIENTO BALÓN PARADO</div>
 <div class="practiceHud" id="practiceHud" style="display:none;">
-  <button class="practiceHudBtn mode active" id="practiceShotsBtn" type="button">⚽ REMATES</button>
-  <button class="practiceHudBtn mode" id="practicePenaltyBtn" type="button">🥅 PENALES</button>
-  <button class="practiceHudBtn mode" id="practiceFreeKickBtn" type="button">📐 TIROS LIBRES</button>
   <button class="practiceHudBtn reset" id="practiceResetBtn" type="button">↺ REINICIAR</button>
   <button class="practiceHudBtn menu" id="practiceMenuBtn" type="button">☰ MENÚ</button>
 </div>
@@ -257,7 +252,6 @@
   <p class="modeHint" id="modeHint">Conectá uno o dos mandos antes de jugar. IMPORTANTE: el navegador recién detecta cada mando después de que le apretás algún botón o movés un stick — hacelo con los dos antes de darle a JUGAR y fijate que ambos aparezcan en el panel de arriba.</p>
 
   <button class="startbtn" id="startBtn">JUGAR</button>
-  <button class="practicebtn" id="practiceBtn" type="button">🎯 ARENA DE PRÁCTICA <span>cámara en tercera persona, remates libres sin rival</span></button>
 </div>
 
 <div class="formatScreen" id="formatScreen">

@@ -212,24 +212,6 @@ export const RECOVERY_STATE = {
   TACKLE_DURATION: 0.2,
 };
 
-/** Reglas base de detección de faltas (sin tarjetas). */
-export const FOUL_RULES = {
-  /** Dot producto tackler→víctima vs frente de la víctima; más alto = más estricto “por detrás”. */
-  FROM_BEHIND_DOT: 0.42,
-  VIOLENT_SPEED: 6.2,
-  STAND_NO_BALL_MULT: 0.82,
-  DOGSO_MAX_DIST: 24,
-  DOGSO_FORWARD_DOT: 0.28,
-  DOGSO_BLOCK_RADIUS: 5.5,
-  DOGSO_MAX_BLOCKERS: 1,
-  /** Radio de contacto cuerpo a cuerpo (m). Antes 2.35 cobraba falta sin roce real. */
-  PLAYER_CONTACT_DIST: 1.15,
-  /** En barrida: no cobrar “sin balón” hasta este progreso si el pie aún puede llegar. */
-  SLIDE_FOUL_DEFER_PROG: 0.58,
-  /** Si el balón está a más de esto del hitbox, el contacto con rival sin balón es falta inmediata. */
-  SLIDE_BALL_OUT_OF_REACH: 2.4,
-};
-
 export const GK_AI = {
   /** Constantes compartidas — parámetros por modo en GK_MODE_PRESETS / getGkAiConfig(). */
   GOAL_THREAT_Y_MARGIN: 1.6,
@@ -281,10 +263,11 @@ export const GK_MODE_PRESETS = {
     smotherRadiusMult: 1.18,
     /** Salida al dueño del área — velocidad y alcance de captura. */
     boxClaimSpeedMult: 1.48,
-    boxClaimReachMult: 1.85,
+    boxClaimReachMult: 2.15,
     boxRivalThreatDist: 3.0,
-    boxClaimUrgencyMult: 1.24,
-    proactiveClaimDuration: 3.4,
+    boxClaimUrgencyMult: 1.28,
+    proactiveClaimDuration: 3.6,
+    sixYardClaimReachMult: 2.55,
     boxPounceDist: 3.35,
     boxPounceUrgentDist: 2.05,
     boxPounceRivalMargin: 1.05,
@@ -317,10 +300,11 @@ export const GK_MODE_PRESETS = {
     smotherReachBase: 0.62,
     smotherRadiusMult: 1.16,
     boxClaimSpeedMult: 1.46,
-    boxClaimReachMult: 2.05,
+    boxClaimReachMult: 2.35,
     boxRivalThreatDist: 3.8,
-    boxClaimUrgencyMult: 1.22,
-    proactiveClaimDuration: 3.2,
+    boxClaimUrgencyMult: 1.26,
+    proactiveClaimDuration: 3.5,
+    sixYardClaimReachMult: 2.75,
     boxPounceDist: 4.25,
     boxPounceUrgentDist: 2.45,
     boxPounceRivalMargin: 1.1,

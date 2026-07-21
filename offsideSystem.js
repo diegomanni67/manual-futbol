@@ -1,8 +1,8 @@
 "use strict";
 
 import {
-  BALL_RADIUS, BALL_STATE, CENTER, FIELD_L, FIELD_W, Game, SET_PIECE,
-  allPlayers, ball, clamp, dist2D,
+  CENTER, FIELD_L, FIELD_W, Game, SET_PIECE,
+  allPlayers, ball, clamp, dist2D, gameState,
 } from './state.js';
 
 /** Margen de tolerancia (m) antes de cobrar fuera de juego. */
@@ -70,14 +70,15 @@ export function evaluatePassOffside(passer, aimDir, kickType){
   if(kickType === 'shot') return null;
   if(Game.deadBall || (Game.setPieceMode && !Game.isBallInPlay)) return null;
   if(Game.isGoal || Game.goalRoll) return null;
+  if(gameState === 'practice') return null;
   if(performance.now() / 1000 - lastOffsideT < OFFSIDE_COOLDOWN) return null;
 
   const defendingTeam = passer.team === 'home' ? 'away' : 'home';
-  const raw = aimDir && Math.hypot(aimDir.x, aimDir.y) > 0.05
-    ? aimDir
+  const dir = aimDir && Math.hypot(aimDir.x, aimDir.y) > 0.05
+    ? { x: aimDir.x, y: aimDir.y }
     : { x: Math.cos(passer.facing), y: Math.sin(passer.facing) };
-  const len = Math.hypot(raw.x, raw.y) || 1;
-  const nd = { x: raw.x / len, y: raw.y / len };
+  const len = Math.hypot(dir.x, dir.y) || 1;
+  const nd = { x: dir.x / len, y: dir.y / len };
 
   let flagged = null;
   let bestAlign = -1;
@@ -92,6 +93,7 @@ export function evaluatePassOffside(passer, aimDir, kickType){
       flagged = p;
     }
   }
+
   if(!flagged) return null;
 
   lastOffsideT = performance.now() / 1000;
@@ -99,16 +101,6 @@ export function evaluatePassOffside(passer, aimDir, kickType){
   const side = restartTeam === 'home' ? 'right' : 'left';
   const x = clamp(flagged.x, 2, FIELD_L - 2);
   const y = clamp(flagged.y, 2, FIELD_W - 2);
-
-  ball.owner = null;
-  ball.vx = 0;
-  ball.vy = 0;
-  ball.vz = 0;
-  ball.x = x;
-  ball.y = y;
-  ball.z = BALL_RADIUS;
-  ball.curveFactor = 0;
-  ball.state = BALL_STATE.DEAD_BALL;
 
   return {
     type: SET_PIECE.FREE_KICK,

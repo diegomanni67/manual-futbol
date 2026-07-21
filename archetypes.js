@@ -90,7 +90,8 @@ export const ARCHETYPE_MODS = {
     effortTouchLongDistMult: 1.45,
     effortTouchAnimMult: 0.92,
     effortTouchCooldownMult: 0.85,
-    effortChaseSpeedMult: 1.50,
+    /** +20% velocidad/aceleración durante sprint_chase del effort touch. */
+    effortChaseSpeedMult: 1.20,
   },
   [ARCHETYPE.KILLER]: {
     shotPowerMult: 1.25,

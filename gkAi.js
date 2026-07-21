@@ -6,6 +6,7 @@ import {
   GK_JUMP_MIN_Z, GK_MAX_REACH_Z, GK_MIN_SHOT_SPEED, GRAVITY,
   PBOX_D, PBOX_HALFW, SBOX_D, SBOX_HALFW, Game, ball, clamp, dist2D, gameState, getDiveSideAnim, getGkInterceptRadius, getGkSaveRadius, isGkGrabBlockedForSetPiece,
   isPlayerSprintChasing, lerp, norm,
+  createBallSimState, advanceBallSimState, INTERCEPT_SIM_STEP,
 } from './state.js';
 
 function gkCfg(){
@@ -31,36 +32,145 @@ function ballHorizSpeed(b){
   return Math.hypot(b.vx, b.vy);
 }
 
+function ballHasLateralCurve(b){
+  return Math.abs(b?.curveFactor || 0) > 0.35
+    || b?.shotStyle === 'placed'
+    || b?.shotStyle === 'trivela';
+}
+
+/** Fuente de predicción con curva (R1 colocado / L2 trivela) y tracking de spin. */
+function resolveBallPredictSource(px, py, pz, vx, vy, vz, hint){
+  const liveNear = !!(ball && Math.hypot((ball.x - px) || 0, (ball.y - py) || 0) < 0.35);
+  const pick = (key, fallback = null) => {
+    const hv = hint ? hint[key] : undefined;
+    if(hv !== undefined && hv !== null) return hv;
+    if(liveNear && ball) return ball[key];
+    return fallback;
+  };
+  return {
+    x: px,
+    y: py,
+    z: pz ?? BALL_RADIUS,
+    vx: vx ?? 0,
+    vy: vy ?? 0,
+    vz: vz ?? 0,
+    curveFactor: pick('curveFactor', 0) || 0,
+    shotStyle: pick('shotStyle', null),
+    initialSpeed: pick('initialSpeed', Math.hypot(vx || 0, vy || 0) || 1) || 1,
+    curveMaxSpeed: pick('curveMaxSpeed'),
+    curveLineOrigin: pick('curveLineOrigin', null),
+    curveLineDir: pick('curveLineDir', null),
+    curvePassTarget: pick('curvePassTarget', null),
+    curveMaxDrift: pick('curveMaxDrift', 0) || 0,
+    highKick: !!pick('highKick', false),
+    highKickType: pick('highKickType', null),
+    lastKickType: pick('lastKickType', 'shot') || 'shot',
+    groundFrictionMult: pick('groundFrictionMult', 1) || 1,
+    ballDamping: pick('ballDamping'),
+  };
+}
+
+function predictSourceFromBall(b){
+  return resolveBallPredictSource(b.x, b.y, b.z, b.vx, b.vy, b.vz, b);
+}
+
+/** Simula si un tiro con curva aún puede cruzar el plano de gol. */
+function curvedShotApproachesGoal(b, gk){
+  const goalX = gk.ownGoalX();
+  const sim = createBallSimState(predictSourceFromBall(b));
+  let t = 0;
+  let prevX = sim.x;
+  const yLimit = GOAL_HALF + GK_AI.GOAL_THREAT_Y_MARGIN + 2.2;
+  while(t < horizon()){
+    if(!advanceBallSimState(sim, INTERCEPT_SIM_STEP)) break;
+    t += INTERCEPT_SIM_STEP;
+    const crossed = gk.team === 'home'
+      ? (prevX > goalX && sim.x <= goalX)
+      : (prevX < goalX && sim.x >= goalX);
+    if(crossed) return Math.abs(sim.y - CENTER.y) <= yLimit;
+    if(gk.team === 'home' && sim.x > prevX && sim.x > goalX + 1.5) break;
+    if(gk.team === 'away' && sim.x < prevX && sim.x < goalX - 1.5) break;
+    prevX = sim.x;
+  }
+  return false;
+}
+
 /** ¿La pelota se mueve hacia el arco que defiende este arquero? */
 function isShotMovingTowardGoal(b, gk){
   const goalX = gk.ownGoalX();
   const vx = b.vx;
   const isRegisteredShot = b.lastKickType === 'shot';
-  const vxMin = isRegisteredShot ? 0.05 : 0.2;
-  if(Math.abs(vx) < vxMin) return false;
-  // Home defiende x=0 (vx<0); Away defiende x=FIELD_L (vx>0)
-  const toward = gk.team === 'home' ? vx < -vxMin : vx > vxMin;
-  if(!toward) return false;
+  const curved = ballHasLateralCurve(b);
+  const vxMin = isRegisteredShot ? 0.05 : (curved ? 0.08 : 0.2);
   const sp = ballHorizSpeed(b);
   if(sp < GK_MIN_SHOT_SPEED * 0.35 && !isRegisteredShot) return false;
-  const t = (goalX - b.x) / vx;
-  return t > 0.01 && t < horizon();
+
+  if(Math.abs(vx) >= vxMin){
+    const toward = gk.team === 'home' ? vx < -vxMin : vx > vxMin;
+    if(toward){
+      const t = (goalX - b.x) / vx;
+      if(t > 0.01 && t < horizon()) return true;
+    }
+  }
+
+  // Tiros con rosca/trivela: no confiar solo en vx rectilíneo.
+  if(curved || isRegisteredShot) return curvedShotApproachesGoal(b, gk);
+  return false;
 }
 
-/** Punto donde la pelota cruza el plano de la línea de gol (si aplica). */
-export function predictGoalMouthCrossing(gk, px, py, pz, vx, vy, vz){
+/**
+ * Punto donde la pelota cruza el plano de la línea de gol.
+ * Usa simulación con efecto lateral (no asume trayectoria recta).
+ */
+export function predictGoalMouthCrossing(gk, px, py, pz, vx, vy, vz, hint = null){
+  const src = resolveBallPredictSource(px, py, pz, vx, vy, vz, hint);
+  const curved = ballHasLateralCurve(src);
   const goalX = gk.ownGoalX();
-  if(Math.abs(vx) < 0.15) return null;
-  const t = (goalX - px) / vx;
-  if(t <= 0.02 || t > horizon()) return null;
+  const sim = createBallSimState(src);
+  const maxT = horizon();
+  const step = Math.min(INTERCEPT_SIM_STEP, GK_AI.TRAJECTORY_STEP || INTERCEPT_SIM_STEP);
+  let t = 0;
+  let prevX = sim.x;
+  let prevY = sim.y;
+  let prevZ = sim.z;
 
-  const iy = py + vy * t;
-  const iz = pz + vz * t - 0.5 * GRAVITY * t * t;
-  const inMouth = Math.abs(iy - CENTER.y) <= GOAL_HALF + 0.35 &&
-    iz >= BALL_RADIUS - 0.05 &&
-    iz <= CROSSBAR_Z + 0.25;
+  // Fallback rectilíneo solo si no hay curva y vx es usable.
+  if(!curved && Math.abs(src.vx) >= 0.15){
+    const tLin = (goalX - src.x) / src.vx;
+    if(tLin > 0.02 && tLin <= maxT){
+      const iy = src.y + src.vy * tLin;
+      const iz = src.z + src.vz * tLin - 0.5 * GRAVITY * tLin * tLin;
+      const inMouth = Math.abs(iy - CENTER.y) <= GOAL_HALF + 0.35 &&
+        iz >= BALL_RADIUS - 0.05 &&
+        iz <= CROSSBAR_Z + 0.25;
+      return { y: iy, z: Math.max(BALL_RADIUS, iz), t: tLin, inMouth, curved: false };
+    }
+  }
 
-  return { y: iy, z: Math.max(BALL_RADIUS, iz), t, inMouth };
+  while(t < maxT){
+    if(!advanceBallSimState(sim, step)) break;
+    t += step;
+    const crossed = gk.team === 'home'
+      ? (prevX > goalX && sim.x <= goalX)
+      : (prevX < goalX && sim.x >= goalX);
+    const nearPlane = Math.abs(sim.x - goalX) <= 0.18;
+    if(crossed || nearPlane){
+      const span = Math.abs(prevX - sim.x) || 1e-6;
+      const u = clamp((prevX - goalX) / span, 0, 1);
+      const iy = prevY + (sim.y - prevY) * u;
+      const iz = prevZ + (sim.z - prevZ) * u;
+      const inMouth = Math.abs(iy - CENTER.y) <= GOAL_HALF + (curved ? 0.55 : 0.35) &&
+        iz >= BALL_RADIUS - 0.05 &&
+        iz <= CROSSBAR_Z + 0.25;
+      return { y: iy, z: Math.max(BALL_RADIUS, iz), t, inMouth, curved };
+    }
+    if(gk.team === 'home' && sim.x > prevX && sim.x > goalX + 2) break;
+    if(gk.team === 'away' && sim.x < prevX && sim.x < goalX - 2) break;
+    prevX = sim.x;
+    prevY = sim.y;
+    prevZ = sim.z;
+  }
+  return null;
 }
 
 /** Evalúa amenaza de tiro al arco — basado en cruce en la línea de gol, no en proximidad actual al GK. */
@@ -69,10 +179,10 @@ export function evaluateIncomingShot(gk, b){
   if(b.state !== BALL_STATE.FREE && b.state !== BALL_STATE.LOOSE_BALL) return null;
   if(!isShotMovingTowardGoal(b, gk)) return null;
 
-  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz);
+  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz, b);
   if(!crossing) return null;
 
-  const yMargin = GOAL_HALF + GK_AI.GOAL_THREAT_Y_MARGIN;
+  const yMargin = GOAL_HALF + GK_AI.GOAL_THREAT_Y_MARGIN + (crossing.curved ? 0.45 : 0);
   if(Math.abs(crossing.y - CENTER.y) > yMargin) return null;
   if(crossing.z > (gkCfg().maxReachZ ?? GK_MAX_REACH_Z) + 0.55) return null;
 
@@ -85,6 +195,7 @@ export function evaluateIncomingShot(gk, b){
     targetY: crossing.y,
     predZ: crossing.z,
     timeToPlane: crossing.t,
+    curved: !!crossing.curved,
     useCatch: response.save === 'catch',
     saveType: response.save,
     animState: response.animState,
@@ -99,6 +210,7 @@ export function evaluateIncomingShot(gk, b){
 
 /**
  * Intercepción cercana (pelota ya cerca del arquero) — complemento para contacto a corta distancia.
+ * Simula curva + gravedad para no asumir rectas.
  */
 export function calculateIntercept(ballVelocity, ballPosition, gk){
   if(!gk || gk.role !== 'GK') return null;
@@ -112,28 +224,51 @@ export function calculateIntercept(ballVelocity, ballPosition, gk){
 
   if(Math.hypot(vx, vy, vz) < 0.3) return null;
 
-  // Prioridad: evaluación por línea de gol
-  const fakeBall = { x: px, y: py, z: pz, vx, vy, vz, owner: null, state: BALL_STATE.FREE, lastKickType: 'shot' };
+  const hint = {
+    curveFactor: ballVelocity?.curveFactor ?? ballPosition?.curveFactor,
+    shotStyle: ballVelocity?.shotStyle ?? ballPosition?.shotStyle,
+    initialSpeed: ballVelocity?.initialSpeed ?? ballPosition?.initialSpeed,
+    curveMaxSpeed: ballVelocity?.curveMaxSpeed ?? ballPosition?.curveMaxSpeed,
+    curveLineOrigin: ballVelocity?.curveLineOrigin ?? ballPosition?.curveLineOrigin,
+    curveLineDir: ballVelocity?.curveLineDir ?? ballPosition?.curveLineDir,
+    curvePassTarget: ballVelocity?.curvePassTarget ?? ballPosition?.curvePassTarget,
+    curveMaxDrift: ballVelocity?.curveMaxDrift ?? ballPosition?.curveMaxDrift,
+    highKick: ballVelocity?.highKick ?? ballPosition?.highKick,
+    highKickType: ballVelocity?.highKickType ?? ballPosition?.highKickType,
+    lastKickType: ballVelocity?.lastKickType ?? ballPosition?.lastKickType ?? 'shot',
+    groundFrictionMult: ballVelocity?.groundFrictionMult ?? ballPosition?.groundFrictionMult,
+    ballDamping: ballVelocity?.ballDamping ?? ballPosition?.ballDamping,
+  };
+  const src = resolveBallPredictSource(px, py, pz, vx, vy, vz, hint);
+
+  // Prioridad: evaluación por línea de gol (con curva)
+  const fakeBall = {
+    ...src,
+    owner: null,
+    state: BALL_STATE.FREE,
+  };
   const threat = evaluateIncomingShot(gk, fakeBall);
   if(threat) return threat;
 
-  const step = GK_AI.TRAJECTORY_STEP;
+  const curved = ballHasLateralCurve(src);
+  const sim = createBallSimState(src);
+  const step = Math.min(INTERCEPT_SIM_STEP, GK_AI.TRAJECTORY_STEP || INTERCEPT_SIM_STEP);
   let best = null;
+  let t = 0;
 
-  for(let t = step; t <= horizon(); t += step){
-    const ix = px + vx * t;
-    const iy = py + vy * t;
-    const iz = pz + vz * t - 0.5 * GRAVITY * t * t;
-    if(iz < BALL_RADIUS) break;
-    if(iz - BALL_RADIUS > GK_MAX_REACH_Z + 0.45) continue;
+  while(t < horizon()){
+    if(!advanceBallSimState(sim, step)) break;
+    t += step;
+    const iz = Math.max(BALL_RADIUS, sim.z);
+    if(iz - BALL_RADIUS > GK_MAX_REACH_Z + (curved ? 0.55 : 0.45)) continue;
 
-    const d = Math.hypot(ix - gk.x, iy - gk.y);
+    const d = Math.hypot(sim.x - gk.x, sim.y - gk.y);
     if(!best || d < best.dist){
-      best = { t, x: ix, y: iy, z: Math.max(BALL_RADIUS, iz), dist: d };
+      best = { t, x: sim.x, y: sim.y, z: iz, dist: d };
     }
   }
 
-  const radius = gkCfg().interceptRadius ?? getGkInterceptRadius();
+  const radius = (gkCfg().interceptRadius ?? getGkInterceptRadius()) * (curved ? 1.12 : 1);
   if(!best || best.dist > radius) return null;
 
   const speed = Math.hypot(vx, vy);
@@ -143,6 +278,7 @@ export function calculateIntercept(ballVelocity, ballPosition, gk){
     targetY: best.y,
     predZ: best.z,
     timeToPlane: best.t,
+    curved,
     useCatch: response.save === 'catch',
     saveType: response.save,
     animState: response.animState,
@@ -161,8 +297,9 @@ export function computeOptimalGkLineY(gk, bx, by){
   const dx = Math.max(Math.abs(bx - gx), 1.0);
   const dy = by - CENTER.y;
   const halfW = GOAL_HALF;
-  const shrink = halfW / (halfW + dx * 0.68);
-  const maxShift = halfW - 0.42;
+  // Mantenerse cerca del centro de los tres palos; no barrer laterales del área.
+  const shrink = halfW / (halfW + dx * 1.65);
+  const maxShift = halfW * 0.36;
   return CENTER.y + clamp(dy * shrink, -maxShift, maxShift);
 }
 
@@ -174,9 +311,13 @@ export function computeIdealGkPosition(gk, ballX, ballY, timeToPlane){
   const flight = timeToPlane ?? 0.65;
   const h = horizon();
   const advanceT = clamp(1 - flight / h, 0, 1);
-  const advance = lerp(cfg.minAdvance, cfg.maxAdvance, advanceT * advanceT);
+  let advance = lerp(cfg.minAdvance, cfg.maxAdvance, advanceT * advanceT);
   const bx = ballX ?? ball.x;
   const by = ballY ?? ball.y;
+  const latFrac = clamp(Math.abs(by - CENTER.y) / Math.max(PBOX_HALFW, 0.01), 0, 1);
+  if(latFrac > 0.4){
+    advance = Math.min(advance, lerp(cfg.maxAdvance * 0.55, cfg.minAdvance + 0.9, (latFrac - 0.4) / 0.6));
+  }
   return {
     x: goalX + dir * advance,
     y: computeOptimalGkLineY(gk, bx, by),
@@ -368,6 +509,7 @@ export function classifySaveResponse(gk, intercept, crossing, speed, timeToPlane
 
 /**
  * Posicionamiento: triángulo arco ↔ pelota; ante tiro, cubrir el palo según cruce previsto.
+ * En ataques laterales mantiene cobertura central sobre postes/línea de meta (sin salir a tierra de nadie).
  */
 export function computeTrianglePosition(gk, b){
   const cfg = gkCfg();
@@ -375,7 +517,7 @@ export function computeTrianglePosition(gk, b){
   const goalX = gk.ownGoalX();
   const dir = gk.attackDir();
 
-  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz);
+  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz, b);
   if(crossing && isShotMovingTowardGoal(b, gk)){
     const h = horizon();
     const flight = crossing.t;
@@ -389,9 +531,17 @@ export function computeTrianglePosition(gk, b){
     } else {
       advance = lerp(cfg.minAdvance + 0.6, cfg.maxAdvance * 0.65, clamp(1 - flight / h, 0, 1));
     }
+    // Con curva: cubrir el palo del cruce previsto, no solo la bisectriz del balón actual.
+    const lineY = crossing.curved
+      ? lerp(computeOptimalGkLineY(gk, b.x, b.y), crossing.y, 0.55)
+      : computeOptimalGkLineY(gk, b.x, b.y);
+    const latFrac = clamp(Math.abs((crossing.y ?? b.y) - CENTER.y) / Math.max(GOAL_HALF, 0.01), 0, 1);
+    const advanceCap = lerp(cfg.maxAdvance * 0.85, cfg.minAdvance + 0.85, latFrac * latFrac);
+    // Ante cruce lateral: cubrir el palo sin abandonar el arco (Y acotada a ~60% del ancho).
+    const coverY = lerp(lineY, CENTER.y, 0.18 + latFrac * 0.32);
     return {
-      x: goalX + dir * clamp(advance, cfg.minAdvance, cfg.maxAdvance),
-      y: computeOptimalGkLineY(gk, b.x, b.y),
+      x: goalX + dir * clamp(Math.min(advance, advanceCap), cfg.minAdvance, cfg.maxAdvance),
+      y: clamp(coverY, CENTER.y - GOAL_HALF * 0.58, CENTER.y + GOAL_HALF * 0.58),
     };
   }
 
@@ -402,19 +552,33 @@ export function computeTrianglePosition(gk, b){
   const toY = aimY - gc.y;
   const dist = Math.hypot(toX, toY) || 0.001;
   const ux = toX / dist;
-  const uy = toY / dist;
 
   const closeDist = cfg.closeDist;
   const advanceT = clamp(1 - dist / closeDist, 0, 1);
-  const advance = lerp(cfg.minAdvance, cfg.maxAdvance, advanceT * advanceT);
+  let advance = lerp(cfg.minAdvance, cfg.maxAdvance, advanceT * advanceT);
+
+  // Ataques por el costado del área: no abandonar el arco ni avanzar en exceso.
+  const latFrac = clamp(Math.abs(aimY - CENTER.y) / Math.max(PBOX_HALFW, 0.01), 0, 1);
+  const wideAttack = latFrac > 0.42;
+  if(wideAttack){
+    const holdBack = lerp(1, 0.38, clamp((latFrac - 0.42) / 0.58, 0, 1));
+    advance = Math.min(advance, lerp(cfg.minAdvance + 0.85, cfg.maxAdvance * 0.48, holdBack));
+  }
 
   let targetX = gc.x + ux * advance;
   let targetY = computeOptimalGkLineY(gk, aimX, aimY);
 
-  const boxMinX = dir > 0 ? gc.x + dir * 0.8 : gc.x + dir * PBOX_D;
-  const boxMaxX = dir > 0 ? gc.x + dir * PBOX_D : gc.x + dir * 0.8;
+  // Ante balón muy lateral, priorizar línea de meta y ángulo de cierre (poco avance en X).
+  if(wideAttack){
+    const depthCap = lerp(cfg.maxAdvance * 0.48, cfg.minAdvance + 0.55, clamp((latFrac - 0.42) / 0.58, 0, 1));
+    targetX = goalX + dir * clamp((targetX - goalX) * dir, cfg.minAdvance, depthCap);
+    targetY = lerp(targetY, CENTER.y, 0.38 + latFrac * 0.35);
+  }
+
+  const boxMinX = dir > 0 ? gc.x + dir * 0.55 : gc.x + dir * Math.min(PBOX_D * 0.48, cfg.maxAdvance * 0.72);
+  const boxMaxX = dir > 0 ? gc.x + dir * Math.min(PBOX_D * 0.48, cfg.maxAdvance * 0.72) : gc.x + dir * 0.55;
   targetX = clamp(targetX, Math.min(boxMinX, boxMaxX), Math.max(boxMinX, boxMaxX));
-  targetY = clamp(targetY, CENTER.y - GOAL_HALF - 0.5, CENTER.y + GOAL_HALF + 0.5);
+  targetY = clamp(targetY, CENTER.y - GOAL_HALF * 0.55, CENTER.y + GOAL_HALF * 0.55);
 
   return { x: targetX, y: targetY };
 }
@@ -745,18 +909,26 @@ function planOneVsOne(gk, striker){
     };
   }
 
-  // Salida activa de la línea: achicar ángulo y distancia
+  // Salida activa de la línea: achicar ángulo y distancia (sin desnudarse en laterales)
   const meetX = lerp(gk.x, striker.x - dir * 0.55, 0.55 + rushFactor * 0.35);
-  const maxRush = Math.min(rushAdvance * 1.15, PBOX_D - 0.45);
+  const latFrac = clamp(Math.abs(striker.y - CENTER.y) / Math.max(PBOX_HALFW, 0.01), 0, 1);
+  const maxRush = Math.min(
+    rushAdvance * lerp(1.05, 0.55, latFrac),
+    PBOX_D * lerp(0.72, 0.42, latFrac),
+  );
   const rushX = clamp(
-    lerp(gc.x + dir * 1.15, meetX, rushFactor),
+    lerp(gc.x + dir * 1.15, meetX, rushFactor * (1 - latFrac * 0.35)),
     gc.x + dir * 0.85,
     gc.x + dir * maxRush,
   );
-  const rushY = lerp(gk.y, striker.y, 0.72 + rushFactor * 0.12);
+  const rushY = lerp(
+    computeOptimalGkLineY(gk, striker.x, striker.y),
+    striker.y,
+    0.35 + rushFactor * 0.2 * (1 - latFrac * 0.55),
+  );
 
   return {
-    move: { x: rushX, y: clamp(rushY, CENTER.y - PBOX_HALFW + 0.6, CENTER.y + PBOX_HALFW - 0.6) },
+    move: { x: rushX, y: clamp(rushY, CENTER.y - GOAL_HALF * 0.52, CENTER.y + GOAL_HALF * 0.52) },
     sprint: true,
     facing: Math.atan2(striker.y - gk.y, striker.x - gk.x),
     rush: true,
@@ -764,25 +936,28 @@ function planOneVsOne(gk, striker){
   };
 }
 
-function computeReactionDelay(timeToPlane, immediate = false){
+function computeReactionDelay(timeToPlane, immediate = false, curved = false){
   const cfg = gkCfg();
   const lead = estimateDiveLeadTime(timeToPlane);
-  const scheduled = (timeToPlane ?? 0.5) - lead;
+  // Curva: anticipar el compromiso de vuelo/estirada hacia el punto real.
+  const curveLeadBoost = curved ? 0.06 : 0;
+  const scheduled = (timeToPlane ?? 0.5) - lead - curveLeadBoost;
 
+  let delay;
   if(immediate){
-    return clamp(scheduled, 0.04, cfg.reactionDelay + 0.10);
+    delay = clamp(scheduled, 0.03, cfg.reactionDelay + 0.10);
+  } else if(timeToPlane <= cfg.closeShotTime){
+    delay = clamp(scheduled, 0.03, cfg.reactionDelay * 0.55);
+  } else if(timeToPlane <= cfg.farShotTime){
+    delay = clamp(scheduled, 0.05, cfg.reactionDelay + 0.14);
+  } else {
+    delay = clamp(scheduled, 0.08, timeToPlane - GK_DIVE_MIN_DUR - 0.05);
   }
-  if(timeToPlane <= cfg.closeShotTime){
-    return clamp(scheduled, 0.04, cfg.reactionDelay * 0.55);
-  }
-  if(timeToPlane <= cfg.farShotTime){
-    return clamp(scheduled, 0.06, cfg.reactionDelay + 0.14);
-  }
-  return clamp(scheduled, 0.10, timeToPlane - GK_DIVE_MIN_DUR - 0.05);
+  return curved ? delay * 0.84 : delay;
 }
 
 /** Punto de estirada: deriva determinista si está mal posicionado o el tiro es sorprendente. */
-function computeDiveTargetY(gk, targetY, timeToPlane, speed){
+function computeDiveTargetY(gk, targetY, timeToPlane, speed, curved = false){
   const cfg = gkCfg();
   const ideal = computeIdealGkPosition(gk, ball.x, ball.y, timeToPlane);
   const posError = dist2D(gk, ideal);
@@ -792,7 +967,9 @@ function computeDiveTargetY(gk, targetY, timeToPlane, speed){
     0, 1,
   );
   const placement = Math.abs(targetY - CENTER.y) / Math.max(GOAL_HALF, 0.01);
-  const undershoot = clamp(posErrorNorm * 0.55 + power * 0.22 + placement * 0.12, 0, 0.42);
+  // Con efecto: menos recorte al centro — priorizar el y real de la curva.
+  const maxUnder = curved ? 0.18 : 0.42;
+  const undershoot = clamp(posErrorNorm * 0.55 + power * 0.22 + placement * 0.12, 0, maxUnder);
   const side = targetY >= gk.y ? 1 : -1;
   const adjusted = targetY - side * undershoot * GOAL_HALF;
   return clamp(adjusted, CENTER.y - GOAL_HALF + 0.15, CENTER.y + GOAL_HALF - 0.15);
@@ -805,15 +982,18 @@ function registerShotReaction(gk, intercept, immediate = false){
 
   const cfg = gkCfg();
   const speed = ballHorizSpeed(ball);
-  const delay = computeReactionDelay(intercept.timeToPlane, immediate);
+  const curved = !!(intercept.curved || ballHasLateralCurve(ball));
+  const delay = computeReactionDelay(intercept.timeToPlane, immediate, curved);
   let reach = intercept.reachChance ?? cfg.reachBase;
   if(delay > intercept.timeToPlane * 0.42) reach *= 0.48;
+  if(curved) reach = Math.min(0.92, reach * 1.06);
 
   gk.gkShotReaction = {
     delay,
-    targetY: computeDiveTargetY(gk, intercept.targetY, intercept.timeToPlane, speed),
+    targetY: computeDiveTargetY(gk, intercept.targetY, intercept.timeToPlane, speed, curved),
     predZ: intercept.predZ,
     timeToPlane: intercept.timeToPlane,
+    curved,
     useCatch: intercept.useCatch,
     saveChance: intercept.saveChance ?? reach * 0.65,
     reachChance: clamp(reach, 0.04, 0.92),
@@ -911,7 +1091,16 @@ export function planGoalkeeperAI(gk, dt, allPlayers){
     registerShotReaction(gk, incomingShot, shotImmediate);
   } else if(isActiveShotEvent(ball) && isShotMovingTowardGoal(ball, gk)){
     const intercept = calculateIntercept(
-      { vx: ball.vx, vy: ball.vy, vz: ball.vz },
+      {
+        vx: ball.vx, vy: ball.vy, vz: ball.vz,
+        curveFactor: ball.curveFactor, shotStyle: ball.shotStyle,
+        initialSpeed: ball.initialSpeed, curveMaxSpeed: ball.curveMaxSpeed,
+        curveLineOrigin: ball.curveLineOrigin, curveLineDir: ball.curveLineDir,
+        curvePassTarget: ball.curvePassTarget, curveMaxDrift: ball.curveMaxDrift,
+        highKick: ball.highKick, highKickType: ball.highKickType,
+        lastKickType: ball.lastKickType, groundFrictionMult: ball.groundFrictionMult,
+        ballDamping: ball.ballDamping,
+      },
       { x: ball.x, y: ball.y, z: ball.z },
       gk,
     );
@@ -943,7 +1132,16 @@ export function alertGoalkeepersOnShot(shooter, players){
     let threat = evaluateIncomingShot(gk, ball);
     if(!threat){
       threat = calculateIntercept(
-        { vx: ball.vx, vy: ball.vy, vz: ball.vz },
+        {
+          vx: ball.vx, vy: ball.vy, vz: ball.vz,
+          curveFactor: ball.curveFactor, shotStyle: ball.shotStyle,
+          initialSpeed: ball.initialSpeed, curveMaxSpeed: ball.curveMaxSpeed,
+          curveLineOrigin: ball.curveLineOrigin, curveLineDir: ball.curveLineDir,
+          curvePassTarget: ball.curvePassTarget, curveMaxDrift: ball.curveMaxDrift,
+          highKick: ball.highKick, highKickType: ball.highKickType,
+          lastKickType: ball.lastKickType, groundFrictionMult: ball.groundFrictionMult,
+          ballDamping: ball.ballDamping,
+        },
         { x: ball.x, y: ball.y, z: ball.z },
         gk,
       );
