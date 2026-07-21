@@ -1,10 +1,25 @@
 "use strict";
 
-import { FIELD_RULES_BASE, GAMEPLAY_PHYSICS, GK_AUTO_DISTRIBUTE, MOVING_TO_BALL, PASS_AI, AI_RUPTURA, AI_RUPTURA_MANUAL } from './gameplay_constants.js';
+import {
+  applyArchetypePhysicsStats,
+  applyArchetypeToPlayer,
+  getArchetypePassCurveMult,
+  getArchetypeShotSpecialCurveMult,
+} from './archetypes.js';
 import {
   getBallDragFrictionScaleForBall, getModeBallDrag, getModeBallDragFrictionScale,
   getModePowerMultiplier, loadModePhysics,
 } from './modePhysics.js';
+import { assignPlayerDisplayName } from './playerSelectionHud.js';
+import {
+  AI_RUPTURA,
+  AI_RUPTURA_MANUAL,
+  FIELD_RULES_BASE,
+  GAMEPLAY_PHYSICS,
+  GK_AUTO_DISTRIBUTE,
+  MOVING_TO_BALL,
+  PASS_AI,
+} from './gameplay_constants.js';
 
 // GOAL_FRAMES vive en physics.js; se enlaza en boot via wireBridge (import estatico desde
 // physics.js crea dependencia circular state↔physics y rompe FIELD_L al inicializar).
@@ -134,7 +149,19 @@ export function applyMatchWorldScale(scale, viewExtentMult = 1){
   CORNER_FLAG_INSET = BASE_CORNER_FLAG_INSET * s;
 }
 
-export const CAM_MATCH_DEFAULTS = { zoom: 42, near: 28, horizonFrac: 0.30 };
+export const CAM_MATCH_DEFAULTS = { zoom: 58, near: 24, horizonFrac: 0.28 };
+
+/** Seguimiento dinámico de cámara (estilo broadcast tradicional). */
+export const CAM_FOLLOW = {
+  panLerp: 0.11,
+  zoomLerp: 0.09,
+  leadX: 0.48,
+  leadY: 0.32,
+  focusYFrac: 0.42,
+  yOffMinFrac: -0.45,
+  yOffMaxFrac: 0.08,
+  marginXFrac: 0.10,
+};
 
 /** Zoom dinámico exclusivo 11vs11: pelota lejos (Y alto) → más zoom; cerca (Y bajo) → baseZoom. */
 export const CAM_11VS11_DYNAMIC = {
@@ -154,13 +181,34 @@ export function applyMatchCamera(preset){
   CAM.near = CAM_MATCH_DEFAULTS.near * nm;
   CAM.horizonFrac = clamp(CAM_MATCH_DEFAULTS.horizonFrac + hs, 0.18, 0.38);
   CAM.x = CENTER.x;
+  CAM.camYoff = -FIELD_W * 0.42;
 }
 
 /**
- * CameraController — zoom fijo en partido (6vs6 y 11vs11 comparten la misma camara base).
+ * CameraController — zoom cercano con seguimiento suave hacia la pelota.
  */
 export function updateCameraZoom(){
-  CAM.zoom = CAM.fixedZoom ?? CAM_MATCH_DEFAULTS.zoom;
+  const base = CAM.fixedZoom ?? CAM_MATCH_DEFAULTS.zoom;
+  CAM.zoom = lerp(CAM.zoom, base, CAM_FOLLOW.zoomLerp);
+}
+
+/** Pan X/Y hacia la pelota con predicción de velocidad (cámara tradicional de fútbol). */
+export function updateMatchCameraFollow(){
+  if(gameState === 'practice') return;
+
+  const leadX = ball.x + ball.vx * CAM_FOLLOW.leadX;
+  const leadY = ball.y + ball.vy * CAM_FOLLOW.leadY;
+  const marginX = FIELD_L * CAM_FOLLOW.marginXFrac;
+
+  const targetX = clamp(leadX, marginX, FIELD_L - marginX);
+  CAM.x = lerp(CAM.x, targetX, CAM_FOLLOW.panLerp);
+
+  const targetYoff = leadY - FIELD_W * CAM_FOLLOW.focusYFrac;
+  const yMin = FIELD_W * CAM_FOLLOW.yOffMinFrac;
+  const yMax = FIELD_W * CAM_FOLLOW.yOffMaxFrac;
+  CAM.camYoff = lerp(CAM.camYoff, clamp(targetYoff, yMin, yMax), CAM_FOLLOW.panLerp);
+
+  updateCameraZoom();
 }
 
 /** Velocidad visual de zancada — sincronizada con traslacion real (m/s → u/s). */
@@ -196,7 +244,10 @@ export const CURVE_ACCEL_PASS_R1 = CURVE_ACCEL_PASS * CURVE_LAT_FRICTION_MULT * 
 export const CURVE_ACCEL_PASS_L2 = CURVE_ACCEL_PASS * CURVE_LAT_FRICTION_MULT;         // tres dedos
 export const CURVE_ACCEL_SHOT_R1 = CURVE_ACCEL_SHOT * CURVE_LAT_FRICTION_MULT * 0.92;
 export const CURVE_ACCEL_SHOT_L2 = CURVE_ACCEL_SHOT * CURVE_LAT_FRICTION_MULT;
-export const PASS_MAX_SPEED = 42 * PASS_VELOCITY_MULT * KICK_VELOCITY_MULT; // tope referencia pase con efecto
+export const PASS_CROSS_DISTANCE_MULT = 1.5; // +50% distancia máxima: pase raso (X) y centro (○)
+export const PASS_GROUND_MAX_SPEED = 42;
+export const CROSS_KICK_MAX_SPEED = 40;
+export const PASS_MAX_SPEED = PASS_GROUND_MAX_SPEED * PASS_VELOCITY_MULT * KICK_VELOCITY_MULT * PASS_CROSS_DISTANCE_MULT;
 export const CURVE_DRIFT_CAP_RATIO = 0.30;    // desviacion lateral maxima = 30% de la distancia del pase
 export const CURVE_ARRIVAL_LINEAR_DIST = 2.0; // ultimos metros: rectifica hacia el receptor
 export const CURVE_ARRIVAL_LERP = 0.5;
@@ -333,8 +384,8 @@ export const PHYSICS_PRESETS = {
     label: '6 vs 6',
     formationKey: '6vs6',
     worldScale: 1,
-    camZoomMult: 1,
-    camNearMult: 1,
+    camZoomMult: 1.12,
+    camNearMult: 0.92,
     horizonShift: 0,
     viewExtentMult: 1,
     ...SHARED_PHYSICS,
@@ -344,8 +395,8 @@ export const PHYSICS_PRESETS = {
     label: '11 vs 11',
     formationKey: '11vs11',
     worldScale: 1.6,
-    camZoomMult: 1,
-    camNearMult: 1,
+    camZoomMult: 1.12,
+    camNearMult: 0.92,
     horizonShift: 0,
     viewExtentMult: 1.45,
     camMaxZoomFactor: 0,
@@ -446,6 +497,7 @@ export function applyPhysicsToPlayers(){
       p.maxSpeedBase = toGameUnits(getDefaultMaxSpeedForRole(p.role));
       p.maxSpeed = p.maxSpeedBase;
     }
+    applyArchetypePhysicsStats(p);
     p.accelRampDist = 0;
     p.z = 0;
   }
@@ -467,7 +519,7 @@ export const AIR_DRAG = toGameUnits(0.04);        // resistencia aerea (coef. de
 // su propia configuracion independiente (maxVelocity, drag y gravedad extra). ---
 export const AERIAL_PHYSICS = {
   shot:  {maxSpeed: toGameUnits(60), extraDrag: toGameUnits(0.30), extraGravity: 8},
-  cross: {maxSpeed: toGameUnits(52), extraDrag: toGameUnits(0.46), extraGravity: 3.6},
+  cross: {maxSpeed: toGameUnits(52 * PASS_CROSS_DISTANCE_MULT), extraDrag: toGameUnits(0.46), extraGravity: 3.6},
 };
 export const CROSS_MARKER_LIFE = 1.5; // seg que se ve la cruz amarilla del pique del centro (boton circulo)
 export const CTRL_RADIUS = 1.0;      // radio de control de pelota de un jugador
@@ -715,16 +767,13 @@ export function resize(){ canvas.width = window.innerWidth; canvas.height = wind
 window.addEventListener('resize', resize); resize();
 
 export const CAM = {
-  near: 28,              // distancia (m) de la camara a la linea de banda cercana: la camara esta
-                          // ubicada a un costado de la cancha, sobre la linea lateral (banda)
-  camYoff: -28,           // la camara esta virtualmente detras/afuera de la banda (y=0), mirando en
-                          // diagonal hacia el otro lado de la cancha (esto + horizonFrac/groundFrac
-                          // de abajo son los que le dan la Altura y el Pitch hacia abajo)
-  horizonFrac: 0.30,      // cuanto "cielo" se ve arriba: define el angulo de inclinacion (Pitch)
+  near: 24,
+  camYoff: -28,
+  horizonFrac: 0.28,
   groundFrac: 0.95,
-  zoom: 42,               // FOV/zoom fijo en partido (6vs6 y 11vs11)
-  fixedZoom: 42,          // zoom base del modo
-  baseZoom: 42,
+  zoom: 58,
+  fixedZoom: 58,
+  baseZoom: 58,
   maxZoomFactor: 12,
   zoomSmoothing: 0.05,
   x: CENTER.x,            // foco horizontal (a lo largo de la banda, eje X): se suaviza hacia la pelota
@@ -902,6 +951,19 @@ export function clearSprintChaseState(p){
   p.seekAerial = false;
   p.iaSeekingBrake = false;
   if(ball.possessedBy === p.id) ball.possessedBy = null;
+  if(p.isEffortTouching){
+    p.isEffortTouching = false;
+    syncTechnicallyBusy(p);
+  }
+}
+
+function clearOtherSprintChaseStates(newOwner){
+  if(!newOwner) return;
+  for(const pl of allPlayers){
+    if(pl === newOwner || pl.state !== STATE_SPRINT_CHASE) continue;
+    clearSprintChaseState(pl);
+    pl.effortTouchAnim = null;
+  }
 }
 
 export function computeEffortPassPower(p, targetDist){
@@ -1118,16 +1180,29 @@ export const BALL_STATE = { FREE: 'free', IN_POSSESSION: 'in_possession', DEAD_B
 export const SET_PIECE = { GOAL_KICK: 'goal_kick', CORNER: 'corner', THROW_IN: 'throw_in', KICKOFF: 'kickoff' };
 export const SET_PIECE_UNSTICK_DIST = 1.0;    // metros minimos de recorrido post-saque antes de liberar isStuck
 export const SET_PIECE_ZONE_RADIUS = 2.0;     // radio de la zona designada para ejecutar la pelota parada
-export const RESTART_TIME_LIMIT_MS = GK_AUTO_DISTRIBUTE.TIME_MS;    // tiempo limite de espera para reinicios (corner, arco, lateral)
-export const SET_PIECE_TIMER_DURATION = GK_AUTO_DISTRIBUTE.TIME_SEC; // 3.0 segundos para ejecutar antes del timeout
+export const RESTART_TIME_LIMIT_MS = 5000;    // laterales y córners: 5 s
+export const SET_PIECE_THROW_IN_TIME_SEC = 5.0;
+export const SET_PIECE_CORNER_TIME_SEC = 5.0;
+export const SET_PIECE_GOAL_KICK_TIME_SEC = GK_AUTO_DISTRIBUTE.TIME_SEC;
+export const SET_PIECE_TIMER_DURATION = GK_AUTO_DISTRIBUTE.TIME_SEC; // legacy / saque de arco
 export const SET_PIECE_COUNTDOWN_URGENT = GK_AUTO_DISTRIBUTE.URGENT_SEC; // ultimo segundo: contador en rojo
 export const SET_PIECE_POWER_MAX_MS = 450;    // tiempo maximo de carga de la barra de potencia
-export const SET_PIECE_FORCE_MULT = { short: 14, medium: 20, long: 28 }; // fuerza = powerBar * factor
+/** +300% sobre la base (= 4× potencia original). */
+export const THROW_IN_POWER_MULT = 4.0;
+export const SET_PIECE_FORCE_MULT = {
+  short: 14 * THROW_IN_POWER_MULT,
+  medium: 20 * THROW_IN_POWER_MULT,
+  long: 28 * THROW_IN_POWER_MULT,
+};
 export const GOAL_KICK_GRAB_SUPPRESS_RADIUS = 2.4; // desactiva agarre del arquero cerca del vértice del saque
 export const FIELD_LINE_EPS = 0.02;           // tolerancia para cruce de linea de banda/fondo
 export const DEAD_BALL_RESTART_DELAY = 1.85;  // segundos en pausa antes de reanudar saque muerto
 // --- Saques de banda (lanzamiento con las manos) ---
-export const THROW_IN_FORCE = { short: 8.0, medium: 14.0, long: 20.0 };
+export const THROW_IN_FORCE = {
+  short: 8.0 * THROW_IN_POWER_MULT,
+  medium: 14.0 * THROW_IN_POWER_MULT,
+  long: 20.0 * THROW_IN_POWER_MULT,
+};
 export const THROW_IN_ANIM_WINDUP = 0.2;    // 200ms: torso hacia atras
 export const THROW_IN_ANIM_RELEASE = 0.2;   // 200ms: torso hacia adelante + impulso
 export const THROW_IN_HAND_Z = 1.5;          // altura de la pelota en manos / salida
@@ -1139,6 +1214,19 @@ export let THROW_IN_CLAMP_X = BASE_THROW_IN_CLAMP_X;
 export let CORNER_FLAG_INSET = BASE_CORNER_FLAG_INSET;
 export const THROW_IN_OPPONENT_MIN_DIST = 2.0; // m reales: rivales a 2m del punto de saque
 export const THROW_IN_APPROACH_DIST = 1.8;  // distancia para activar isThrowingIn
+
+export function getSetPieceTimerDuration(type){
+  if(type === SET_PIECE.THROW_IN) return SET_PIECE_THROW_IN_TIME_SEC;
+  if(type === SET_PIECE.CORNER) return SET_PIECE_CORNER_TIME_SEC;
+  if(type === SET_PIECE.GOAL_KICK) return SET_PIECE_GOAL_KICK_TIME_SEC;
+  return SET_PIECE_TIMER_DURATION;
+}
+
+export function cornerTakerFacing(db, ballPos){
+  const intoX = db.side === 'left' ? 1 : -1;
+  const intoY = (ballPos?.y ?? CENTER.y) >= CENTER.y ? -1 : 1;
+  return Math.atan2(intoY * 0.55, intoX);
+}
 
 export function playerInStrictControlRange(p, b = ball){
   if(!p) return false;
@@ -2380,7 +2468,7 @@ export function resetGkAutoDistributeTimer(p){
   if(!p || !isGoalkeeper(p)) return;
   if(isGkHandsPossession(p) && !p.gkKickAnim) startGkHandsTimer(p);
   if(isSetPieceAwaitingExecution(p) && Game.setPiece?.type === SET_PIECE.GOAL_KICK){
-    SetPieceManager.timer = SET_PIECE_TIMER_DURATION;
+    SetPieceManager.timer = getSetPieceTimerDuration(SET_PIECE.GOAL_KICK);
   }
 }
 
@@ -2737,12 +2825,14 @@ export function setBallStateInPossession(p, possessSource){
   else clearGkPossessionType(p);
   Game.deadBall = null;
   clearEffortChaseLock(true);
+  clearOtherSprintChaseStates(p);
   if(reclaimingLock) clearBallLock();
   ball.lastTouchedBy = p.id;
   ball.lastAction = null;
   if(ball.possessedBy === p.id) ball.possessedBy = null;
   clearThrowInBlockIfOtherPlayer(p);
   clearChasingState(p);
+  clearSprintChaseState(p);
   clearInterceptionSeek(p);
   if(isFakeShotActive && p.id === fakeShotOwnerId) completeFakeShot(p);
   const defDist = getDefaultDribbleDistance(p);
@@ -3467,9 +3557,9 @@ export function positionSetPieceTaker(taker, db, ballPos){
     taker.y = ballPos.y;
     taker.facing = db.side === 'left' ? 0 : Math.PI;
   } else if(db.type === SET_PIECE.CORNER){
-    taker.x = ballPos.x + (db.side === 'left' ? 0.55 : -0.55);
-    taker.y = ballPos.y + (ballPos.y > CENTER.y ? -0.55 : 0.55);
-    taker.facing = db.side === 'left' ? 0 : Math.PI;
+    taker.x = ballPos.x;
+    taker.y = ballPos.y;
+    taker.facing = cornerTakerFacing(db, ballPos);
   } else if(db.type === SET_PIECE.KICKOFF){
     taker.x = ballPos.x + (db.team === 'home' ? -KICKOFF_TAKER_BALL_OFFSET : KICKOFF_TAKER_BALL_OFFSET);
     taker.y = ballPos.y;
@@ -3538,6 +3628,51 @@ export function maintainGoalKickPlacement(){
   if(!sp) return;
   const pos = getSetPieceBallPosition(sp);
   placeGoalKickBall(pos);
+}
+
+export function setupCorner(db){
+  Game.deadBall = null;
+  Game.outOfPlay = null;
+  Game.isDeadBall = false;
+  Game.cornerPositioned = false;
+
+  const ballPos = getSetPieceBallPosition(db);
+  ball.x = ballPos.x;
+  ball.y = ballPos.y;
+  ball.z = BALL_RADIUS;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.vz = 0;
+  ball.curveFactor = 0;
+  ball.highKick = false;
+  ball.highKickType = null;
+  ball.passOrigin = null;
+  ball.isReadyToKick = false;
+  ball.isContested = false;
+
+  const squad = db.team === 'home' ? homeTeam : awayTeam;
+  const taker = squad.reduce((a, b) => dist2D(a, ballPos) < dist2D(b, ballPos) ? a : b);
+  positionSetPieceTaker(taker, db, ballPos);
+
+  if(!setBallStateInPossession(taker, null)){
+    ball.owner = taker;
+    ball.state = BALL_STATE.IN_POSSESSION;
+    clearChasingState(taker);
+  }
+  ball.lastTouchTeam = db.team;
+  ball.lastTouchedBy = taker.id;
+  if(db.team === 'home') setControlled(taker);
+  else setControlled2(taker);
+
+  setSetPieceMode(true, {
+    type: SET_PIECE.CORNER,
+    team: db.team,
+    side: db.side,
+    takerId: taker.id,
+    x: ballPos.x,
+    y: ballPos.y,
+    fromY: db.fromY,
+  });
 }
 
 export function setupGoalKick(db){
@@ -3744,13 +3879,39 @@ export function transferPossessionToOpponent(){
   setupThrowIn({ type: SET_PIECE.THROW_IN, team: rival, side, x, fromY: ball.y });
 }
 
+export function transferCornerToGoalKick(){
+  const sp = Game.setPiece;
+  if(!sp || sp.type !== SET_PIECE.CORNER) return;
+
+  const defendingTeam = sp.team === 'home' ? 'away' : 'home';
+  const fromY = sp.fromY ?? sp.y ?? ball.y;
+  const side = sp.side;
+
+  clearActiveSetPieceTaker();
+  resetSetPieceManager();
+  setSetPieceMode(false);
+  Game.cornerPositioned = false;
+  Game.deadBall = null;
+  Game.outOfPlay = null;
+  Game.isDeadBall = false;
+
+  setupGoalKick({
+    type: SET_PIECE.GOAL_KICK,
+    team: defendingTeam,
+    side,
+    fromY,
+  });
+}
+
 export function handleSetPieceTimeout(){
   if(SetPieceManager.executed || Game.isBallInPlay) return;
   const sp = Game.setPiece;
   if(!sp) return;
 
   const restartType = sp.type;
-  if(restartType === SET_PIECE.GOAL_KICK || restartType === SET_PIECE.CORNER){
+  if(restartType === SET_PIECE.CORNER){
+    transferCornerToGoalKick();
+  } else if(restartType === SET_PIECE.GOAL_KICK){
     executeAutoRestart();
   } else if(restartType === SET_PIECE.THROW_IN){
     transferPossessionToOpponent();
@@ -3787,6 +3948,10 @@ export function restartSetPieceForTeam(db){
   }
   if(db.type === SET_PIECE.THROW_IN){
     setupThrowIn(db);
+    return;
+  }
+  if(db.type === SET_PIECE.CORNER){
+    setupCorner(db);
     return;
   }
 
@@ -3980,7 +4145,7 @@ export function setSetPieceMode(active, info){
   Game.isBallInPlay = false;
   Game.setPiece = info || null;
   ball.setPieceLaunchPos = null;
-  SetPieceManager.timer = SET_PIECE_TIMER_DURATION;
+  SetPieceManager.timer = getSetPieceTimerDuration(info?.type);
   SetPieceManager.executed = false;
   resetSetPieceCharge();
   for(const p of allPlayers){
@@ -4114,7 +4279,7 @@ export function clearCurvePassTracking(b){
 
 export function setupCurvePassTracking(p, type, dir, curve, speed){
   clearCurvePassTracking(ball);
-  if(type === 'shot' || !curve) return;
+  if(!curve) return;
 
   ball.curveLineOrigin = {x: p.x, y: p.y};
   ball.curveLineDir = {x: dir.x, y: dir.y};
@@ -4132,7 +4297,7 @@ export function applyCurveEffect(b, dt){
 
 export function applyBallLateralCurve(b, dt){
   if(b.state === BALL_STATE.IN_POSSESSION) return;
-  if(b.lastKickType === 'shot') return;
+  if(b.lastKickType === 'shot' && !b.curveFactor) return;
   let cf = b.curveFactor;
   if(!cf) return;
 
@@ -4174,16 +4339,28 @@ export function resolveShotStyle(curve){
 }
 
 export function applyKickCurvePhysics(p, type, dir, curve){
+  const passCurveMult = getArchetypePassCurveMult(p, type);
+  const shotCurveMult = getArchetypeShotSpecialCurveMult(p, curve);
+
   if(type === 'shot'){
-    ball.shotStyle = 'normal';
-    return {curveFactor: 0, groundFrictionMult: SHOT_NORMAL_FRICTION_MULT};
+    const style = resolveShotStyle(curve);
+    ball.shotStyle = style;
+    if(!curve){
+      return {curveFactor: 0, groundFrictionMult: SHOT_NORMAL_FRICTION_MULT};
+    }
+    const curveDir = curve > 0 ? 1 : -1;
+    let cf = curveDir > 0 ? CURVE_ACCEL_SHOT_R1 : -CURVE_ACCEL_SHOT_L2;
+    cf *= shotCurveMult;
+    const frictionMult = style === 'trivela' ? SHOT_TRIVELA_FRICTION_MULT : SHOT_NORMAL_FRICTION_MULT;
+    return {curveFactor: cf, groundFrictionMult: frictionMult};
   }
+
   const curveDir = curve > 0 ? 1 : curve < 0 ? -1 : 0;
   ball.shotStyle = null;
   const passGroundMult = (type==='pass' || type==='through' || type==='cross') ? 1.08 : 1;
   if(!curveDir) return {curveFactor:0, groundFrictionMult:passGroundMult};
-  if(curveDir > 0) return {curveFactor: CURVE_ACCEL_PASS_R1, groundFrictionMult:passGroundMult};
-  return {curveFactor: -CURVE_ACCEL_PASS_L2, groundFrictionMult:passGroundMult};
+  if(curveDir > 0) return {curveFactor: CURVE_ACCEL_PASS_R1 * passCurveMult, groundFrictionMult:passGroundMult};
+  return {curveFactor: -CURVE_ACCEL_PASS_L2 * passCurveMult, groundFrictionMult:passGroundMult};
 }
 
 export class Ball{
@@ -4443,12 +4620,12 @@ export class Player{
    FORMACIONES (coordenadas para el equipo que ataca hacia +x / home)
    ============================================================ */
 export const FORMATION_6VS6 = [
-  {role:'GK',  slot:{x:5,  y:34}, n:1},
-  {role:'DEF', slot:{x:24, y:19}, n:2},
-  {role:'DEF', slot:{x:24, y:49}, n:3},
-  {role:'MID', slot:{x:48, y:34}, n:6},
-  {role:'FWD', slot:{x:68, y:19}, n:9},
-  {role:'FWD', slot:{x:68, y:49}, n:10},
+  {role:'GK',  posRole:'GK',  slot:{x:5,  y:34}, n:1},
+  {role:'DEF', posRole:'LCB', slot:{x:24, y:19}, n:2},
+  {role:'DEF', posRole:'RCB', slot:{x:24, y:49}, n:3},
+  {role:'MID', posRole:'CM',  slot:{x:48, y:34}, n:6},
+  {role:'FWD', posRole:'ST',  slot:{x:68, y:19}, n:9},
+  {role:'FWD', posRole:'ST',  slot:{x:68, y:49}, n:10},
 ];
 
 // 4-1-2-1-2: linea de 4, pivote (CDM), dos medios (CM), enganche (CAM), dos delanteros (ST)
@@ -4496,6 +4673,8 @@ export function buildTeam(team, formationKey = '6vs6'){
   F.forEach(f=>{
     const slot = {x: f.slot.x * sx, y: f.slot.y * sy};
     const p = new Player(team, f.role, slot, f.n, f.posRole || f.role);
+    applyArchetypeToPlayer(p);
+    assignPlayerDisplayName(p, team === 'home' ? 0 : 1);
     arr.push(p);
   });
   return arr;

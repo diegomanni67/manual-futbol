@@ -130,8 +130,10 @@ export const GK_ANIM_STATE = {
   IDLE: 'idle',
   DIVE_LEFT: 'DIVE_LEFT',
   DIVE_RIGHT: 'DIVE_RIGHT',
+  LOW_DIVE: 'LOW_DIVE',
   CATCH: 'CATCH',
   JUMP: 'jump',
+  SMOTHER: 'SMOTHER',
 };
 
 /** Estado IA: presión secundaria activada con R1 (sin tacle). */
@@ -168,6 +170,14 @@ export const JOCKEY_PHYSICS = {
   CONTAIN_MIN: 1.2,
   CONTAIN_IDEAL: 1.8,
   CONTAIN_MAX: 2.6,
+  /** Radio corto de quite automático en jockey (contacto directo). */
+  STEAL_RADIUS: 1.02,
+  /** Cono frontal mínimo (coseno): ~68° hacia delante del defensor. */
+  STEAL_FRONT_DOT: 0.38,
+  /** Velocidad mínima del rival acercándose al marcador. */
+  STEAL_RIVAL_CLOSING_MIN: 0.35,
+  /** Distancia cuerpo a cuerpo = colisión para activar el quite. */
+  STEAL_COLLISION_DIST: 0.64,
 };
 
 /** Tacle: magnetismo y recuperación. */
@@ -201,29 +211,42 @@ export const RECOVERY_STATE = {
 };
 
 export const GK_AI = {
-
-  REACTION_DELAY: 0.2,
-
-  FIXED_SAVE_CHANCE: 0.4,
-
-  CORNER_DIVE_SUCCESS: 0.4,
-
+  /** Retardo humano antes de lanzarse (s). */
+  REACTION_DELAY: 0.18,
+  /** Probabilidad base de blocaje en tiros medios. */
+  FIXED_SAVE_CHANCE: 0.72,
+  /** Tiros débiles: casi siempre blocaje. */
+  WEAK_SHOT_SPEED: 7.5,
+  /** Por debajo = tiro contenible; por encima = despeje preferente. */
+  HARD_SHOT_SPEED: 13.5,
+  /** Ángulo extremo (fracción del ancho del arco) → despeje. */
+  WIDE_SHOT_FRAC: 0.62,
+  /** Altura complicada (m) → salto o despeje. */
+  HIGH_SHOT_Z: 1.65,
+  CORNER_DIVE_SUCCESS: 0.32,
   BODY_CENTER_FRAC: 0.35,
-
   CORNER_FRAC: 0.55,
-
-  MIN_ADVANCE: 1.2,
-
-  MAX_ADVANCE: 5.5,
-
-  CLOSE_DIST: 16.5,
-
-  SHOT_HORIZON: 2.4,
-
-  INTERCEPT_RADIUS: 1.2,
-
-  TRAJECTORY_STEP: 0.04,
-
+  /** Avance mínimo/máximo desde la línea de gol (m reales → unidades motor). */
+  MIN_ADVANCE: 1.0,
+  MAX_ADVANCE: 5.8,
+  /** Distancia pelota-arco para achicar al máximo. */
+  CLOSE_DIST: 18,
+  /** Horizonte de predicción de trayectoria (s). */
+  SHOT_HORIZON: 2.6,
+  INTERCEPT_RADIUS: 1.35,
+  TRAJECTORY_STEP: 0.035,
+  /** Velocidad máxima de desplazamiento en posicionamiento (unidades/s). */
+  POSITION_MAX_SPEED: 5.2,
+  /** Distancia al objetivo para activar sprint de posicionamiento. */
+  POSITION_SPRINT_DIST: 2.2,
+  /** 1v1: distancia máxima del delantero al arco para salir. */
+  ONE_V_ONE_BOX_DIST: 14,
+  /** 1v1: distancia para lanzarse a los pies (smother). */
+  ONE_V_ONE_SMOTHER_DIST: 2.8,
+  /** 1v1: ningún defensor aliado a esta distancia del delantero. */
+  ONE_V_ONE_CLEAR_RADIUS: 6.5,
+  /** Avance extra en salida 1v1. */
+  ONE_V_ONE_RUSH_ADVANCE: 7.5,
 };
 
 

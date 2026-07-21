@@ -5,11 +5,23 @@ import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_H
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 import { getModeTackleDistance } from './modePhysics.js';
 import { JOCKEY_PHYSICS, RECOVERY_STATE, TACKLE_PHYSICS, AI_RUPTURA, AI_RUPTURA_MANUAL, CPU_DESMARQUE_SPEED_MULT } from './gameplay_constants.js';
+import {
+  getArchetypeDribbleAgility,
+  getArchetypeDribbleSharpTurnBleedMult,
+  getArchetypeEffortChaseSpeedMult,
+  getArchetypeJockeySpeedFactor,
+  getArchetypeJockeyStealRadiusMult,
+  getArchetypeSlideReachMult,
+  getArchetypeTackleLookMult,
+  getArchetypeTackleRadiusMult,
+  getArchetypeTurnRateMult,
+  getArchetypeTurnTouchAngleMult,
+} from './archetypes.js';
 import { toGameUnits } from './utils.js';
 
 import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
 
-import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim, isControlledByHuman } from './state.js';
+import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupCorner, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim, isControlledByHuman } from './state.js';
 
 import { getPadAt, padButtons, remapMoveForCamera, snapshotKeys, syncStickDir, PREP_SPEED_FACTOR } from './input.js';
 
@@ -207,7 +219,8 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
   const looseTouchSprint = isFakeShotLooseChase(p);
   const effortSprint = looseTouchSprint || !!(p.isEffortSprinting && ball.owner === p);
   const dribbling = !effortSprint && ball.owner === p && (!isGoalkeeper(p) || isGkFeetPossession(p));
-  const agility = dribbling ? AGILITY_WITH_BALL : AGILITY_NO_BALL;
+  let agility = dribbling ? AGILITY_WITH_BALL : AGILITY_NO_BALL;
+  if(dribbling) agility = getArchetypeDribbleAgility(agility, p);
   const stunned = isPlayerStunned(p);
 
   if(stunned){
@@ -260,6 +273,7 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
     turnRate /= clamp(mass, 0.82, 1.3);
     // AGILITY_* escala la respuesta al stick: sin pelota gira mucho mas rapido; con pelota conserva inercia
     if(!stunned) turnRate *= 0.3 + agility*2.7;
+    turnRate *= getArchetypeTurnRateMult(p, dribbling);
     // Sprint con balón: prioridad de inercia — giros muy limitados, sin frenar al girar
     if(effortSprint){
       turnRate = MOVE_TURN_RATE_MIN * 0.42;
@@ -276,7 +290,8 @@ function updateMovement(p, dt, moveDir, moveMag, wantMove, maxSpeed, sprint, mas
     if(!stunned && !effortSprint && !skipSharpBleed && curSpeed > MOVE_LOW_SPEED_SNAP && turnDelta > 0.5){
       const sharpness = clamp((turnDelta-0.5)/(Math.PI-0.5), 0, 1);
       const bleedBase = MOVE_SHARP_TURN_BLEED*(dribbling ? 0.75 : 0.28);
-      const bleed = bleedBase*Math.pow(sharpness, 0.62)*speedRatio*(1.08 - agility*0.65);
+      const bleedMult = getArchetypeDribbleSharpTurnBleedMult(p, dribbling);
+      const bleed = bleedBase*Math.pow(sharpness, 0.62)*speedRatio*(1.08 - agility*0.65)*bleedMult;
       newSpeed = curSpeed*(1 - bleed*clamp(dt*6.5, 0, 1));
     }
 
@@ -434,7 +449,9 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
 
   p.jockeyState = !!jockey;
   p.jockeyRetreat = false;
-  if(jockey && ball.owner && ball.owner.team !== p.team){
+  // Jockey humano: solo postura + orientación; el stick controla el desplazamiento al 100%.
+  const humanJockey = jockey && isHumanControlledPlayer(p);
+  if(jockey && !humanJockey && ball.owner && ball.owner.team !== p.team){
     const rival = ball.owner;
     const toRivalX = rival.x - p.x, toRivalY = rival.y - p.y;
     const distRival = Math.hypot(toRivalX, toRivalY) || 0.001;
@@ -471,7 +488,8 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   if(ball.owner===p && !isGkHandsPossession(p) && wantMove && !p.turnTouch && !chasing && !effortSprint && !p.stumble && !p.charging && !p.pendingKick && !p.blockDribbling){
     const moveAng = Math.atan2(activeMoveDir.y, activeMoveDir.x);
     const turnAmount = Math.abs(angDiff(moveAng, p.facing));
-    if(turnAmount > TURN_TOUCH_ANGLE){
+    const turnThreshold = TURN_TOUCH_ANGLE * getArchetypeTurnTouchAngleMult(p, true);
+    if(turnAmount > turnThreshold){
       const dirX = activeMoveDir.x/moveMag, dirY = activeMoveDir.y/moveMag;
       const legLead = Math.sin(p.animPhase) >= 0 ? 1 : -1;
       p.turnTouch = {t:0, dur:TURN_TOUCH_DUR, dir:{x:dirX, y:dirY}};
@@ -486,9 +504,12 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   let maxSpeed;
   const speedLimiters = [];
   const uniformMax = physicsConfig.maxSpeed ? toGameUnits(physicsConfig.maxSpeed) : null;
+  const jockeySpeedFactor = jockey ? getArchetypeJockeySpeedFactor(p) : 1.0;
+  const effortChaseSpeedMult = sprintChase ? getArchetypeEffortChaseSpeedMult(p) : 1;
   if(physicsConfig.useUniformSpeed && uniformMax){
     // 11vs11: un solo tope (expectedMax) para todos los roles; sin FORCED_CHASE ni bonus por rol
-    maxSpeed = uniformMax * (jockey ? 0.55 : 1.0);
+    maxSpeed = uniformMax * (jockey ? jockeySpeedFactor : 1.0);
+    if(sprintChase) maxSpeed = uniformMax * effortChaseSpeedMult;
     if(ball.owner === p && !sprintActive && !forcedChase && !sprintChase && !effortSprint){
       maxSpeed *= 0.91;
       speedLimiters.push('ballOwner*0.91');
@@ -502,9 +523,9 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
     if(p.jockeyRetreat) maxSpeed = Math.min(maxSpeed, JOCKEY_PHYSICS.SPRINT_RETREAT_SPEED);
     maxSpeed = Math.min(maxSpeed, uniformMax);
   } else {
-    maxSpeed = getPlayerMoveSpeedBase(p) * (sprint ? (physicsConfig.sprintMult ?? DEFAULT_SPRINT_MULT) : 1.0) * (jockey?0.55:1.0);
+    maxSpeed = getPlayerMoveSpeedBase(p) * (sprint ? (physicsConfig.sprintMult ?? DEFAULT_SPRINT_MULT) : 1.0) * (jockey ? jockeySpeedFactor : 1.0);
     if(sprintChase){
-      maxSpeed = getPlayerMaxSprintVelocity(p);
+      maxSpeed = getPlayerMaxSprintVelocity(p) * effortChaseSpeedMult;
     } else if(forcedChase) maxSpeed = getPlayerMoveSpeedBase(p) * FORCED_CHASE_SPEED_MULT;
     if(fakeShotRecovery) maxSpeed = p.maxVelocity || p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
     else if(!sprintChase && effortSprint) maxSpeed = p.maxSprintVelocity || getPlayerMaxSprintVelocity(p);
@@ -521,7 +542,7 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
     if(p.jockeyRetreat) maxSpeed = Math.min(maxSpeed, JOCKEY_PHYSICS.SPRINT_RETREAT_SPEED);
   }
 
-  maxSpeed = Math.min(maxSpeed, getPlayerAbsoluteMaxVelocity(p));
+  maxSpeed = Math.min(maxSpeed, getPlayerAbsoluteMaxVelocity(p) * (sprintChase ? effortChaseSpeedMult : 1));
 
   const maxSpeedBeforeDirectional = maxSpeed;
   maxSpeed = getDirectionalMaxSpeed(activeMoveDir, moveMag, maxSpeed);
@@ -690,6 +711,113 @@ function movePlayer(p, dt, moveDir, sprint, jockey, opts){
   checkBallCapture(p);
 }
 
+function getJockeyStealRadius(p){
+  return JOCKEY_PHYSICS.STEAL_RADIUS * getArchetypeJockeyStealRadiusMult(p);
+}
+
+function isInJockeyFrontArc(defender, tx, ty){
+  const dx = tx - defender.x;
+  const dy = ty - defender.y;
+  const dist = Math.hypot(dx, dy);
+  if(dist < 0.001) return true;
+  const fwdX = Math.cos(defender.facing);
+  const fwdY = Math.sin(defender.facing);
+  const dot = (dx / dist) * fwdX + (dy / dist) * fwdY;
+  return dot >= JOCKEY_PHYSICS.STEAL_FRONT_DOT;
+}
+
+function isRivalClosingOnDefender(defender, rival){
+  const dx = defender.x - rival.x;
+  const dy = defender.y - rival.y;
+  const dist = Math.hypot(dx, dy) || 0.001;
+  const toDefX = dx / dist;
+  const toDefY = dy / dist;
+  const closing = rival.vx * toDefX + rival.vy * toDefY;
+  return closing >= JOCKEY_PHYSICS.STEAL_RIVAL_CLOSING_MIN;
+}
+
+function canAttemptJockeyAutoSteal(p){
+  if(!p?.jockeyState) return false;
+  if(p.role === 'GK' || p.tackleAnim || p.diveAnim || p.airStrikeAnim) return false;
+  if(isPlayerStunned(p) || isPlayerStaggered(p)) return false;
+  if(p.tackleCooldown > 0 || p.recoveryState) return false;
+  if(isBallSetPieceFrozen()) return false;
+  const rival = ball.owner;
+  if(!rival || rival.team === p.team) return false;
+  if(isGkHandsPossession(rival)) return false;
+  if(!canTakeBallFromOwner(p, rival)) return false;
+  return true;
+}
+
+function startJockeyAutoTackle(p, rival){
+  if(p.tackleAnim || p.tackleCooldown > 0 || p.recoveryState) return false;
+  if(p.diveAnim || p.airStrikeAnim || p.secondaryPressActive) return false;
+  if(isBallAboveKnee()) return false;
+  if(ball.owner && isGkHandsImmune(ball.owner)) return false;
+
+  const toBall = norm({ x: ball.x - p.x, y: ball.y - p.y });
+  const toRival = norm({ x: rival.x - p.x, y: rival.y - p.y });
+  const dir = dist2D(p, ball) <= dist2D(p, rival) + 0.08 ? toBall : toRival;
+
+  p.jockeyState = false;
+  p.jockeyRetreat = false;
+  p.tackleAnim = {
+    type: 'stand',
+    t: 0,
+    dur: STAND_TACKLE_DURATION * 0.88,
+    dirX: dir.x,
+    dirY: dir.y,
+    startX: p.x,
+    startY: p.y,
+    resolved: false,
+    success: false,
+    foul: false,
+    carryVx: 0,
+    carryVy: 0,
+    jockeyAuto: true,
+  };
+  p.facing = lookAtFacing(p.x, p.y, p.x + dir.x, p.y + dir.y);
+  syncPlayerDir(p);
+  p.vx = 0;
+  p.vy = 0;
+  p.charging = null;
+  p.pendingKick = null;
+  if(isControlledByHuman?.(p)){
+    clearPlayerAIState(p);
+    clearChasingState(p);
+  }
+  return true;
+}
+
+function tryJockeyAutoSteal(p){
+  if(!canAttemptJockeyAutoSteal(p)) return false;
+
+  const rival = ball.owner;
+  const stealR = getJockeyStealRadius(p);
+  const ballDist = dist2D(p, ball);
+  const bodyDist = dist2D(p, rival);
+  const colliding = bodyDist <= JOCKEY_PHYSICS.STEAL_COLLISION_DIST;
+  const inStealRange = ballDist <= stealR || colliding;
+  if(!inStealRange) return false;
+
+  const frontalBall = isInJockeyFrontArc(p, ball.x, ball.y);
+  const frontalRival = isInJockeyFrontArc(p, rival.x, rival.y);
+  if(!frontalBall && !frontalRival) return false;
+
+  const approaching = isRivalClosingOnDefender(p, rival) || colliding;
+  if(!approaching) return false;
+
+  return startJockeyAutoTackle(p, rival);
+}
+
+/** Quite automático en jockey: rival entra al cono frontal o choca al marcador. */
+export function updateJockeyAutoSteals(){
+  if(ball.state !== BALL_STATE.IN_POSSESSION || !ball.owner) return;
+  for(const p of allPlayers){
+    if(tryJockeyAutoSteal(p)) break;
+  }
+}
+
 /* ============================================================
    ENTRADA DE PIE (parada) Y BARRIDA (deslizamiento) — con animacion
    Tacle/barrida: impacto otorga posesion con retardo · stun 300ms · staggered 1000ms
@@ -774,7 +902,7 @@ function startTackle(p, type, aimDir){
 
   let dir = (aimDir && Math.hypot(aimDir.x, aimDir.y) > 0.05) ? norm(aimDir) : {x: Math.cos(p.facing), y: Math.sin(p.facing)};
   // Prioridad tacle: mirar instantaneamente hacia la pelota si esta dentro del radio
-  if(type === 'stand' && dist2D(p, ball) <= TACKLE_LOOK_RADIUS){
+  if(type === 'stand' && dist2D(p, ball) <= TACKLE_LOOK_RADIUS * getArchetypeTackleLookMult(p)){
     dir = norm({x: ball.x - p.x, y: ball.y - p.y});
   }
   p.tackleAnim = {
@@ -816,9 +944,17 @@ function tryDefensiveTackleInput(p, input){
   return false;
 }
 
+function getEffectiveTackleRadius(p){
+  return TACKLE_RADIUS * getArchetypeTackleRadiusMult(p);
+}
+
 function resolveStandTackle(p, a){
   if(a.resolved) return;
-  const magnetR = TACKLE_RADIUS * TACKLE_PHYSICS.MAGNET_MULT;
+  const baseR = a.jockeyAuto
+    ? getJockeyStealRadius(p) * 1.12
+    : getEffectiveTackleRadius(p);
+  const magnetMult = a.jockeyAuto ? 1.05 : TACKLE_PHYSICS.MAGNET_MULT;
+  const magnetR = baseR * magnetMult;
   const inBox = ballInTackleBox(p, a.dirX, a.dirY, magnetR);
   const distBall = dist2D(p, ball);
   if(!inBox && distBall > magnetR) return;
@@ -836,7 +972,7 @@ function resolveStandTackle(p, a){
 function applyTackleBallMagnet(p, a, prog){
   if(a.resolved || a.type !== 'stand' || ball.owner === p) return;
   if(prog < TACKLE_PHYSICS.STAND_ACTIVE_START || prog > TACKLE_PHYSICS.STAND_ACTIVE_END) return;
-  const magnetR = TACKLE_RADIUS * TACKLE_PHYSICS.MAGNET_MULT;
+  const magnetR = getEffectiveTackleRadius(p) * TACKLE_PHYSICS.MAGNET_MULT;
   const d = dist2D(p, ball);
   if(d > magnetR) return;
   const pull = (1 - d / magnetR) * TACKLE_PHYSICS.MAGNET_PULL;
@@ -854,7 +990,7 @@ function computeSlideHitbox(p, a, prog){
   const windowT = active ? clamp((prog - SLIDE_ACTIVE_START) / windowSpan, 0, 1) : 0;
   // pierna al maximo en el centro de la ventana activa (sin coincide con la pose visual)
   const extendT = active ? Math.sin(windowT * Math.PI) : 0;
-  const legReach = SLIDE_LEG_REACH * (0.62 + 0.38 * extendT);
+  const legReach = SLIDE_LEG_REACH * getArchetypeSlideReachMult(p) * (0.62 + 0.38 * extendT);
   const peakScale = active
     ? 1 + extendT * (SLIDE_HITBOX_PEAK_SCALE - 1)
     : 1;
@@ -996,12 +1132,19 @@ function startGKDive(p, targetY, availableTime, predZ, opts = {}){
   const goalX = p.ownGoalX();
   const dir = p.attackDir();
   const saveMode = opts.saveMode || 'dive';
-  const targetX = saveMode === 'catch' ? p.x : goalX + dir * 0.35;
+  const isSmother = saveMode === 'smother';
+  const targetX = isSmother
+    ? (opts.targetX ?? p.x + dir * 2.2)
+    : saveMode === 'catch' ? p.x : goalX + dir * 0.35;
   const clampedY = clamp(targetY, CENTER.y - GOAL_HALF - 1.2, CENTER.y + GOAL_HALF + 1.2);
   const diveSideAnim = getDiveSideAnim(p, clampedY, targetX);
   const animState = opts.animState ||
-    (saveMode === 'catch' ? 'CATCH' : (predZ >= GK_JUMP_MIN_Z ? 'jump' : diveSideAnim));
+    (saveMode === 'catch' ? 'CATCH'
+      : isSmother ? 'SMOTHER'
+      : animStateFromHeight(predZ, diveSideAnim));
   const diveType = animState === 'CATCH' ? 'catch'
+    : animState === 'SMOTHER' ? 'smother'
+    : animState === 'LOW_DIVE' ? 'low_dive'
     : animState === 'DIVE_LEFT' ? 'dive_left'
     : animState === 'DIVE_RIGHT' ? 'dive_right'
     : (predZ >= GK_JUMP_MIN_Z ? 'jump' : 'dive');
@@ -1011,14 +1154,15 @@ function startGKDive(p, targetY, availableTime, predZ, opts = {}){
     animState,
     saveMode,
     t: 0,
-    dur: clamp(availableTime, GK_DIVE_MIN_DUR, GK_DIVE_MAX_DUR),
+    dur: clamp(availableTime, GK_DIVE_MIN_DUR, isSmother ? 0.48 : GK_DIVE_MAX_DUR),
     startX: p.x, startY: p.y,
     targetX,
     targetY: clampedY,
-    jumpHeight: clamp(predZ || 0, 0.6, 2.3),
+    jumpHeight: isSmother ? 0.12 : clamp(predZ || 0, 0.35, 2.3),
     resolved: false,
     success: false,
     parryChance: opts.parryChance ?? GK_CATCH_CHANCE,
+    parryMode: opts.parryMode ?? null,
     forceCatch: !!opts.forceCatch,
   };
   p.facing = lookAtFacing(p.x, p.y, targetX, clampedY);
@@ -1026,12 +1170,19 @@ function startGKDive(p, targetY, availableTime, predZ, opts = {}){
   p.vx = 0; p.vy = 0;
 }
 
+function animStateFromHeight(predZ, diveSideAnim){
+  if(predZ >= GK_JUMP_MIN_Z) return 'jump';
+  if(predZ <= BALL_RADIUS + 0.5) return 'LOW_DIVE';
+  return diveSideAnim;
+}
+
 function startGKCatchSave(p, targetY, availableTime, predZ, opts = {}){
   startGKDive(p, targetY, availableTime, predZ, {
     saveMode: 'catch',
-    animState: 'CATCH',
+    animState: opts.animState || 'CATCH',
     forceCatch: opts.forceCatch ?? false,
     parryChance: opts.parryChance ?? GK_CATCH_CHANCE,
+    parryMode: opts.parryMode ?? null,
   });
 }
 
@@ -1039,12 +1190,19 @@ function updateGKDive(p, dt){
   const a = p.diveAnim;
   a.t += dt;
   const prog = clamp(a.t/a.dur, 0, 1);
-  const eased = 1-Math.pow(1-prog,2); // arranca rapido, como un salto
-  p.x = lerp(a.startX, a.targetX, eased);
-  p.y = lerp(a.startY, a.targetY, eased);
+  const eased = 1-Math.pow(1-prog,2);
+  if(a.type === 'smother'){
+    p.x = lerp(a.startX, a.targetX, Math.min(1, eased * 1.15));
+    p.y = lerp(a.startY, a.targetY, eased);
+  } else {
+    p.x = lerp(a.startX, a.targetX, eased);
+    p.y = lerp(a.startY, a.targetY, eased);
+  }
 
-  if(!a.resolved && prog>0.2 && !ball.owner){
-    if(dist2D(p, ball) < GK_SAVE_RADIUS){
+  const contactStart = a.type === 'smother' ? 0.12 : 0.2;
+  if(!a.resolved && prog > contactStart && !ball.owner){
+    const reach = a.type === 'smother' ? GK_SAVE_RADIUS * 1.15 : GK_SAVE_RADIUS;
+    if(dist2D(p, ball) < reach){
       onGkBallTriggerEnter(p, ball);
     }
   }
@@ -1960,6 +2118,11 @@ function resumeFromDeadBall(){
 
   if(db.type === SET_PIECE.GOAL_KICK){
     setupGoalKick(db);
+    return;
+  }
+
+  if(db.type === SET_PIECE.CORNER){
+    setupCorner(db);
     return;
   }
 

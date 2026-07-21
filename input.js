@@ -4,11 +4,18 @@ export { CONTROL_TOUCH_DUR } from './state.js';
 
 import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_HITBOX_MAX_XY, AIR_AERIAL_MIN_Z, AIR_BICYCLE_CONTACT_RADIUS, AIR_BICYCLE_MAX_Z, AIR_BICYCLE_MIN_Z, AIR_BUFFER_RADIUS, AIR_CONTACT_RADIUS, AIR_DRAG, AIR_FOOT_HITBOX_R, AIR_FOOT_STRIKE_Z, AIR_FOOT_THRESHOLD_Z, AIR_HEAD_HITBOX_R, AIR_HEADER_JUMP_APPROACH_DIST, AIR_HEADER_JUMP_APEX_MAX, AIR_HEADER_JUMP_APEX_MIN, AIR_HEADER_JUMP_MIN_Z, AIR_HEADER_MAX_Z, AIR_HEADER_MIN_Z, AIR_HEADER_SLOW_SPEED_RATIO, AIR_HEADER_STAND_MAX_Z, AIR_HEADER_STAND_MIN_Z, AIR_LOCK_DURATION, AIR_MANUAL_VOLLEY_SPREAD_MULT, AIR_MANUAL_VOLLEY_SPEED_MULT, AIR_MANUAL_VOLLEY_STAMINA_COST, AIR_MAX_HUMAN_REACH_Z, AIR_PLAYER_HEAD_STAND_Z, AIR_SPAM_SIM_STEP, AIR_STRIKE_TABLE, AIR_VOLLEY_L2_MAX_Z, AIR_VOLLEY_L2_MIN_Z, AIR_VOLLEY_MAX_Z, AIR_VOLLEY_MIN_Z, AUTOPASE_POWER_THRESHOLD, BALL_AERIAL_MIN_Z, BALL_RADIUS, BALL_STATE, Ball, CENTER, CROSS_MARKER_LIFE, DEFAULT_SPRINT_MULT, DIRECTION_PRIORITY, DISTANCE_PRIORITY, DIST_FAKE, DRIBBLE_DIST_R1, DRIBBLE_DIST_R2, EFFORT_CHASE_TEAMMATE_BLOCK, EFFORT_ROLL_SOFT_DURATION, EFFORT_RS_MIN, EFFORT_TOUCH_ANIM_LONG, EFFORT_TOUCH_ANIM_SHORT, EFFORT_TOUCH_BURST_MULT, EFFORT_TOUCH_COOLDOWN, EFFORT_TOUCH_MAX_VELOCITY, FEINT_TOUCH_MAX_VELOCITY, FIELD_L, FIELD_W, FIRST_SHOT_IMPACT_WINDOW, FIRST_SHOT_MAX_Z, FIRST_SHOT_MIN_Z, FIRST_SHOT_POWER_VEL, FORCED_CHASE_RECOVER_DIST, IA_LANDING_JOG_FACTOR, IA_LANDING_WAIT_DIST } from './state.js';
 
-import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, ACTION_BUFFER_GROUND_PASS, ACTION_BUFFER_LOBBED_PASS, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive } from './state.js';
+import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, ACTION_BUFFER_GROUND_PASS, ACTION_BUFFER_LOBBED_PASS, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive, CROSS_KICK_MAX_SPEED, PASS_CROSS_DISTANCE_MULT, PASS_GROUND_MAX_SPEED } from './state.js';
 
 import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getChaseInterceptTarget, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getPressureCursorId, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isEffortTouchDefenderFrozen, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerPerformingSkill, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
 
 import { clampPlayerVelocity, setRupturaRunVelocity, getRupturaRunMaxSpeed } from './physics.js';
+import {
+  getArchetypeAerialPowerMult,
+  getArchetypeEffortTouchAnimMult,
+  getArchetypeEffortTouchCooldownMult,
+  getArchetypeEffortTouchLongDistMult,
+  getArchetypeKickSpeedTableMult,
+} from './archetypes.js';
 
 import { isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isKickoffTaker, isKickoffWaiting, isKickoffBallContestable, getGkKickForceMult, isGkKickManualOnly, resolveManualRestartStickDir, isSetPieceAwaitingExecution, isSetPieceShotOnly, isSetPieceTaker, isThrowInTakerBlocked, lerp, lockKickInputs, movePlayer, nearestToBall, norm, cleanupKickoffState, onSetPieceBallReleased, projectPractice, reclaimFeintPossession, resetBallKickFriction, resetGkAutoDistributeTimer, resolveCollisions, resolveInputCurve, resolveShotStyle, resumeChasingAfterAction, setBallStateFree, setBallStateLoose, setControlled, setControlled2, clearCurvePassTracking, setupCurvePassTracking, startForcedChase, syncPlayerDir, syncTechnicallyBusy, tryEnterChasingFromPrivateEvent, userWantsPossessionAction, maintainKickoffPlacement } from './state.js';
 
@@ -1483,12 +1490,18 @@ function resolveSelfTouchDirection(inputDir, p){
   return {x: Math.cos(p.facing), y: Math.sin(p.facing)};
 }
 
+function getEffortTouchTargetDist(p, type){
+  const base = type === 'short' ? DRIBBLE_DIST_R1 : DRIBBLE_DIST_R2;
+  if(type !== 'long') return base;
+  return base * getArchetypeEffortTouchLongDistMult(p);
+}
+
 // Effort touch: autopase direccionado + STATE_SPRINT_CHASE (R1 + flick stick derecho).
 function triggerEffort(p, power, stickDir, type){
   if(ball.owner !== p || isGkHandsPossession(p)) return false;
 
   const dir = resolveSelfTouchDirection(stickDir, p);
-  const targetDist = type === 'short' ? DRIBBLE_DIST_R1 : DRIBBLE_DIST_R2;
+  const targetDist = getEffortTouchTargetDist(p, type);
 
   p.facing = Math.atan2(dir.y, dir.x);
   p.lastAim = dir;
@@ -1501,10 +1514,11 @@ function triggerEffort(p, power, stickDir, type){
 
   p.isEffortTouching = true;
   syncTechnicallyBusy(p);
-  p.effortTouchCooldown = EFFORT_TOUCH_COOLDOWN;
+  p.effortTouchCooldown = EFFORT_TOUCH_COOLDOWN * getArchetypeEffortTouchCooldownMult(p);
   p.touchCooldown = 0.12;
 
-  const animDur = type === 'short' ? EFFORT_TOUCH_ANIM_SHORT : EFFORT_TOUCH_ANIM_LONG;
+  const baseAnimDur = type === 'short' ? EFFORT_TOUCH_ANIM_SHORT : EFFORT_TOUCH_ANIM_LONG;
+  const animDur = baseAnimDur * getArchetypeEffortTouchAnimMult(p);
   const legLead = Math.sin(p.animPhase) >= 0 ? 1 : -1;
   p.effortTouchAnim = {t:0, dur: animDur, leg:legLead, type: type === 'short' ? 'short' : 'long'};
   p.touchAnim = null;
@@ -1518,7 +1532,7 @@ function effortTouch(p, dir, type){
 
   clearTeammateInterferenceForTechnicalAction(p);
   const stickDir = resolveSelfTouchDirection(dir, p);
-  const targetDist = type === 'short' ? DRIBBLE_DIST_R1 : DRIBBLE_DIST_R2;
+  const targetDist = getEffortTouchTargetDist(p, type);
   const power = computeEffortPassPower(p, targetDist);
   return triggerEffort(p, power, stickDir, type);
 }
@@ -1770,21 +1784,25 @@ function updateKickoffManeuver(p, dt){
 function computeKickVelocityParams(p, type, aimDir, power, curve){
   const dir = norm(aimDir);
   const speedTable = {
-    pass:    {min:10,  max:42, vz:2},
+    pass:    {min:10,  max: PASS_GROUND_MAX_SPEED * PASS_CROSS_DISTANCE_MULT, vz:2},
     shot:    {min:18, max:60, vz:7},
     through: {min:20, max:54, vz:2},
-    cross:   {min:11, max:40, vz:11},
+    cross:   {min:11, max: CROSS_KICK_MAX_SPEED * PASS_CROSS_DISTANCE_MULT, vz:11},
   };
   const cfg = speedTable[type] || speedTable.pass;
   let speedMult = KICK_VELOCITY_MULT;
   if(type === 'shot'){
     speedMult *= SHOT_VELOCITY_MULT;
+    const style = resolveShotStyle(curve);
+    if(style === 'placed') speedMult *= SHOT_PLACED_SPEED_MULT;
+    else if(style === 'trivela') speedMult *= SHOT_TRIVELA_SPEED_MULT;
+    speedMult *= getArchetypeKickSpeedTableMult(p, type);
   } else {
     speedMult *= PASS_VELOCITY_MULT;
+    speedMult *= getArchetypeKickSpeedTableMult(p, type);
   }
-  const shotCurve = type === 'shot' ? 0 : curve;
   const spd = lerp(cfg.min, cfg.max, power) * speedMult * getBallKickPowerMult(type);
-  const curvePhys = applyKickCurvePhysics(p, type, dir, shotCurve);
+  const curvePhys = applyKickCurvePhysics(p, type, dir, type === 'shot' ? curve : curve);
   return {dir, spd, cfg, curvePhys, type};
 }
 
@@ -1839,14 +1857,13 @@ function executeKickContact(p, type, aimDir, power, curve, impulseFn){
   }
   handleKickCursorSwitch(p, power, dir, type);
   assignPassTargetFromKick(p, dir, type, power);
-  if(type !== 'shot') setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);
+  if(type !== 'shot' || curve) setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);
   if(Game.setPieceMode) onSetPieceBallReleased();
   if(isKickoffWaiting()) cleanupKickoffState(p);
 }
 
 function executeKick(p, type, aimDir, power, curve){
   power = normalizeKickPower(power);
-  if(type === 'shot') curve = 0;
   const impulseFn = type === 'pass' ? applyStandardImpulse : applyVerticalImpulse;
   executeKickContact(p, type, aimDir, power, curve, impulseFn);
   resetActionBuffer(p);
@@ -2686,7 +2703,6 @@ function getEffectiveManualL2(p, kickType){
 function playGroundActionAtContact(p, kickType, power, curve){
   const exit = getKickExitVector(p);
   const dir = exit.direction;
-  if(kickType === 'shot') curve = 0;
   if(!ball.owner){
     ball.x = exit.origin.x + dir.x * 0.6;
     ball.y = exit.origin.y + dir.y * 0.6;
@@ -3144,7 +3160,8 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
 
     const exitDir = impact.exitDir;
     const vel = computeKickVelocityParams(p, 'shot', exitDir, pwr, 0);
-    const spd = vel.spd * impact.quality;
+    const aerialMult = getArchetypeAerialPowerMult(p);
+    const spd = vel.spd * impact.quality * aerialMult;
 
     setBallStateLoose(true);
     ball.lastTouchTeam = p.team;
@@ -3161,7 +3178,7 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
     ball.vx = exitDir.x * spd;
     ball.vy = exitDir.y * spd;
     ball.initialSpeed = Math.hypot(ball.vx, ball.vy);
-    ball.vz = computeKickVerticalSpeed('shot', vel.cfg, pwr) * impact.quality;
+    ball.vz = computeKickVerticalSpeed('shot', vel.cfg, pwr) * impact.quality * aerialMult;
     ball.curveFactor = 0;
     ball.groundFrictionMult = vel.curvePhys.groundFrictionMult || 1;
     clearCurvePassTracking(ball);
@@ -3189,9 +3206,13 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
   const cfg = contact.cfg;
   const manualVolley = contact.manual && contact.type === 'volley';
   let speedMult = mods.speedMult * (manualVolley ? AIR_MANUAL_VOLLEY_SPEED_MULT : 1);
+  speedMult *= getArchetypeAerialPowerMult(p);
   const fdir = norm(aimDir);
-  const spd = lerp(cfg.minSpeed, cfg.maxSpeed, pwr) * speedMult;
-  const vz = cfg.vz * mods.vzMult * (0.75 + pwr * 0.35);
+  const kickType = actionButton === 'cross' ? 'cross' : actionButton === 'shot' ? 'shot' : 'pass';
+  const tableMult = getArchetypeKickSpeedTableMult(p, kickType);
+  const spd = lerp(cfg.minSpeed, cfg.maxSpeed, pwr) * speedMult * tableMult;
+  const aerialMult = getArchetypeAerialPowerMult(p);
+  const vz = cfg.vz * mods.vzMult * (0.75 + pwr * 0.35) * aerialMult;
 
   setBallStateLoose(true);
   ball.lastTouchTeam = p.team;
@@ -3208,7 +3229,6 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
   ball.vy = fdir.y * spd;
   ball.initialSpeed = Math.hypot(ball.vx, ball.vy);
   ball.vz = vz;
-  const kickType = actionButton === 'cross' ? 'cross' : actionButton === 'shot' ? 'shot' : 'pass';
   const curvePhys = applyKickCurvePhysics(p, kickType, fdir, curve || 0);
   ball.curveFactor = curvePhys.curveFactor;
   ball.groundFrictionMult = curvePhys.groundFrictionMult || 1;

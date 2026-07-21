@@ -17,9 +17,9 @@ import {
 } from './input.js';
 import { isControlledByHuman } from './render.js';
 
-import { updateMovement, movePlayer, movePlayerRuptura, clampPlayerVelocity, enforceAllPlayerSpeedCaps, isPlayerInRupturaRun, getRupturaRunMaxSpeed, setRupturaRunVelocity, ballInTackleBox, applyTackleCarryInertia, tackleAnimProgress, canChainTackle, isBallAboveKnee, hasRivalPossession, isLooseBallForDefense, isWithinSlideReceptionZone, canUseStandingTackle, canUseSlideTackle, startTackle, tryDefensiveTackleInput, resolveStandTackle, computeSlideHitbox, ballIntersectsSlideHitbox, randomDirInCone, slideTackle, resolveTackleImpact, updateSlidePosition, checkSlideFoul, updateTackleAnim, startGKDive, startGKCatchSave, updateGKDive, buildBoundaryWalls, resetGoalZoneTracking, clearGoalNetTriggerState, buildGoalFrame, isBallPastGoalLine, isBallInGoalMouth, isBallInsideGoalVolume, getGoalNetSide, getGoalNetFrictionMult, isInsideGoalTrigger, isBallTouchingNetMesh, updateGoalNetTriggerPhysics, isBallNearGoalArea, getOutZoneFrictionMult, getGoalAreaFrictionMult, getGoalBackLineX, getGoalExitMarginX, registerGoalOnLineCross, ballCrossedGoalLinePlane, ballPassedGoalZone, isBallInGoalZone, isValidGoalTrigger, markGoalZonePassed, onGoalZoneTriggerEnter, tryRegisterGoal, checkGoalLinePosition, checkBallStuck, updateGoalZoneTriggers, dampGoalStructureBounce, isInsideGoalCavity, resolveGoalSolid, resolveGoalLateralNets, resolveBackNet, resolveGoalFrameCollisions, resolveGoalStructureCollisions } from './physics.js';
+import { updateMovement, movePlayer, movePlayerRuptura, clampPlayerVelocity, enforceAllPlayerSpeedCaps, isPlayerInRupturaRun, getRupturaRunMaxSpeed, setRupturaRunVelocity, ballInTackleBox, applyTackleCarryInertia, tackleAnimProgress, canChainTackle, isBallAboveKnee, hasRivalPossession, isLooseBallForDefense, isWithinSlideReceptionZone, canUseStandingTackle, canUseSlideTackle, startTackle, tryDefensiveTackleInput, resolveStandTackle, computeSlideHitbox, ballIntersectsSlideHitbox, randomDirInCone, slideTackle, resolveTackleImpact, updateSlidePosition, checkSlideFoul, updateTackleAnim, startGKDive, startGKCatchSave, updateGKDive, buildBoundaryWalls, resetGoalZoneTracking, clearGoalNetTriggerState, buildGoalFrame, isBallPastGoalLine, isBallInGoalMouth, isBallInsideGoalVolume, getGoalNetSide, getGoalNetFrictionMult, isInsideGoalTrigger, isBallTouchingNetMesh, updateGoalNetTriggerPhysics, isBallNearGoalArea, getOutZoneFrictionMult, getGoalAreaFrictionMult, getGoalBackLineX, getGoalExitMarginX, registerGoalOnLineCross, ballCrossedGoalLinePlane, ballPassedGoalZone, isBallInGoalZone, isValidGoalTrigger, markGoalZonePassed, onGoalZoneTriggerEnter, tryRegisterGoal, checkGoalLinePosition, checkBallStuck, updateGoalZoneTriggers, dampGoalStructureBounce, isInsideGoalCavity, resolveGoalSolid, resolveGoalLateralNets, resolveBackNet, resolveGoalFrameCollisions, resolveGoalStructureCollisions, updateJockeyAutoSteals } from './physics.js';
 
-import { planGoalkeeperAI, resetPracticeGoalkeeperAI } from './gkAi.js';
+import { calculateIntercept, classifySaveResponse, planGoalkeeperAI, resetPracticeGoalkeeperAI } from './gkAi.js';
 
 import {
   clearInterceptPassState, getPassDetectRadius, isDeepInterceptPassLocked,
@@ -363,10 +363,22 @@ function resolveAirSpamDuelIfReady(){
 
 function executeGoalkeeperAIPlan(gk, plan){
   if(!plan) return;
+  if(plan.save === 'smother'){
+    startGKDive(gk, plan.targetY, plan.timeToPlane, plan.predZ, {
+      saveMode: 'smother',
+      animState: plan.animState || 'SMOTHER',
+      targetX: plan.targetX,
+      forceCatch: true,
+      parryChance: 1,
+    });
+    return;
+  }
   if(plan.save === 'catch'){
     startGKCatchSave(gk, plan.targetY, plan.timeToPlane, plan.predZ, {
       parryChance: plan.parryChance ?? GK_CATCH_CHANCE,
       animState: plan.animState || 'CATCH',
+      forceCatch: plan.forceCatch,
+      parryMode: plan.parryMode,
     });
     ball.lastKickType = null;
     return;
@@ -376,6 +388,8 @@ function executeGoalkeeperAIPlan(gk, plan){
       saveMode: 'dive',
       animState: plan.animState,
       parryChance: plan.parryChance ?? GK_CATCH_CHANCE,
+      forceCatch: plan.forceCatch,
+      parryMode: plan.parryMode,
     });
     ball.lastKickType = null;
     return;
@@ -385,12 +399,23 @@ function executeGoalkeeperAIPlan(gk, plan){
   const dy = plan.move.y - gk.y;
   const d = Math.hypot(dx, dy);
   const md = d > 0.05 ? { x: dx / d, y: dy / d } : { x: 0, y: 0 };
-  movePlayer(gk, plan.dt ?? 0, md, plan.sprint && d > 2.5, false);
+  const dt = plan.dt ?? 0;
+  if(plan.moveSpeedCap && d > 0.08){
+    const step = Math.min(d, plan.moveSpeedCap * dt);
+    gk.x += md.x * step;
+    gk.y += md.y * step;
+    gk.x = clamp(gk.x, 0.3, FIELD_L - 0.3);
+    gk.y = clamp(gk.y, 0.3, FIELD_W - 0.3);
+    gk.vx = md.x * plan.moveSpeedCap;
+    gk.vy = md.y * plan.moveSpeedCap;
+  } else {
+    movePlayer(gk, dt, md, plan.sprint && d > 2.5, false);
+  }
   if(plan.facing != null) gk.facing = plan.facing;
 }
 
 function runGoalkeeperAI(gk, dt){
-  const plan = planGoalkeeperAI(gk, dt);
+  const plan = planGoalkeeperAI(gk, dt, allPlayers);
   if(plan?.move) plan.dt = dt;
   executeGoalkeeperAIPlan(gk, plan);
 
@@ -416,6 +441,32 @@ function gkReachRadius(gk){
   return gk.diveAnim ? GK_SAVE_RADIUS : GK_INTERCEPTION_RADIUS;
 }
 
+/** Desvío dirigido: córner o banda según dificultad del remate. */
+function applyGkParryDeflection(gk, b, dive){
+  const dir = gk.attackDir();
+  const mode = dive?.parryMode || 'wide';
+  b.highKick = false;
+  b.highKickType = null;
+  b.lastTouchedBy = gk.id;
+  b.lastTouchTeam = gk.team;
+
+  if(mode === 'corner'){
+    const up = b.y >= CENTER.y;
+    const cornerY = up ? CENTER.y + GOAL_HALF + 3.5 : CENTER.y - GOAL_HALF - 3.5;
+    const ny = cornerY - b.y;
+    const len = Math.hypot(dir, ny) || 1;
+    b.vx = (dir / len) * 9.5 + (Math.random() - 0.5) * 1.2;
+    b.vy = (ny / len) * 8.5;
+    b.vz = 2.2 + Math.random() * 1.6;
+    return;
+  }
+
+  const side = b.y >= CENTER.y ? 1 : -1;
+  b.vx = dir * (6.5 + Math.random() * 2);
+  b.vy = side * (8 + Math.random() * 3);
+  b.vz = 1.0 + Math.random() * 1.2;
+}
+
 /** TRIGGER de atajada: detecta contacto y resuelve animación, sin bloqueo físico en el aire. */
 function onGkBallTriggerEnter(gk, b){
   if(b.owner || b.isReadyToKick || b.state === BALL_STATE.PLACED) return false;
@@ -430,13 +481,7 @@ function onGkBallTriggerEnter(gk, b){
     setBallStateInPossession(gk, 'save');
   } else {
     setBallStateLoose(true);
-    b.lastTouchedBy = gk.id;
-    b.lastTouchTeam = gk.team;
-    const dir = gk.attackDir();
-    const away = norm({x: dir, y: (Math.random()-0.5)*1.6});
-    b.vx = away.x*7 + Math.random()*1.5;
-    b.vy = away.y*6;
-    b.vz = 1.6 + Math.random()*1.4;
+    applyGkParryDeflection(gk, b, dive);
   }
   b.lastTouchTeam = gk.team;
   if(dive){
@@ -490,15 +535,43 @@ function tryGoalkeeperInterception(gk, b){
   const ballSpeed = Math.hypot(b.vx, b.vy, b.vz);
   const isShot = b.lastKickType === 'shot' || ballSpeed > GK_MIN_SHOT_SPEED * 0.7;
   if(!gk.diveAnim && (isShot || horizDist <= GK_BALL_HITBOX_RADIUS + BALL_RADIUS + 0.15)){
-    const diveSide = getDiveSideAnim(gk, b.y);
-    const useCatch = b.z <= GK_JUMP_MIN_Z + 0.5 && horizDist < 0.9;
-    if(useCatch){
-      startGKCatchSave(gk, b.y, 0.28, b.z, { parryChance: GK_CATCH_CHANCE, animState: 'CATCH' });
+    const intercept = calculateIntercept(
+      { vx: b.vx, vy: b.vy, vz: b.vz },
+      { x: b.x, y: b.y, z: b.z },
+      gk,
+    );
+    if(intercept){
+      if(intercept.useCatch){
+        startGKCatchSave(gk, intercept.targetY, 0.28, intercept.predZ, {
+          parryChance: intercept.saveChance,
+          animState: intercept.animState,
+          forceCatch: intercept.forceCatch,
+          parryMode: intercept.parryMode,
+        });
+      } else {
+        startGKDive(gk, intercept.targetY, 0.32, intercept.predZ, {
+          animState: intercept.animState,
+          parryChance: intercept.saveChance,
+          parryMode: intercept.parryMode,
+          forceCatch: intercept.forceCatch,
+        });
+      }
     } else {
-      startGKDive(gk, b.y, 0.32, Math.max(b.z, 0.4), {
-        animState: diveSide,
-        parryChance: GK_CATCH_CHANCE,
-      });
+      const speed = Math.hypot(b.vx, b.vy);
+      const response = classifySaveResponse(gk, { y: b.y, z: b.z }, null, speed);
+      if(response.save === 'catch'){
+        startGKCatchSave(gk, b.y, 0.28, b.z, {
+          parryChance: response.parryChance,
+          animState: response.animState,
+          forceCatch: response.forceCatch,
+        });
+      } else {
+        startGKDive(gk, b.y, 0.32, Math.max(b.z, 0.4), {
+          animState: response.animState,
+          parryChance: response.parryChance,
+          parryMode: response.parryMode,
+        });
+      }
     }
   }
 
@@ -636,6 +709,7 @@ function resolveCollisions(){
       }
     }
   }
+  updateJockeyAutoSteals();
   checkDribbleStealCollisions();
   if(ball.feintDetach && ball.owner === null){
     const owner = allPlayers.find(pl => pl.id === ball.feintDetach.ownerId) || null;

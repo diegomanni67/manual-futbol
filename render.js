@@ -1376,6 +1376,62 @@ function drawGKDive(p, s, h){
     return;
   }
 
+  if(a.type === 'smother' || a.animState === 'SMOTHER'){
+    const stretch = Math.sin(Math.min(prog, 1) * Math.PI * 0.92);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    drawEntityShadow(0, 3, h*0.22, h*0.07, 0.28);
+    ctx.scale(flip, 1);
+    ctx.rotate(-0.55 * stretch);
+    ctx.fillStyle = litMaterial(shirt, h);
+    ctx.beginPath();
+    ctx.ellipse(h*0.12 * stretch, -h*0.14, h*0.34 * stretch, h*0.11, -0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = shorts;
+    ctx.beginPath();
+    ctx.ellipse(-h*0.08, -h*0.06, h*0.13, h*0.08, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2, h*0.09); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-h*0.14, -h*0.02); ctx.lineTo(-h*0.42, h*0.08); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(h*0.02, -h*0.02); ctx.lineTo(h*0.28, h*0.06); ctx.stroke();
+    ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2, h*0.08);
+    ctx.beginPath(); ctx.moveTo(h*0.18, -h*0.22); ctx.lineTo(h*0.48 * stretch, -h*0.08); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-h*0.12, -h*0.2); ctx.lineTo(-h*0.36 * stretch, -h*0.06); ctx.stroke();
+    ctx.fillStyle = BROADCAST.gkHome;
+    ctx.beginPath(); ctx.arc(h*0.48 * stretch, -h*0.08, h*0.07, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(h*0.04, -h*0.24, h*0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  if(a.type === 'low_dive' || a.animState === 'LOW_DIVE'){
+    const stretch = Math.sin(Math.min(prog, 1) * Math.PI * 0.88);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    drawEntityShadow(0, 3, h*0.38 * stretch, h*0.08, 0.3);
+    ctx.scale(sideSign, 1);
+    ctx.rotate(-0.72 * stretch);
+    ctx.fillStyle = litMaterial(shirt, h);
+    ctx.beginPath();
+    ctx.ellipse(h*0.14 * stretch, -h*0.08, h*0.32 * stretch, h*0.1, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = shorts;
+    ctx.beginPath();
+    ctx.ellipse(-h*0.06, h*0.02, h*0.12, h*0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = sock; ctx.lineWidth = Math.max(2, h*0.09); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-h*0.12, h*0.04); ctx.lineTo(-h*0.46, h*0.1); ctx.stroke();
+    ctx.strokeStyle = skin; ctx.lineWidth = Math.max(2, h*0.08);
+    ctx.beginPath(); ctx.moveTo(h*0.22, -h*0.12); ctx.lineTo(h*0.58 * stretch, -h*0.04); ctx.stroke();
+    ctx.fillStyle = BROADCAST.gkHome;
+    ctx.beginPath(); ctx.arc(h*0.58 * stretch, -h*0.04, h*0.065, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(h*0.06, -h*0.16, h*0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   if(a.type==='jump'){
     // salto vertical: el cuerpo se eleva en pantalla siguiendo una curva de salto
     const scale = h/2;
@@ -1564,10 +1620,22 @@ function drawAirStrike(p, s, h){
 }
 
 function drawBall(){
-  const shadowS = project({x:ball.x,y:ball.y,z:0});
-  const s = project({x:ball.x,y:ball.y,z:ball.z});
-  const r = Math.max(3, s.s*BALL_RADIUS*2.1);
-  drawEntityShadow(shadowS.x, shadowS.y + 2, r * 0.9, r * 0.35, 0.46);
+  const shadowS = project({x:ball.x, y:ball.y, z:0});
+  const s = project({x:ball.x, y:ball.y, z:ball.z});
+  const r = Math.max(3, s.s * BALL_RADIUS * 2.1);
+
+  const heightAbove = Math.max(0, ball.z - BALL_RADIUS);
+  const maxShadowHeight = 3.2;
+  const heightT = clamp(heightAbove / maxShadowHeight, 0, 1);
+  const shadowScale = 1.0 - heightT * 0.55;
+  const shadowAlpha = 0.54 - heightT * 0.36;
+  drawEntityShadow(
+    shadowS.x,
+    shadowS.y + 2,
+    r * 0.92 * shadowScale,
+    r * 0.36 * shadowScale,
+    shadowAlpha,
+  );
 
   ctx.save();
   ctx.translate(s.x, s.y);

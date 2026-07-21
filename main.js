@@ -3,10 +3,10 @@
 import {
   GLOBAL_TIME_SCALE, Game, gameState, isPaused,
   ball, CAM, PCAM, FIELD_L, lastTs, lastDt, practicePlayer,
-  clamp, lerp, updateCameraZoom,
+  clamp, lerp, updateMatchCameraFollow,
   resetMatchForStart, setupPractice, resetPractice, updateClock, endMatch, bindBallBeforeRender,
   setLastTs, setLastDt, setGameState, setIsPaused, setGameMode,
-  setControlled, setControlled2, nearestToBall,
+  setControlled, setControlled2, nearestToBall, controlledPlayer, controlledPlayer2,
 } from './state.js';
 
 import {
@@ -27,7 +27,7 @@ function initInputEngineFallbacks(){
 }
 initInputEngineFallbacks();
 
-const CAM_PAN_LERP = 0.055;
+const CAM_PAN_LERP = 0.11;
 const CAM_CELEB_PAN_LERP = 0.14;
 const PCAM_PAN_LERP = 0.09;
 
@@ -66,6 +66,7 @@ let _renderFn = null;
 let _bindBallBeforeRender = null;
 let _assignInputSources = null;
 let _updateCelebration = null;
+let _refreshPlayerSelectionHud = null;
 
 function selectMode(twoP) {
   Game.twoPlayerMode = twoP;
@@ -242,8 +243,6 @@ function initAppChrome() {
   document.getElementById('practiceMenuBtn').addEventListener('click', () => returnToMainMenu());
 }
 
-function isEffortBallCameraLocked() { return false; }
-
 function getEffortCameraFocusPlayer() {
   if (ball.lastAction !== 'effort' && ball.lastAction !== 'feint') return null;
   const owner = ball.owner;
@@ -307,14 +306,23 @@ function tick(ts) {
     } else if (Game.celebration) {
       updateCelebrationCamera();
     } else {
-      updateCameraZoom();
+      updateMatchCameraFollow();
       const effortFocus = getEffortCameraFocusPlayer();
-      let targetCamX;
-      if (effortFocus) targetCamX = clamp(effortFocus.x, 10, FIELD_L - 10);
-      else if (!isEffortBallCameraLocked()) targetCamX = clamp(ball.x + ball.vx * 0.35, 10, FIELD_L - 10);
-      else targetCamX = CAM.x;
-      CAM.x = lerp(CAM.x, targetCamX, CAM_PAN_LERP);
+      if(effortFocus){
+        const marginX = FIELD_L * 0.10;
+        CAM.x = lerp(CAM.x, clamp(effortFocus.x, marginX, FIELD_L - marginX), CAM_PAN_LERP);
+      }
     }
+  }
+
+  if(Game.running && typeof _refreshPlayerSelectionHud === 'function'){
+    _refreshPlayerSelectionHud({
+      gameState,
+      twoPlayerMode: Game.twoPlayerMode,
+      controlledHome: controlledPlayer(),
+      controlledAway: controlledPlayer2(),
+      visible: gameState !== 'practice',
+    });
   }
 
   if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
@@ -327,6 +335,10 @@ async function boot() {
   const physics = await import('./physics.js');
   const gameplay = await import('./gameplay.js');
   const renderMod = await import('./render.js');
+  const playerHud = await import('./playerSelectionHud.js');
+
+  playerHud.initPlayerSelectionHud();
+  _refreshPlayerSelectionHud = playerHud.refreshPlayerSelectionHud;
 
   _runGameplaySim = gameplay.runGameplaySim;
   _renderFn = renderMod.render;

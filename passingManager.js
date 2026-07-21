@@ -1,7 +1,7 @@
 "use strict";
 
 import { PASS_AI } from './gameplay_constants.js';
-import { allPlayers, ball, clamp, dist2D, simulateBallTrajectory, CENTER, FIELD_L, FIELD_W, GOAL_HALF, PBOX_D, PBOX_HALFW } from './state.js';
+import { allPlayers, ball, clamp, dist2D, simulateBallTrajectory, CENTER, FIELD_L, FIELD_W, GOAL_HALF, PBOX_D, PBOX_HALFW, Game } from './state.js';
 
 export const AI_STATE_INTERCEPTING_PASS = 'intercepting_pass';
 
@@ -194,27 +194,54 @@ export function maintainCornerAttackPositions(dt, attackingTeam){
   }
 }
 
-/** AI_SuggestTarget: compañeros se desmarcan hacia adelante en el lateral. */
+/** Compañeros que se desmarcan cerca del punto de saque lateral (2–3 jugadores). */
 export function aiSuggestThrowInTargets(throwingTeam){
-  const dir = throwingTeam === 'home' ? 1 : -1;
-  const oppGoalX = throwingTeam === 'home' ? FIELD_L : 0;
-  const mates = allPlayers.filter(p => p.team === throwingTeam && p.role !== 'GK' && !p.isThrowingIn);
-  const lanes = [-8, -4, 0, 4, 8];
+  const ti = Game.throwIn;
+  if(!ti?.active) return;
+
+  const throwX = ti.x;
+  const throwY = ti.y;
+  const inwardY = ti.side === 'top' ? 1 : -1;
+  const attackDir = throwingTeam === 'home' ? 1 : -1;
+
+  const mates = allPlayers
+    .filter(p => p.team === throwingTeam && p.role !== 'GK' && !p.isThrowingIn)
+    .sort((a, b) => dist2D(a, { x: throwX, y: throwY }) - dist2D(b, { x: throwX, y: throwY }));
+
+  const runnerCount = 2 + Math.floor(Math.random() * 2); // 2 o 3
+
+  const runOffsets = [
+    { dx: attackDir * 3.2, dy: inwardY * 2.8 },
+    { dx: attackDir * 5.0, dy: inwardY * 4.5 },
+    { dx: attackDir * 2.0, dy: inwardY * 6.5 },
+  ];
+
   let assigned = 0;
   for(const p of mates){
-    if(assigned >= 5) break;
-    const laneY = CENTER.y + (lanes[assigned] || 0);
-    const runX = oppGoalX - dir * (10 + assigned * 2.5);
-    p.throwInRunTarget = {
-      x: clamp(runX, 4, FIELD_L - 4),
-      y: clamp(laneY, 4, FIELD_W - 4),
+    if(assigned >= runnerCount) break;
+    const off = runOffsets[assigned];
+    const target = {
+      x: clamp(throwX + off.dx, 4, FIELD_L - 4),
+      y: clamp(throwY + off.dy, 4, FIELD_W - 4),
     };
-    p.targetPosition = { ...p.throwInRunTarget };
+    p.throwInRunTarget = target;
+    p.targetPosition = { ...target };
     p.iaSeeking = true;
     p.aiMode = 'throw_in_run';
     p.manualCancelActive = false;
-    p.runTarget = { ...p.throwInRunTarget };
-    p.runTimer = 2.5;
+    p.runTarget = { ...target };
+    p.runTimer = 3.0;
     assigned++;
+  }
+
+  for(let i = assigned; i < mates.length; i++){
+    const p = mates[i];
+    if(p.aiMode !== 'throw_in_run') continue;
+    p.throwInRunTarget = null;
+    p.runTarget = null;
+    p.targetPosition = null;
+    p.iaSeeking = false;
+    p.aiMode = 'normal';
+    p.runTimer = 0;
   }
 }

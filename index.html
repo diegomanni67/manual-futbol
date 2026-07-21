@@ -38,6 +38,42 @@
     padding:6px 12px;font-size:12px;color:var(--text-muted);border:1px solid var(--ui-border);}
   .status.off{color:#ffb4b4;}
 
+  /* Indicador flotante de arquetipo (render principal en canvas; clase de referencia para overlays DOM). */
+  .archetype-badge{
+    position:absolute;transform:translate(-50%,-100%);
+    min-width:22px;height:22px;padding:0 5px;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(8,14,28,.68);border:1px solid rgba(255,255,255,.28);
+    border-radius:8px;font-size:14px;line-height:1;pointer-events:none;
+    box-shadow:0 2px 8px rgba(0,0,0,.35);
+  }
+
+  .selectionHud{
+    position:fixed;left:0;right:0;bottom:0;z-index:12;
+    display:flex;justify-content:center;align-items:flex-end;gap:14px;
+    padding:0 16px 18px;pointer-events:none;
+  }
+  .selectionPanel{
+    display:flex;align-items:center;gap:10px;
+    min-width:220px;max-width:320px;padding:10px 16px;
+    background:linear-gradient(180deg,rgba(21,34,56,.94),rgba(14,22,36,.94));
+    border:1px solid var(--ui-border);border-radius:12px 12px 10px 10px;
+    box-shadow:0 -4px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .selectionPanel.home{border-bottom:3px solid var(--ui-blue);}
+  .selectionPanel.away{border-bottom:3px solid var(--team-away);}
+  .selectionIcon{
+    font-size:24px;line-height:1;min-width:28px;text-align:center;
+  }
+  .selectionText{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .selectionName{
+    font-size:16px;font-weight:800;letter-spacing:.3px;color:var(--line-white);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .selectionRole{
+    font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.4px;text-transform:uppercase;
+  }
+
   .msgbanner{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);
     font-size:54px;font-weight:900;letter-spacing:3px;color:var(--line-white);text-shadow:0 0 20px #000,0 4px 0 #000;
     opacity:0;transition:opacity .25s, transform .25s;}
@@ -121,6 +157,22 @@
     <div class="clock" id="clock">5:00</div>
   </div>
   <div class="status" id="padStatus">Teclado</div>
+  <div class="selectionHud" id="selectionHud" style="display:none;">
+    <div class="selectionPanel home" id="selectionPanelHome">
+      <span class="selectionIcon" id="selectionIconHome"></span>
+      <div class="selectionText">
+        <span class="selectionName" id="selectionNameHome">—</span>
+        <span class="selectionRole" id="selectionRoleHome"></span>
+      </div>
+    </div>
+    <div class="selectionPanel away" id="selectionPanelAway">
+      <span class="selectionIcon" id="selectionIconAway"></span>
+      <div class="selectionText">
+        <span class="selectionName" id="selectionNameAway">—</span>
+        <span class="selectionRole" id="selectionRoleAway"></span>
+      </div>
+    </div>
+  </div>
   <div class="msgbanner" id="banner"></div>
   <div class="msgbanner" id="goal-message" style="display:none;"></div>
 </div>
