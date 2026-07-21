@@ -1,10 +1,15 @@
 "use strict";
 
-import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GK_SAVE_RADIUS, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, STUN_WALK_MIN_FACTOR, STUN_WALK_SPEED_FACTOR, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, getPlayerAbsoluteMaxVelocity, physicsConfig } from './state.js';
+import { AGILITY_NO_BALL, AGILITY_WITH_BALL, BACK_NET_FRICTION_MULT, BALL_KNEE_HEIGHT_Z, BALL_RADIUS, BALL_STATE, BALL_STUCK_SPEED, BALL_STUCK_UNSTICK_T, CENTER, CROSSBAR_Z, DEAD_BALL_RESTART_DELAY, DEFAULT_SPRINT_MULT, FIELD_L, FIELD_W, FORCED_CHASE_SPEED_MULT, GK_CATCH_CHANCE, GK_DIVE_MAX_DUR, GK_DIVE_MIN_DUR, GK_JUMP_MIN_Z, GOAL_AREA_FRICTION_MULT, GOAL_AREA_Y_PAD, GOAL_DEPTH, GOAL_HALF, GOAL_LINE_EXIT_MARGIN, GOAL_LINE_LEFT, GOAL_LINE_RIGHT, GOAL_LINE_SENSOR_EPS, GOAL_MIN_TRIGGER_SPEED, GOAL_NET_FALL_VZ, GOAL_NET_FRICTION_MULT, GOAL_NET_GRAVITY, GOAL_NET_SLIDE_DURATION, GOAL_NET_SLIDE_FRICTION, GOAL_POST_BOUNCE, GOAL_POST_HALF_THICK, GOAL_POST_SCORE_PHYSICS_T, GOAL_TOWARD_MIN_VX, GOAL_ZONE_DEPTH, GRAVITY, Game, STATE_PLAYING, STUN_WALK_MIN_FACTOR, STUN_WALK_SPEED_FACTOR, TARGET_SPRINT_MPS, getDirectionalMaxSpeed, getGkSaveRadius, getPlayerAbsoluteMaxVelocity, physicsConfig } from './state.js';
+import { getGkAiConfig } from './gameplay_constants.js';
 
 import { MOVE_DECEL_FACTOR, MOVE_LOW_SPEED_SNAP, MOVE_SHARP_TURN_BLEED, MOVE_TURN_RATE_MAX, MOVE_TURN_RATE_MIN, OUT_ZONE_DEPTH, OUT_ZONE_FRICTION_MULT, OUT_ZONE_STOP_SPEED, PLAYER_BODY_RADIUS, SET_PIECE, SLIDE_ACTIVE_END, SLIDE_ACTIVE_START, SLIDE_DURATION, SLIDE_FOUL_CHANCE, SLIDE_HITBOX_HALF_LEN, SLIDE_HITBOX_HALF_W, SLIDE_HITBOX_PEAK_SCALE, SLIDE_LEG_REACH, SLIDE_RECEPTION_BLOCK_RADIUS, SLIDE_RECOVERY_HIT, SLIDE_RECOVERY_MISS, SLIDE_TACKLE_CARRY_SPEED, STAND_RECOVERY, STAND_TACKLE_CARRY_SPEED, STAND_TACKLE_DURATION, STAND_TACKLE_LUNGE, TACKLE_BOX_SCALE, TACKLE_CHAIN_AFTER, TACKLE_COOLDOWN, TACKLE_LOOK_RADIUS, TACKLE_RADIUS, TOUCH_ANIM_DUR, TOUCH_COOLDOWN_MAX, TOUCH_COOLDOWN_MIN, TOUCH_DISTANCE, TURN_TOUCH_ANGLE, TURN_TOUCH_DUR, TURN_TOUCH_SPEED_FACTOR, allPlayers } from './state.js';
 import { getModeTackleDistance } from './modePhysics.js';
-import { JOCKEY_PHYSICS, RECOVERY_STATE, TACKLE_PHYSICS, AI_RUPTURA, AI_RUPTURA_MANUAL, CPU_DESMARQUE_SPEED_MULT } from './gameplay_constants.js';
+import { JOCKEY_PHYSICS, RECOVERY_STATE, TACKLE_PHYSICS, AI_RUPTURA, AI_RUPTURA_MANUAL, CPU_DESMARQUE_SPEED_MULT, FOUL_RULES } from './gameplay_constants.js';
+import {
+  beginFreeKickScene, beginPenaltyScene, clearSetPieceSceneFlags, endSetPieceScene,
+  restartActivePracticeSetPiece, shouldUseFreeKickScene, updateSetPieceScene,
+} from './setPieceScene.js';
 import {
   getArchetypeDribbleAgility,
   getArchetypeDribbleSharpTurnBleedMult,
@@ -19,13 +24,17 @@ import {
 } from './archetypes.js';
 import { toGameUnits } from './utils.js';
 
-import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
+import { angDiff, awayTeam, ball, bindBallToOwner, clamp, canTakeBallFromOwner, clearAirSpamUiState, clearAllChasingStates, clearBallLock, clearChasingState, clearEffortChaseLock, clearForcedChaseState, clearPlayerAIState, clearPlayerPendingAction, clearSprintChaseState, clampKickoffDefenderPosition, cornerFlagPosition, dist2D, finalizeBallFrame, finishExtendedDribbleAnim, gameState, getDefendingGoalkeeperForFrame, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getSetPieceBallPosition, goalAreaCornerPosition, grantTacklePossession, homeTeam, inferGkPossessionSource, initGkPossessionType, isBallSetPieceFrozen, isCelebrationMode, isChaseOwner, isCpuBlockedFromTeammateLooseBall, isFakeShotLooseChase, isFakeShotRecoveryChase, isGkFeetPossession, isGkHandsImmune, isGkHandsPossession, isGoalkeeper, isHumanTeam, isKickoffDefendingTeam, isKickoffTaker, isKickoffWaiting, isOnBallContactBlocked, isPaused, isPlayerChasing, isPlayerSprintChasing, isPlayerStaggered, isPlayerStunned, isPossessionIgnored, isPostTouchChasing, isScoredGoalSequenceActive, isTeammateBlockedFromEffortChase, isThrowInBallState, lerp, notifyRestartBallTouchedByOther, positionKickoffTaker, setGameState, setIsCelebrationMode, setIsPaused, applyEffortExitVelocityBlend, assignBallPossession, recoverFakeShotPossession, syncHumanTeamControlOnPossession, throwInLinePosition } from './state.js';
 
-import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupCorner, setupGoalKick, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim, isControlledByHuman } from './state.js';
+import { nearestToBall, norm, placeKickoff, positionSetPieceTaker, practiceGoal, practicePlayer, setBallStateInPossession, setBallStateLoose, setControlled, setControlled2, setSetPieceMode, setupCorner, setupFreeKick, setupGoalKick, setupPenalty, setupThrowIn, shouldApplyScoredGoalNetPhysics, showBanner, syncPlayerDir, updateBallPosition, getKickoffTaker, teleportKickoffTakerHard, lookAtFacing, getDiveSideAnim, isControlledByHuman } from './state.js';
 
 import { getPadAt, padButtons, remapMoveForCamera, snapshotKeys, syncStickDir, PREP_SPEED_FACTOR } from './input.js';
 
 import { celebrationInputForTeam, updateCelebAnim, resolveBallGoalkeeperCollisions, onGkBallTriggerEnter, CELEB_TYPES } from './gameplay.js';
+import { isBallInGkPenaltyBox, triggerGkProactiveClaim } from './gkAi.js';
+import {
+  canAwardFoul, evaluateContactFoul, foulBannerLabel, resolveFoulRestart,
+} from './foulSystem.js';
 
 /* ============================================================
    FISICA / MOVIMIENTO DE JUGADORES (peso tipo eFootball: acelera y frena gradual)
@@ -912,6 +921,7 @@ function startTackle(p, type, aimDir){
     dirX: dir.x, dirY: dir.y,
     startX: p.x, startY: p.y,
     resolved: false, success: false, foul: false,
+    ballTouched: false,
     carryVx: 0, carryVy: 0
   };
   p.facing = lookAtFacing(p.x, p.y, p.x + dir.x, p.y + dir.y);
@@ -1064,18 +1074,83 @@ function updateSlidePosition(p, a, prog, dt){
   p.y = clamp(p.y, 0.3, FIELD_W - 0.3);
 }
 
-function checkSlideFoul(p, a, prog){
-  if(a.resolved || a.type !== 'slide') return;
-  if(prog < SLIDE_ACTIVE_START || prog > SLIDE_ACTIVE_END) return;
-  for(const opp of allPlayers){
-    if(opp.team === p.team || opp === p) continue;
-    if(dist2D(p, opp) < PLAYER_BODY_RADIUS * 2.2 && Math.random() < SLIDE_FOUL_CHANCE * 0.016){
-      a.foul = true;
-      a.resolved = true;
-      showBanner('¡FALTA!', 1100);
-      break;
-    }
+function awardMatchFoul(tackler, victim, foulEval){
+  if(!canAwardFoul() || !foulEval) return false;
+
+  forcePossessionLoss();
+  Game.pendingTacklePossession = null;
+  for(const pl of allPlayers){
+    pl.tackleAnim = null;
+    pl.recoveryState = null;
   }
+
+  const restart = resolveFoulRestart(tackler.team, foulEval.x, foulEval.y);
+  const info = {
+    type: restart.type,
+    team: restart.team,
+    side: restart.side,
+    x: foulEval.x,
+    y: foulEval.y,
+    fromY: foulEval.y,
+    foulerId: tackler.id,
+    victimId: victim?.id ?? null,
+    foulReason: foulEval.reason,
+  };
+  const ballPos = getSetPieceBallPosition(info);
+  enterDeadBallState({
+    ...info,
+    x: ballPos.x,
+    y: ballPos.y,
+    banner: foulBannerLabel(foulEval.reason, restart.type === SET_PIECE.PENALTY),
+  });
+  return true;
+}
+
+function tryTacklePlayerFoul(tackler, a){
+  if(a.foul) return true;
+  const contactR = FOUL_RULES.PLAYER_CONTACT_DIST;
+  for(const opp of allPlayers){
+    if(!opp || opp.team === tackler.team || opp === tackler) continue;
+    if(dist2D(tackler, opp) >= contactR) continue;
+    const foulEval = evaluateContactFoul(tackler, opp, a);
+    if(!foulEval) continue;
+    a.foul = true;
+    a.resolved = true;
+    a.success = false;
+    if(awardMatchFoul(tackler, opp, foulEval)) return true;
+  }
+  return a.foul;
+}
+
+function slideBallReachable(hb){
+  if(!hb?.active) return false;
+  const dx = ball.x - hb.cx, dy = ball.y - hb.cy;
+  return Math.hypot(dx, dy) <= (FOUL_RULES.SLIDE_BALL_OUT_OF_REACH ?? 2.4);
+}
+
+function checkSlideFoul(p, a, prog){
+  if(a.foul || a.type !== 'slide') return;
+  if(prog < SLIDE_ACTIVE_START) return;
+
+  const hb = computeSlideHitbox(p, a, prog);
+  if(hb.active && ballIntersectsSlideHitbox(hb)) a.ballTouched = true;
+
+  // Contacto con rival: falta por detrás siempre (aunque haya quite de balón).
+  if(tryTacklePlayerFoul(p, a)) return;
+
+  if(a.ballTouched || a.success) return;
+
+  // Diferir falta “sin balón” mientras la barrida aún puede llegar al balón.
+  const deferUntil = FOUL_RULES.SLIDE_FOUL_DEFER_PROG ?? 0.58;
+  if(prog <= SLIDE_ACTIVE_END && prog < deferUntil && slideBallReachable(hb)) return;
+
+  tryTacklePlayerFoul(p, a);
+}
+
+function checkStandTackleFoul(p, a, prog){
+  if(a.foul || a.type !== 'stand' || a.resolved) return;
+  if(prog < TACKLE_PHYSICS.STAND_ACTIVE_START || prog > TACKLE_PHYSICS.STAND_ACTIVE_END) return;
+  tryTacklePlayerFoul(p, a);
 }
 
 function updateTackleAnim(p, dt){
@@ -1085,8 +1160,9 @@ function updateTackleAnim(p, dt){
 
   if(a.type==='slide'){
     updateSlidePosition(p, a, prog, dt);
-    slideTackle(p, a, prog);
-    checkSlideFoul(p, a, prog);
+    // Primero resolver quite de balón; la falta solo se evalúa si no hubo contacto limpio.
+    if(!a.foul) slideTackle(p, a, prog);
+    if(!a.foul) checkSlideFoul(p, a, prog);
   } else {
     if(a.success && a.carryVx){
       p.x += a.carryVx * dt;
@@ -1104,11 +1180,17 @@ function updateTackleAnim(p, dt){
       p.y = clamp(a.startY + a.dirY * travelled, 0.3, FIELD_W - 0.3);
     }
     if(!a.resolved && prog >= TACKLE_PHYSICS.STAND_ACTIVE_START && prog <= TACKLE_PHYSICS.STAND_ACTIVE_END){
-      resolveTackleImpact(p, a);
+      if(!a.foul) checkStandTackleFoul(p, a, prog);
+      if(!a.foul) resolveTackleImpact(p, a);
     }
   }
 
   if(prog >= 1){
+    if(a.foul){
+      p.tackleAnim = null;
+      p.tackleCooldown = TACKLE_COOLDOWN * 0.65;
+      return;
+    }
     if(a.success){
       p.vx = a.carryVx || p.vx;
       p.vy = a.carryVy || p.vy;
@@ -1128,52 +1210,90 @@ function updateTackleAnim(p, dt){
 /* ============================================================
    ESTIRADA DEL ARQUERO — con animacion, no siempre llega
    ============================================================ */
+function gkDiveMoveEase(prog){
+  const p = clamp(prog, 0, 1);
+  return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+}
+
+function gkDiveReachRadius(saveMode, animState){
+  const cfg = getGkAiConfig(Game.matchFormat);
+  const base = getGkSaveRadius() * cfg.saveRadiusMult;
+  if(saveMode === 'smother') return base * (cfg.smotherRadiusMult ?? 1.05);
+  if(saveMode === 'pounce') return base * 1.1;
+  if(animState === 'LOW_DIVE') return base * 0.82;
+  if(animState === 'jump') return base * 0.78;
+  return base * 0.86;
+}
+
 function startGKDive(p, targetY, availableTime, predZ, opts = {}){
   const goalX = p.ownGoalX();
   const dir = p.attackDir();
   const saveMode = opts.saveMode || 'dive';
   const isSmother = saveMode === 'smother';
-  const targetX = isSmother
-    ? (opts.targetX ?? p.x + dir * 2.2)
-    : saveMode === 'catch' ? p.x : goalX + dir * 0.35;
+  const isPounce = saveMode === 'pounce';
+  const isCatch = saveMode === 'catch';
+  const targetX = isSmother || isPounce
+    ? (opts.targetX ?? p.x + dir * (isPounce ? 1.35 : 2.2))
+    : isCatch
+      ? p.x
+      : lerp(p.x, goalX + dir * 0.45, 0.55);
   const clampedY = clamp(targetY, CENTER.y - GOAL_HALF - 1.2, CENTER.y + GOAL_HALF + 1.2);
   const diveSideAnim = getDiveSideAnim(p, clampedY, targetX);
   const animState = opts.animState ||
     (saveMode === 'catch' ? 'CATCH'
       : isSmother ? 'SMOTHER'
-      : animStateFromHeight(predZ, diveSideAnim));
+      : isPounce ? 'LOW_DIVE'
+      : animStateFromHeight(predZ, diveSideAnim, opts.timeToPlane));
   const diveType = animState === 'CATCH' ? 'catch'
     : animState === 'SMOTHER' ? 'smother'
+    : isPounce ? 'pounce'
     : animState === 'LOW_DIVE' ? 'low_dive'
     : animState === 'DIVE_LEFT' ? 'dive_left'
     : animState === 'DIVE_RIGHT' ? 'dive_right'
-    : (predZ >= GK_JUMP_MIN_Z ? 'jump' : 'dive');
+    : animState === 'jump' ? 'jump'
+    : 'dive';
   p.gkAnimState = animState;
   p.diveAnim = {
     type: diveType,
     animState,
     saveMode,
     t: 0,
-    dur: clamp(availableTime, GK_DIVE_MIN_DUR, isSmother ? 0.48 : GK_DIVE_MAX_DUR),
+    dur: clamp(availableTime * 1.12, GK_DIVE_MIN_DUR + 0.05, isSmother ? 0.54 : isPounce ? 0.42 : GK_DIVE_MAX_DUR + 0.06),
     startX: p.x, startY: p.y,
     targetX,
     targetY: clampedY,
-    jumpHeight: isSmother ? 0.12 : clamp(predZ || 0, 0.35, 2.3),
+    jumpHeight: opts.jumpHeight ?? defaultGkJumpHeight(predZ, animState, isSmother),
     resolved: false,
     success: false,
+    missed: false,
     parryChance: opts.parryChance ?? GK_CATCH_CHANCE,
+    reachChance: opts.reachChance ?? getGkAiConfig(Game.matchFormat).reachBase,
+    reachRadius: opts.reachRadius ?? gkDiveReachRadius(saveMode, animState),
     parryMode: opts.parryMode ?? null,
     forceCatch: !!opts.forceCatch,
+    strikerId: opts.strikerId ?? null,
   };
   p.facing = lookAtFacing(p.x, p.y, targetX, clampedY);
   syncPlayerDir(p);
   p.vx = 0; p.vy = 0;
 }
 
-function animStateFromHeight(predZ, diveSideAnim){
-  if(predZ >= GK_JUMP_MIN_Z) return 'jump';
-  if(predZ <= BALL_RADIUS + 0.5) return 'LOW_DIVE';
-  return diveSideAnim;
+function defaultGkJumpHeight(predZ, animState, isSmother){
+  if(isSmother) return 0.12;
+  const z = predZ ?? 0;
+  if(animState === 'LOW_DIVE' || animState === 'CATCH') return 0.1;
+  if(animState === 'jump') return clamp(z - 0.85, 0.3, 0.95);
+  return clamp(z * 0.18, 0.08, 0.35);
+}
+
+function animStateFromHeight(predZ, diveSideAnim, timeToPlane){
+  const z = predZ ?? 0;
+  const flight = timeToPlane ?? 0.65;
+  if(z <= BALL_RADIUS + 0.5 || z <= 1.05) return 'LOW_DIVE';
+  if(z <= 1.42) return diveSideAnim || 'LOW_DIVE';
+  if(z >= 1.95) return 'jump';
+  if(z >= GK_JUMP_MIN_Z + 0.55 && flight < 1.0) return 'jump';
+  return diveSideAnim || 'LOW_DIVE';
 }
 
 function startGKCatchSave(p, targetY, availableTime, predZ, opts = {}){
@@ -1182,6 +1302,7 @@ function startGKCatchSave(p, targetY, availableTime, predZ, opts = {}){
     animState: opts.animState || 'CATCH',
     forceCatch: opts.forceCatch ?? false,
     parryChance: opts.parryChance ?? GK_CATCH_CHANCE,
+    reachChance: opts.reachChance ?? getGkAiConfig(Game.matchFormat).reachBase,
     parryMode: opts.parryMode ?? null,
   });
 }
@@ -1189,27 +1310,63 @@ function startGKCatchSave(p, targetY, availableTime, predZ, opts = {}){
 function updateGKDive(p, dt){
   const a = p.diveAnim;
   a.t += dt;
-  const prog = clamp(a.t/a.dur, 0, 1);
-  const eased = 1-Math.pow(1-prog,2);
-  if(a.type === 'smother'){
-    p.x = lerp(a.startX, a.targetX, Math.min(1, eased * 1.15));
+  const prog = clamp(a.t / a.dur, 0, 1);
+  const eased = gkDiveMoveEase(prog);
+  if(a.type === 'smother' || a.type === 'pounce'){
+    p.x = lerp(a.startX, a.targetX, Math.min(1, eased * 1.08));
     p.y = lerp(a.startY, a.targetY, eased);
   } else {
     p.x = lerp(a.startX, a.targetX, eased);
     p.y = lerp(a.startY, a.targetY, eased);
   }
 
-  const contactStart = a.type === 'smother' ? 0.12 : 0.2;
-  if(!a.resolved && prog > contactStart && !ball.owner){
-    const reach = a.type === 'smother' ? GK_SAVE_RADIUS * 1.15 : GK_SAVE_RADIUS;
-    if(dist2D(p, ball) < reach){
-      onGkBallTriggerEnter(p, ball);
+  const contactStart = a.type === 'smother' ? 0.30
+    : a.type === 'pounce' ? 0.28
+    : a.type === 'jump' ? 0.36
+    : a.type === 'low_dive' ? 0.34
+    : 0.32;
+  const contactEnd = 0.86;
+  if(!a.resolved && prog > contactStart && prog < contactEnd){
+    if(a.type === 'smother'){
+      const striker = a.strikerId ? allPlayers.find(pl => pl.id === a.strikerId) : null;
+      const target = striker || ball;
+      const reach = a.reachRadius ?? getGkSaveRadius() * 0.86;
+      if(!ball.owner || ball.owner === striker){
+        if(dist2D(p, target) < reach){
+          onGkBallTriggerEnter(p, ball);
+        }
+      }
+    } else if(!ball.owner){
+      const reach = a.reachRadius ?? getGkSaveRadius() * 0.86;
+      if(dist2D(p, ball) < reach){
+        onGkBallTriggerEnter(p, ball);
+      }
     }
   }
 
-  if(prog>=1){
+  if(prog >= contactStart && a.resolved && a.success){
+    const loose = !ball.owner && (
+      ball.state === BALL_STATE.FREE ||
+      ball.state === BALL_STATE.LOOSE_BALL ||
+      ball.state === BALL_STATE.IN_AIR
+    );
+    if(loose && isBallInGkPenaltyBox(p, ball.x, ball.y)){
+      triggerGkProactiveClaim(p, 'save_rebound');
+      p.diveAnim = null;
+      p.tackleCooldown = TACKLE_COOLDOWN * 0.2;
+      return;
+    }
+  }
+
+  if(prog >= 1){
+    if(!a.resolved) a.missed = true;
+    const looseInBox = !ball.owner && isBallInGkPenaltyBox(p, ball.x, ball.y)
+      && (ball.state === BALL_STATE.FREE || ball.state === BALL_STATE.LOOSE_BALL || ball.state === BALL_STATE.IN_AIR);
+    if(looseInBox && dist2D(p, ball) < 9){
+      triggerGkProactiveClaim(p, 'post_dive');
+    }
     p.diveAnim = null;
-    p.tackleCooldown = TACKLE_COOLDOWN * 2.75;
+    p.tackleCooldown = looseInBox ? TACKLE_COOLDOWN * 0.32 : TACKLE_COOLDOWN * 0.85;
   }
 }
 
@@ -1737,6 +1894,17 @@ function resolveGoalSolid(b, frame, solid){
     const collideDist = r + ht;
     if(horizDist >= collideDist) return;
 
+    if(b.setPieceSceneShot && b.perfectPostShot){
+      // Tiro al palo imparable: desvía levemente hacia adentro del arco y sigue.
+      const inward = frame.inward;
+      b.vx = Math.abs(b.vx) * inward * -1 * 0.92;
+      if(Math.abs(b.y - CENTER.y) > GOAL_HALF * 0.15){
+        b.vy *= 0.35;
+      }
+      b.x = line + inward * -1 * (r + 0.02);
+      return;
+    }
+
     if(horizDist > 0.001){
       const nx = dx / horizDist;
       const ny = dy / horizDist;
@@ -1982,8 +2150,10 @@ function enterDeadBallState(info){
     [SET_PIECE.GOAL_KICK]: 'Saque de arco',
     [SET_PIECE.CORNER]: 'Corner',
     [SET_PIECE.THROW_IN]: 'Saque lateral',
+    [SET_PIECE.FREE_KICK]: 'Tiro libre',
+    [SET_PIECE.PENALTY]: 'Penal',
   };
-  showBanner(labels[info.type] || 'Pelota detenida', 1800);
+  showBanner(info.banner || labels[info.type] || 'Pelota detenida', 1800);
 }
 
 function computeOutZoneSetPiece(){
@@ -2048,6 +2218,30 @@ function onBallOut(){
     return;
   }
 
+  // Penal fallido: siempre saque de arco del equipo que defendía.
+  if(ball.setPieceSceneMode === 'penalty'){
+    const attacking = Game.setPieceScene?.team || ball.lastTouchTeam;
+    const defending = attacking === 'home' ? 'away' : 'home';
+    const side = defending === 'home' ? 'left' : 'right';
+    const pos = goalKickPositionForGoalLine(side);
+    Game.isDeadBall = true;
+    Game.outOfPlay = null;
+    Game.deadBall = {
+      type: SET_PIECE.GOAL_KICK,
+      team: defending,
+      side,
+      x: pos.x,
+      y: pos.y,
+      fromY: pos.y,
+      t: 0,
+    };
+    resetGoalZoneTracking();
+    showBanner('Saque de arco', 1800);
+    clearSetPieceSceneFlags();
+    endSetPieceScene();
+    return;
+  }
+
   const info = computeOutZoneSetPiece();
   if(!info) return;
 
@@ -2057,6 +2251,10 @@ function onBallOut(){
   Game.outOfPlay = null;
   Game.isDeadBall = true;
   resetGoalZoneTracking();
+  if(ball.setPieceSceneMode === 'free_kick'){
+    clearSetPieceSceneFlags();
+    endSetPieceScene();
+  }
 
   const labels = {
     [SET_PIECE.GOAL_KICK]: 'Saque de arco',
@@ -2126,6 +2324,20 @@ function resumeFromDeadBall(){
     return;
   }
 
+  if(db.type === SET_PIECE.FREE_KICK){
+    setupFreeKick(db);
+    const taker = getPlayerById(Game.setPiece?.takerId);
+    if(taker && shouldUseFreeKickScene(db)) beginFreeKickScene(db, taker);
+    return;
+  }
+
+  if(db.type === SET_PIECE.PENALTY){
+    setupPenalty(db);
+    const taker = getPlayerById(Game.setPiece?.takerId);
+    if(taker) beginPenaltyScene(db, taker);
+    return;
+  }
+
   Game.deadBall = null;
   Game.outOfPlay = null;
   Game.isDeadBall = false;
@@ -2175,6 +2387,10 @@ function resetPracticeOutOfPlay(){
   Game.deadBall = null;
   Game.outOfPlay = null;
   Game.isDeadBall = false;
+  if(Game.practiceMode === 'penalty' || Game.practiceMode === 'free_kick'){
+    restartActivePracticeSetPiece();
+    return;
+  }
   ball.reset(practicePlayer.x - 1.3, practicePlayer.y);
   setBallStateInPossession(practicePlayer);
   ball.lastTouchTeam = 'home';
@@ -2202,6 +2418,10 @@ function updateGoalRoll(dt){
     clearGoalNetTriggerState(ball);
     resetGoalZoneTracking();
     Game.isGoalScored = false;
+    if(Game.practiceMode === 'penalty' || Game.practiceMode === 'free_kick'){
+      restartActivePracticeSetPiece();
+      return;
+    }
     ball.reset(practicePlayer.x - 1.3, practicePlayer.y);
     setBallStateInPossession(practicePlayer);
     ball.lastTouchTeam = 'home';
@@ -2225,6 +2445,12 @@ function scoreGoal(team){
   const kicker = ball.lastKicker;
   const touchTeam = ball.lastTouchTeam;
   const ownGoal = kicker ? kicker.team !== team : (touchTeam ? touchTeam !== team : true);
+
+  // Gol en penal / tiro libre de escena → limpia flags; reanudación = saque de medio (kickoff).
+  if(ball.setPieceSceneMode){
+    clearSetPieceSceneFlags();
+    endSetPieceScene();
+  }
 
   Game.goalRoll = {
     team,

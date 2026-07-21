@@ -6,6 +6,7 @@ import {
   getArchetypePassCurveMult,
   getArchetypeShotSpecialCurveMult,
 } from './archetypes.js';
+import { ensurePlayerAppearance } from './playerAppearance.js';
 import {
   getBallDragFrictionScaleForBall, getModeBallDrag, getModeBallDragFrictionScale,
   getModePowerMultiplier, loadModePhysics,
@@ -125,15 +126,17 @@ export let CCIRCLE_R = BASE_CCIRCLE_R;
 export let KICKOFF_HALF_MARGIN = BASE_KICKOFF_HALF_MARGIN;
 export let KICKOFF_CIRCLE_MARGIN = BASE_KICKOFF_CIRCLE_MARGIN;
 
-export function applyMatchWorldScale(scale, viewExtentMult = 1){
+export function applyMatchWorldScale(scale, viewExtentMult = 1, goalScale = null){
   const s = Math.max(1, scale || 1);
+  const g = goalScale != null ? goalScale : s;
   Game.worldScale = s;
+  Game.goalWorldScale = g;
   FIELD_L = BASE_FIELD_L * s;
   FIELD_W = BASE_FIELD_W * s;
-  GOAL_HALF = BASE_GOAL_HALF * s;
-  GOAL_DEPTH = BASE_GOAL_DEPTH * s;
+  GOAL_HALF = BASE_GOAL_HALF * g;
+  GOAL_DEPTH = BASE_GOAL_DEPTH * g;
   GOAL_LINE_RIGHT = FIELD_L;
-  GOAL_AREA_Y_PAD = BASE_GOAL_AREA_Y_PAD * s;
+  GOAL_AREA_Y_PAD = BASE_GOAL_AREA_Y_PAD * g;
   OUT_ZONE_DEPTH = BASE_OUT_ZONE_DEPTH * s;
   STADIUM_FLOOR_PAD = BASE_STADIUM_FLOOR_PAD * s * Math.max(1, viewExtentMult);
   PBOX_D = BASE_PBOX_D * s;
@@ -384,7 +387,8 @@ export const PHYSICS_PRESETS = {
     label: '6 vs 6',
     formationKey: '6vs6',
     worldScale: 1,
-    camZoomMult: 1.12,
+    goalScaleMult: 1,
+    camZoomMult: 0.588,
     camNearMult: 0.92,
     horizonShift: 0,
     viewExtentMult: 1,
@@ -395,6 +399,8 @@ export const PHYSICS_PRESETS = {
     label: '11 vs 11',
     formationKey: '11vs11',
     worldScale: 1.6,
+    /** Arco ampliado proporcionalmente a la cancha 11v11 (7.32 m × 1.6 ≈ 11.7 m de ancho). */
+    goalScaleMult: 1.6,
     camZoomMult: 1.12,
     camNearMult: 0.92,
     horizonShift: 0,
@@ -409,7 +415,7 @@ export let physicsConfig = {...PHYSICS_PRESETS['6vs6']};
 
 export function getBallKickPowerMult(kickType){
   const base = physicsConfig.ballKickPowerMult ?? 1;
-  if(kickType === 'pass') return base;
+  // Aplica el multiplicador de modo a todas las ejecuciones (pases incluidos).
   return base * getModePowerMultiplier();
 }
 
@@ -591,9 +597,28 @@ export const SLIDE_RECEPTION_BLOCK_RADIUS = CTRL_RADIUS * 1.15; // pelota muy ce
 // --- atajadas del arquero (estirada con animacion) ---
 export const GK_MIN_SHOT_SPEED = 6.0;   // solo reacciona a pelotas con esta velocidad minima (no se tira con pelotas lentas)
 export const GK_DIVE_SPEED = 12.5;      // velocidad efectiva de la estirada, mas rapida que correr normal
-export const GK_SAVE_RADIUS = 1.5;      // si llega a esta distancia de la pelota en el momento justo, la ataja/desvia
-export const GK_INTERCEPTION_RADIUS = 1.2; // radio de accion: captura o rebote aunque no este en posesion
-export const GK_BALL_HITBOX_RADIUS = 0.42; // hitbox solida del arquero frente a la pelota
+export const BASE_GK_SAVE_RADIUS = 1.5;
+export const BASE_GK_INTERCEPTION_RADIUS = 1.2;
+export const GK_SAVE_RADIUS = BASE_GK_SAVE_RADIUS;
+export const GK_INTERCEPTION_RADIUS = BASE_GK_INTERCEPTION_RADIUS;
+export const GK_BALL_HITBOX_RADIUS = 0.42; // hitbox solida del arquero (base arco reglamentario 7.32 m)
+
+export function getGoalWorldScale(){
+  return GOAL_HALF / BASE_GOAL_HALF;
+}
+
+/** Escala física de alcance del arquero según ancho del arco activo. */
+export function getGkSaveRadius(){
+  return BASE_GK_SAVE_RADIUS * getGoalWorldScale();
+}
+
+export function getGkInterceptRadius(){
+  return BASE_GK_INTERCEPTION_RADIUS * getGoalWorldScale();
+}
+
+export function getGkBallHitboxRadius(){
+  return GK_BALL_HITBOX_RADIUS * getGoalWorldScale();
+}
 export const GK_BALL_BOUNCE = 0.58;        // coeficiente de rebote pelota-arquero
 export const GK_DIVE_MIN_DUR = 0.16, GK_DIVE_MAX_DUR = 0.6;
 export const GK_CATCH_CHANCE = 0.4;
@@ -786,7 +811,9 @@ export const CAM = {
 export function depthOf(y){ return y - CAM.camYoff; }
 export function projScale(depth){ return CAM.zoom * (CAM.near/depth) * (canvas.height/650); }
 export function project(p){
-  if(gameState==='practice') return projectPractice(p);
+  if(gameState==='practice' && Game.practiceMode !== 'penalty' && Game.practiceMode !== 'free_kick'){
+    return projectPractice(p);
+  }
   const depth = Math.max(depthOf(p.y), CAM.near*0.55);
   const s = projScale(depth);
   const groundY = canvas.height*CAM.groundFrac;
@@ -826,7 +853,12 @@ export function projectPractice(p){
   return {x:sx, y:sy, s};
 }
 // orden de dibujado (pintor): que eje usar como "profundidad" segun el modo
-export function paintDepth(entity){ return gameState==='practice' ? entity.x : depthOf(entity.y); }
+export function paintDepth(entity){
+  const practiceOpen = gameState==='practice'
+    && Game.practiceMode !== 'penalty'
+    && Game.practiceMode !== 'free_kick';
+  return practiceOpen ? entity.x : depthOf(entity.y);
+}
 
 /** Offset entre el forward del mesh (+local X al dibujar) y el forward del mundo (atan2(dy,dx)). */
 export const MESH_FACING_OFFSET = Math.PI;
@@ -1177,13 +1209,15 @@ export function syncPlayerDir(p){
 
 // --- ESTADOS DE LA PELOTA: 'free' | 'in_possession' | 'dead_ball' | 'loose_ball' | 'goal_celebration' | throw-in ---
 export const BALL_STATE = { FREE: 'free', IN_POSSESSION: 'in_possession', DEAD_BALL: 'dead_ball', LOOSE_BALL: 'loose_ball', WAITING_FOR_RETRIEVAL: 'waiting_for_retrieval', GOAL_CELEBRATION: 'goal_celebration', OUT_OF_BOUNDS: 'out_of_bounds', IN_HAND: 'in_hand', IN_AIR: 'in_air', PLACED: 'placed' };
-export const SET_PIECE = { GOAL_KICK: 'goal_kick', CORNER: 'corner', THROW_IN: 'throw_in', KICKOFF: 'kickoff' };
+export const SET_PIECE = { GOAL_KICK: 'goal_kick', CORNER: 'corner', THROW_IN: 'throw_in', KICKOFF: 'kickoff', FREE_KICK: 'free_kick', PENALTY: 'penalty' };
 export const SET_PIECE_UNSTICK_DIST = 1.0;    // metros minimos de recorrido post-saque antes de liberar isStuck
 export const SET_PIECE_ZONE_RADIUS = 2.0;     // radio de la zona designada para ejecutar la pelota parada
 export const RESTART_TIME_LIMIT_MS = 5000;    // laterales y córners: 5 s
 export const SET_PIECE_THROW_IN_TIME_SEC = 5.0;
 export const SET_PIECE_CORNER_TIME_SEC = 5.0;
 export const SET_PIECE_GOAL_KICK_TIME_SEC = GK_AUTO_DISTRIBUTE.TIME_SEC;
+export const SET_PIECE_FREE_KICK_TIME_SEC = 5.0;
+export const SET_PIECE_PENALTY_TIME_SEC = 5.0;
 export const SET_PIECE_TIMER_DURATION = GK_AUTO_DISTRIBUTE.TIME_SEC; // legacy / saque de arco
 export const SET_PIECE_COUNTDOWN_URGENT = GK_AUTO_DISTRIBUTE.URGENT_SEC; // ultimo segundo: contador en rojo
 export const SET_PIECE_POWER_MAX_MS = 450;    // tiempo maximo de carga de la barra de potencia
@@ -1219,6 +1253,8 @@ export function getSetPieceTimerDuration(type){
   if(type === SET_PIECE.THROW_IN) return SET_PIECE_THROW_IN_TIME_SEC;
   if(type === SET_PIECE.CORNER) return SET_PIECE_CORNER_TIME_SEC;
   if(type === SET_PIECE.GOAL_KICK) return SET_PIECE_GOAL_KICK_TIME_SEC;
+  if(type === SET_PIECE.FREE_KICK) return SET_PIECE_FREE_KICK_TIME_SEC;
+  if(type === SET_PIECE.PENALTY) return SET_PIECE_PENALTY_TIME_SEC;
   return SET_PIECE_TIMER_DURATION;
 }
 
@@ -1232,7 +1268,7 @@ export function playerInStrictControlRange(p, b = ball){
   if(!p) return false;
   if(isKickoffTaker(p) && isKickoffWaiting()) return true;
   if(isGkHandsPossession(p)) return dist2D(p, b) <= GK_HANDS_CTRL_RADIUS;
-  if(isGoalkeeper(p)) return dist2D(p, b) <= GK_INTERCEPTION_RADIUS;
+  if(isGoalkeeper(p)) return dist2D(p, b) <= getGkInterceptRadius();
   if(ball.owner === p && (isExtendedDribbleActive(p) || p.isEffortSprinting)){
     const slack = DRIBBLE_CONTROL_SLACK + (p.currentDribbleDistance > 2.5 ? 0.4 : 0);
     return dist2D(p, b) <= p.currentDribbleDistance + slack;
@@ -3231,7 +3267,7 @@ export function applyThrowInImpulse(p, anim){
   clearPassTargetTeam(p.team);
 
   const dir = anim.dir;
-  const force = anim.force;
+  const force = anim.force * getModePowerMultiplier();
   ball.x = p.x + dir.x * 0.32;
   ball.y = p.y + dir.y * 0.32;
   ball.z = THROW_IN_HAND_Z;
@@ -3487,6 +3523,17 @@ function enforceThrowInRestartRestrictions(kickingTeam, takerId){
   }
 }
 
+function enforceFreeKickRestartRestrictions(kickingTeam, takerId){
+  const cx = ball.x, cy = ball.y;
+  // Misma distancia reglamentaria que el radio del círculo central (9.15 m).
+  const minDist = CCIRCLE_R;
+  for(const p of allPlayers){
+    if(p.id === takerId) continue;
+    if(p.team === kickingTeam) continue;
+    pushPlayerOutsideRadius(p, cx, cy, minDist);
+  }
+}
+
 function enforceGoalKickRestartRestrictions(kickingTeam, takerId, goalSide){
   const goalX = goalSide === 'left' ? 0 : FIELD_L;
   const dir = goalX === 0 ? 1 : -1;
@@ -3523,6 +3570,8 @@ export function enforceRestartPositionRestrictions(){
     enforceThrowInRestartRestrictions(sp.team, takerId);
   } else if(sp.type === SET_PIECE.GOAL_KICK){
     enforceGoalKickRestartRestrictions(sp.team, takerId, sp.side);
+  } else if(sp.type === SET_PIECE.FREE_KICK){
+    enforceFreeKickRestartRestrictions(sp.team, takerId);
   }
 }
 
@@ -3568,6 +3617,11 @@ export function positionSetPieceTaker(taker, db, ballPos){
     taker.x = ballPos.x;
     taker.y = ballPos.y;
     taker.facing = throwInFacingForSide(db.side);
+  } else if(db.type === SET_PIECE.FREE_KICK || db.type === SET_PIECE.PENALTY){
+    const atkDir = db.team === 'home' ? 1 : -1;
+    taker.x = ballPos.x - atkDir * 0.72;
+    taker.y = ballPos.y;
+    taker.facing = db.team === 'home' ? 0 : Math.PI;
   } else {
     taker.facing = db.team === 'home' ? 0 : Math.PI;
   }
@@ -3579,6 +3633,17 @@ export function getSetPieceBallPosition(db){
   if(db.type === SET_PIECE.GOAL_KICK) return goalAreaCornerPosition(db.side, fromY);
   if(db.type === SET_PIECE.CORNER) return cornerFlagPosition(db.side, fromY);
   if(db.type === SET_PIECE.THROW_IN) return throwInLinePosition(db.side, db.x);
+  if(db.type === SET_PIECE.PENALTY){
+    const goalX = db.side === 'left' ? 0 : FIELD_L;
+    const dir = db.side === 'left' ? 1 : -1;
+    return { x: goalX + dir * (PBOX_D * 0.78), y: CENTER.y };
+  }
+  if(db.type === SET_PIECE.FREE_KICK){
+    return {
+      x: clamp(db.x ?? FIELD_L * 0.5, 1.2, FIELD_L - 1.2),
+      y: clamp(db.y ?? fromY, 1.2, FIELD_W - 1.2),
+    };
+  }
   return { x: db.x, y: db.y };
 }
 
@@ -3630,6 +3695,13 @@ export function maintainGoalKickPlacement(){
   placeGoalKickBall(pos);
 }
 
+function pickNearestSetPieceTaker(team, ballPos, excludeGk = false){
+  const squad = team === 'home' ? homeTeam : awayTeam;
+  const pool = excludeGk ? squad.filter(p => p.role !== 'GK') : squad;
+  if(!pool.length) return squad[0];
+  return pool.reduce((a, b) => dist2D(a, ballPos) < dist2D(b, ballPos) ? a : b);
+}
+
 export function setupCorner(db){
   Game.deadBall = null;
   Game.outOfPlay = null;
@@ -3650,8 +3722,7 @@ export function setupCorner(db){
   ball.isReadyToKick = false;
   ball.isContested = false;
 
-  const squad = db.team === 'home' ? homeTeam : awayTeam;
-  const taker = squad.reduce((a, b) => dist2D(a, ballPos) < dist2D(b, ballPos) ? a : b);
+  const taker = pickNearestSetPieceTaker(db.team, ballPos);
   positionSetPieceTaker(taker, db, ballPos);
 
   if(!setBallStateInPossession(taker, null)){
@@ -3672,6 +3743,93 @@ export function setupCorner(db){
     x: ballPos.x,
     y: ballPos.y,
     fromY: db.fromY,
+  });
+}
+
+export function setupFreeKick(db){
+  Game.deadBall = null;
+  Game.outOfPlay = null;
+  Game.isDeadBall = false;
+
+  const ballPos = getSetPieceBallPosition(db);
+  ball.x = ballPos.x;
+  ball.y = ballPos.y;
+  ball.z = BALL_RADIUS;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.vz = 0;
+  ball.curveFactor = 0;
+  ball.highKick = false;
+  ball.highKickType = null;
+  ball.passOrigin = null;
+  ball.isReadyToKick = false;
+  ball.isContested = false;
+
+  const taker = pickNearestSetPieceTaker(db.team, ballPos);
+  positionSetPieceTaker(taker, db, ballPos);
+
+  if(!setBallStateInPossession(taker, null)){
+    ball.owner = taker;
+    ball.state = BALL_STATE.IN_POSSESSION;
+    clearChasingState(taker);
+  }
+  ball.lastTouchTeam = db.team;
+  ball.lastTouchedBy = taker.id;
+  if(db.team === 'home') setControlled(taker);
+  else setControlled2(taker);
+
+  setSetPieceMode(true, {
+    type: SET_PIECE.FREE_KICK,
+    team: db.team,
+    side: db.side,
+    takerId: taker.id,
+    x: ballPos.x,
+    y: ballPos.y,
+    fromY: db.fromY,
+    foulReason: db.foulReason ?? null,
+    indirect: !!db.indirect,
+  });
+  enforceFreeKickRestartRestrictions(db.team, taker.id);
+}
+
+export function setupPenalty(db){
+  Game.deadBall = null;
+  Game.outOfPlay = null;
+  Game.isDeadBall = false;
+
+  const ballPos = getSetPieceBallPosition(db);
+  placeGoalKickBall(ballPos);
+
+  const taker = pickNearestSetPieceTaker(db.team, ballPos, true);
+  positionSetPieceTaker(taker, db, ballPos);
+
+  const defTeam = db.team === 'home' ? 'away' : 'home';
+  const defGk = (defTeam === 'home' ? homeTeam : awayTeam).find(p => p.role === 'GK');
+  if(defGk){
+    defGk.x = defGk.ownGoalX() + defGk.attackDir() * 0.85;
+    defGk.y = CENTER.y;
+    defGk.vx = 0;
+    defGk.vy = 0;
+    defGk.gkShotReaction = null;
+    defGk.diveAnim = null;
+    defGk.facing = defGk.team === 'home' ? 0 : Math.PI;
+    syncPlayerDir(defGk);
+  }
+
+  ball.lastTouchTeam = db.team;
+  ball.lastTouchedBy = taker.id;
+  if(db.team === 'home') setControlled(taker);
+  else setControlled2(taker);
+
+  setSetPieceMode(true, {
+    type: SET_PIECE.PENALTY,
+    team: db.team,
+    side: db.side,
+    takerId: taker.id,
+    x: ballPos.x,
+    y: ballPos.y,
+    fromY: db.fromY,
+    foulReason: db.foulReason ?? null,
   });
 }
 
@@ -3747,7 +3905,7 @@ export function executeManualSetPieceRelease(p, forceKey, powerBar, stickVec){
 
   const sp = Game.setPiece;
   if(sp?.type === SET_PIECE.THROW_IN){
-    const force = Math.max(0.08, powerBar) * SET_PIECE_FORCE_MULT[forceKey];
+    const force = Math.max(0.08, powerBar) * SET_PIECE_FORCE_MULT[forceKey] * getModePowerMultiplier();
     p.throwInAnim = {
       phase: 'windback',
       t: 0,
@@ -3762,6 +3920,14 @@ export function executeManualSetPieceRelease(p, forceKey, powerBar, stickVec){
 
   if(sp?.type === SET_PIECE.GOAL_KICK && isGoalkeeper(p)){
     return executeGoalKickRelease(p, forceKey, powerBar, stickVec);
+  }
+
+  if(sp?.type === SET_PIECE.PENALTY){
+    SetPieceManager.executed = true;
+    ball.isReadyToKick = false;
+    executeKick(p, 'shot', dir, power, 0);
+    onSetPieceBallReleased();
+    return true;
   }
 
   const kickMap = { short: 'pass', medium: 'through', long: 'cross' };
@@ -3783,6 +3949,30 @@ export function performAutoSetPieceKick(taker){
     const forceKey = forceKeys[Math.floor(Math.random() * forceKeys.length)];
     const power = 0.55 + Math.random() * 0.35;
     executeSetPieceRelease(taker, forceKey, power, defaultSetPieceAimDir(taker));
+    return true;
+  }
+
+  if(sp.type === SET_PIECE.PENALTY){
+    if(Game.setPieceScene?.active) return false;
+    resetSetPieceCharge();
+    const power = 0.72 + Math.random() * 0.22;
+    const gx = taker.oppGoalX();
+    const dir = norm({ x: gx - taker.x, y: (CENTER.y + (Math.random() - 0.5) * 2.4) - taker.y });
+    registerRestartKick(taker);
+    executeKick(taker, 'shot', dir, power, 0);
+    onSetPieceBallReleased();
+    return true;
+  }
+
+  if(sp.type === SET_PIECE.FREE_KICK){
+    if(Game.setPieceScene?.active) return false;
+    resetSetPieceCharge();
+    const power = 0.5 + Math.random() * 0.38;
+    const gx = taker.oppGoalX();
+    const dir = norm({ x: gx - taker.x, y: (CENTER.y + (Math.random() - 0.5) * 8) - taker.y });
+    registerRestartKick(taker);
+    const kickType = Math.random() < 0.42 ? 'shot' : 'pass';
+    executeKick(taker, kickType, dir, power, 0);
     return true;
   }
 
@@ -3814,6 +4004,9 @@ export function autoExecuteSetPiece(taker){
   if(sp.type === SET_PIECE.GOAL_KICK || sp.type === SET_PIECE.CORNER){
     SetPieceManager.executed = true;
   }
+  if(sp.type === SET_PIECE.FREE_KICK || sp.type === SET_PIECE.PENALTY){
+    SetPieceManager.executed = true;
+  }
   performAutoSetPieceKick(taker);
 }
 
@@ -3841,7 +4034,8 @@ export function enterPlayingAfterAutoRestart(team){
 export function executeAutoRestart(){
   const sp = Game.setPiece;
   if(!sp) return;
-  if(sp.type !== SET_PIECE.GOAL_KICK && sp.type !== SET_PIECE.CORNER) return;
+  if(sp.type !== SET_PIECE.GOAL_KICK && sp.type !== SET_PIECE.CORNER
+    && sp.type !== SET_PIECE.FREE_KICK && sp.type !== SET_PIECE.PENALTY) return;
 
   const taker = getPlayerById(sp.takerId);
   if(!taker) return;
@@ -3913,6 +4107,9 @@ export function handleSetPieceTimeout(){
     transferCornerToGoalKick();
   } else if(restartType === SET_PIECE.GOAL_KICK){
     executeAutoRestart();
+  } else if(restartType === SET_PIECE.FREE_KICK || restartType === SET_PIECE.PENALTY){
+    const taker = getPlayerById(sp.takerId);
+    if(taker) autoExecuteSetPiece(taker);
   } else if(restartType === SET_PIECE.THROW_IN){
     transferPossessionToOpponent();
   }
@@ -3952,6 +4149,14 @@ export function restartSetPieceForTeam(db){
   }
   if(db.type === SET_PIECE.CORNER){
     setupCorner(db);
+    return;
+  }
+  if(db.type === SET_PIECE.FREE_KICK){
+    setupFreeKick(db);
+    return;
+  }
+  if(db.type === SET_PIECE.PENALTY){
+    setupPenalty(db);
     return;
   }
 
@@ -4000,6 +4205,8 @@ export function restartSetPieceForTeam(db){
 
 export function handleManualRestartKickInput(p, input){
   if(!isManualRestartAwaiting(p)) return false;
+  // Escena de penal / tiro libre lejano: el input lo maneja setPieceScene.
+  if(Game.setPieceScene?.active) return true;
 
   if(input.pressPass || input.pressCross || input.pressShot || input.pressThrough){
     resetGkAutoDistributeTimer(p);
@@ -4057,7 +4264,11 @@ export function updateSetPieceManager(dt){
   if(isKickoffWaiting()) return;
   if(!Game.setPieceMode || SetPieceManager.executed || Game.isBallInPlay) return;
   SetPieceManager.timer = Math.max(0, SetPieceManager.timer - dt);
-  if(SetPieceManager.timer <= 0) handleSetPieceTimeout();
+  if(SetPieceManager.timer <= 0){
+    // Escena de penal / tiro libre: el auto-disparo lo hace autoFireSetPieceScene.
+    if(Game.setPieceScene?.active) return;
+    handleSetPieceTimeout();
+  }
 }
 
 export function clearPlayerSetPieceState(p){
@@ -4177,7 +4388,7 @@ export function isSetPieceTaker(p){
 export function isSetPieceShotOnly(p){
   if(!isSetPieceTaker(p)) return false;
   const t = Game.setPiece?.type;
-  return t === SET_PIECE.CORNER || t === SET_PIECE.GOAL_KICK;
+  return t === SET_PIECE.CORNER || t === SET_PIECE.GOAL_KICK || t === SET_PIECE.PENALTY;
 }
 
 export function refreshSetPieceBlockDribbling(){
@@ -4199,6 +4410,17 @@ export function updateSetPieceRelease(){
       taker.isStuck = true;
       taker.inSetPieceZone = true;
     }
+    return;
+  }
+
+  if(Game.setPiece?.type === SET_PIECE.PENALTY && !Game.isBallInPlay){
+    const taker = getPlayerById(Game.setPiece.takerId);
+    if(taker){
+      taker.canMove = false;
+      taker.isStuck = true;
+      taker.inSetPieceZone = true;
+    }
+    maintainGoalKickPlacement();
     return;
   }
 
@@ -4431,6 +4653,7 @@ export class Player{
     this.posRole = posRole || role; // rol tactico: LB, CDM, CAM, ST, etc.
     this.slot = slot; // posicion base normalizada {x,y} en coordenadas de cancha (para local; away se espeja)
     this.number = number;
+    this.appearance = ensurePlayerAppearance(this);
     const spawn = team === 'home'
       ? { x: slot.x, y: slot.y }
       : { x: FIELD_L - slot.x, y: FIELD_W - slot.y };
@@ -4645,6 +4868,14 @@ export const FORMATION_11VS11 = [
 
 // Posiciones de arranque en saque de centro (mitad propia agrupada; ST cerca del centro)
 export const StartingPositionTable = {
+  '6vs6': {
+    1:  {x:5,  y:34},
+    2:  {x:18, y:19},
+    3:  {x:18, y:49},
+    6:  {x:28, y:34},
+    9:  {x:48, y:19},
+    10: {x:48, y:49},
+  },
   '11vs11': {
     1:  {x:6,  y:34},
     2:  {x:14, y:10},
@@ -4673,6 +4904,7 @@ export function buildTeam(team, formationKey = '6vs6'){
   F.forEach(f=>{
     const slot = {x: f.slot.x * sx, y: f.slot.y * sy};
     const p = new Player(team, f.role, slot, f.n, f.posRole || f.role);
+    p.appearance = ensurePlayerAppearance(p);
     applyArchetypeToPlayer(p);
     assignPlayerDisplayName(p, team === 'home' ? 0 : 1);
     arr.push(p);
@@ -4695,7 +4927,8 @@ export function setGameMode(modeId){
   const preset = PHYSICS_PRESETS[modeId] || PHYSICS_PRESETS['6vs6'];
   loadModePhysics(preset.id);
   physicsConfig = {...preset};
-  applyMatchWorldScale(preset.worldScale ?? 1, preset.viewExtentMult ?? 1);
+  const goalScale = preset.goalScaleMult ?? preset.worldScale ?? 1;
+  applyMatchWorldScale(preset.worldScale ?? 1, preset.viewExtentMult ?? 1, goalScale);
   applyMatchCamera(preset);
   rebuildFieldGeometry();
   Game.matchFormat = preset.id;
@@ -4745,7 +4978,8 @@ export function isKickoffBallContestable(){
 }
 
 export function getGkKickForceMult(){
-  return Game.matchFormat === '11vs11' ? 1.4 : 1.0;
+  if(Game.matchFormat === '11vs11') return 1.4;
+  return getModePowerMultiplier();
 }
 
 export function isGkKickManualOnly(){
@@ -4761,19 +4995,25 @@ export function getKickoffStartingPosition(p, formationKey = '11vs11'){
   if(entry){
     slot = {x: entry.x * sx, y: entry.y * sy};
   } else {
-    const s = p.targetSlotWorld();
+    // Usar slot de formación en coords home (sin espejar). El espejo se aplica al final.
+    // NO usar targetSlotWorld(): ya está espejado y provocaría doble espejo en away.
+    const raw = p.slot;
     const isStriker = p.posRole === 'ST' || (p.role === 'FWD' && p.posRole !== 'CAM');
-    if(isStriker){
-      slot = {x: s.x, y: s.y};
+    if(p.role === 'GK'){
+      slot = { x: 5 * sx, y: (raw?.y ?? CENTER.y) };
+    } else if(isStriker){
+      slot = { x: raw.x, y: raw.y };
     } else {
-      const halfLimit = p.team === 'home'
-        ? CENTER.x - KICKOFF_HALF_MARGIN
-        : CENTER.x + KICKOFF_HALF_MARGIN;
+      const halfLimit = CENTER.x - KICKOFF_HALF_MARGIN;
       slot = {
-        x: p.team === 'home' ? Math.min(s.x, halfLimit) : Math.max(s.x, halfLimit),
-        y: s.y,
+        x: Math.min(raw.x, halfLimit),
+        y: raw.y,
       };
     }
+  }
+  // Arquero: siempre anclado cerca de su arco (nunca línea media).
+  if(p.role === 'GK'){
+    slot = { x: Math.min(slot.x, 8 * sx), y: slot.y };
   }
   if(p.team === 'home') return slot;
   return {x: FIELD_L - slot.x, y: FIELD_W - slot.y};
@@ -5084,7 +5324,10 @@ export function placeKickoff(kickingTeam){
     // excepto los dos delanteros que quedan mas adelante cerca del centro para recibir el pase.
     const isStriker = p.posRole === 'ST' || (p.role === 'FWD' && p.posRole !== 'CAM');
     let kx = s.x;
-    if(!isStriker || p.team !== kickingTeam){
+    if(p.role === 'GK'){
+      // Forzar arquero en su área (nunca mitad de cancha).
+      kx = s.x;
+    } else if(!isStriker || p.team !== kickingTeam){
       kx = p.team==='home'
         ? Math.min(s.x, CENTER.x - KICKOFF_HALF_MARGIN)
         : Math.max(s.x, CENTER.x + KICKOFF_HALF_MARGIN);
@@ -5221,6 +5464,8 @@ export function setupPractice(){
   Game.outOfPlay = null;
   Game.isDeadBall = false;
   Game.deadBall = null;
+  Game.practiceMode = 'shots';
+  Game.setPieceScene = null;
   resetGoalZoneTracking();
   Game.isGoalScored = false;
   Game.twoPlayerMode = false; // la Arena de Practica es siempre de un solo jugador
@@ -5246,8 +5491,13 @@ export function setupPractice(){
   setControlled(practicePlayer);
 }
 // reubica a jugador/arquero/pelota en la posicion inicial de practica, sin salir del modo (para el
-// boton REINICIAR)
+// boton REINICIAR). En penales/tiros libres el reinicio lo maneja setPieceScene via Game.practiceMode.
 export function resetPractice(){
+  if(Game.practiceMode === 'penalty' || Game.practiceMode === 'free_kick'){
+    Game._practiceSetPieceNeedsRestart = true;
+    return;
+  }
+  Game.practiceMode = 'shots';
   practicePlayer.x = PRACTICE_SHOT_X;
   practicePlayer.y = CENTER.y;
   practicePlayer.vx = 0; practicePlayer.vy = 0;
@@ -5371,6 +5621,8 @@ export const Game = {
   throwIn: null,        // {active, team, side, x, y} — saque lateral en curso
   setPieceMode: false,  // true mientras un sacador esta bloqueado esperando ejecutar
   setPiece: null,       // {type, team, side, takerId} — pelota parada activa
+  setPieceScene: null,  // escena especial de penal / tiro libre lejano
+  practiceMode: 'shots', // Arena: 'shots' | 'penalty' | 'free_kick'
   matchState: STATE_PLAYING, // STATE_PLAYING | STATE_KICKOFF
   kickoffTeam: null,    // equipo que saca durante STATE_KICKOFF
   kickoffTakerId: null, // sacador designado en el saque de centro

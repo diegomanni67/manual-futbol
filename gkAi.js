@@ -1,31 +1,58 @@
 "use strict";
 
-import { GK_AI, GK_ANIM_STATE } from './gameplay_constants.js';
+import { GK_AI, GK_ANIM_STATE, getGkAiConfig } from './gameplay_constants.js';
 import {
-  BALL_RADIUS, BALL_STATE, CENTER, CROSSBAR_Z, GOAL_HALF, GK_INTERCEPTION_RADIUS,
-  GK_JUMP_MIN_Z, GK_MAX_REACH_Z, GK_MIN_SHOT_SPEED, GRAVITY, PBOX_D, PBOX_HALFW, ball,
-  clamp, dist2D, gameState, getDiveSideAnim, lerp, norm,
+  BALL_RADIUS, BALL_STATE, CENTER, CROSSBAR_Z, GOAL_HALF, GK_DIVE_MIN_DUR, GK_DIVE_MAX_DUR,
+  GK_JUMP_MIN_Z, GK_MAX_REACH_Z, GK_MIN_SHOT_SPEED, GRAVITY,
+  PBOX_D, PBOX_HALFW, SBOX_D, SBOX_HALFW, Game, ball, clamp, dist2D, gameState, getDiveSideAnim, getGkInterceptRadius, getGkSaveRadius, isGkGrabBlockedForSetPiece,
+  isPlayerSprintChasing, lerp, norm,
 } from './state.js';
+
+function gkCfg(){
+  return getGkAiConfig(Game.matchFormat);
+}
+
+function horizon(){
+  return gkCfg().shotHorizon ?? 4.2;
+}
+
+function estimateDiveLeadTime(timeToPlane){
+  const cfg = gkCfg();
+  const diveDur = clamp((timeToPlane ?? 0.32) * 0.88, GK_DIVE_MIN_DUR, GK_DIVE_MAX_DUR);
+  return diveDur + cfg.reactionDelay * 0.42;
+}
 
 /** Centro del arco defendido por el arquero. */
 function goalMouthCenter(gk){
   return { x: gk.ownGoalX(), y: CENTER.y };
 }
 
-function ballSpeed3(b){
-  return Math.hypot(b.vx, b.vy, b.vz);
-}
-
 function ballHorizSpeed(b){
   return Math.hypot(b.vx, b.vy);
+}
+
+/** ¿La pelota se mueve hacia el arco que defiende este arquero? */
+function isShotMovingTowardGoal(b, gk){
+  const goalX = gk.ownGoalX();
+  const vx = b.vx;
+  const isRegisteredShot = b.lastKickType === 'shot';
+  const vxMin = isRegisteredShot ? 0.05 : 0.2;
+  if(Math.abs(vx) < vxMin) return false;
+  // Home defiende x=0 (vx<0); Away defiende x=FIELD_L (vx>0)
+  const toward = gk.team === 'home' ? vx < -vxMin : vx > vxMin;
+  if(!toward) return false;
+  const sp = ballHorizSpeed(b);
+  if(sp < GK_MIN_SHOT_SPEED * 0.35 && !isRegisteredShot) return false;
+  const t = (goalX - b.x) / vx;
+  return t > 0.01 && t < horizon();
 }
 
 /** Punto donde la pelota cruza el plano de la línea de gol (si aplica). */
 export function predictGoalMouthCrossing(gk, px, py, pz, vx, vy, vz){
   const goalX = gk.ownGoalX();
-  if(Math.abs(vx) < 0.2) return null;
+  if(Math.abs(vx) < 0.15) return null;
   const t = (goalX - px) / vx;
-  if(t <= 0.05 || t > GK_AI.SHOT_HORIZON) return null;
+  if(t <= 0.02 || t > horizon()) return null;
 
   const iy = py + vy * t;
   const iz = pz + vz * t - 0.5 * GRAVITY * t * t;
@@ -36,8 +63,42 @@ export function predictGoalMouthCrossing(gk, px, py, pz, vx, vy, vz){
   return { y: iy, z: Math.max(BALL_RADIUS, iz), t, inMouth };
 }
 
+/** Evalúa amenaza de tiro al arco — basado en cruce en la línea de gol, no en proximidad actual al GK. */
+export function evaluateIncomingShot(gk, b){
+  if(!gk || b.owner) return null;
+  if(b.state !== BALL_STATE.FREE && b.state !== BALL_STATE.LOOSE_BALL) return null;
+  if(!isShotMovingTowardGoal(b, gk)) return null;
+
+  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz);
+  if(!crossing) return null;
+
+  const yMargin = GOAL_HALF + GK_AI.GOAL_THREAT_Y_MARGIN;
+  if(Math.abs(crossing.y - CENTER.y) > yMargin) return null;
+  if(crossing.z > (gkCfg().maxReachZ ?? GK_MAX_REACH_Z) + 0.55) return null;
+
+  const speed = ballHorizSpeed(b);
+  const interceptPt = { y: crossing.y, z: crossing.z, t: crossing.t };
+  const response = classifySaveResponse(gk, interceptPt, crossing, speed, crossing.t);
+  const diveSide = getDiveSideAnim(gk, crossing.y);
+
+  return {
+    targetY: crossing.y,
+    predZ: crossing.z,
+    timeToPlane: crossing.t,
+    useCatch: response.save === 'catch',
+    saveType: response.save,
+    animState: response.animState,
+    diveSide,
+    saveChance: response.parryChance,
+    reachChance: response.reachChance,
+    parryMode: response.parryMode,
+    forceCatch: response.forceCatch,
+    jumpHeight: response.jumpHeight,
+  };
+}
+
 /**
- * Simula trayectoria y encuentra el punto más cercano al arquero dentro del radio de acción.
+ * Intercepción cercana (pelota ya cerca del arquero) — complemento para contacto a corta distancia.
  */
 export function calculateIntercept(ballVelocity, ballPosition, gk){
   if(!gk || gk.role !== 'GK') return null;
@@ -49,18 +110,22 @@ export function calculateIntercept(ballVelocity, ballPosition, gk){
   const py = ballPosition?.y ?? gk.y;
   const pz = ballPosition?.z ?? BALL_RADIUS;
 
-  if(Math.hypot(vx, vy, vz) < 0.35) return null;
+  if(Math.hypot(vx, vy, vz) < 0.3) return null;
 
-  const crossing = predictGoalMouthCrossing(gk, px, py, pz, vx, vy, vz);
+  // Prioridad: evaluación por línea de gol
+  const fakeBall = { x: px, y: py, z: pz, vx, vy, vz, owner: null, state: BALL_STATE.FREE, lastKickType: 'shot' };
+  const threat = evaluateIncomingShot(gk, fakeBall);
+  if(threat) return threat;
+
   const step = GK_AI.TRAJECTORY_STEP;
   let best = null;
 
-  for(let t = step; t <= GK_AI.SHOT_HORIZON; t += step){
+  for(let t = step; t <= horizon(); t += step){
     const ix = px + vx * t;
     const iy = py + vy * t;
     const iz = pz + vz * t - 0.5 * GRAVITY * t * t;
     if(iz < BALL_RADIUS) break;
-    if(iz - BALL_RADIUS > GK_MAX_REACH_Z + 0.4) continue;
+    if(iz - BALL_RADIUS > GK_MAX_REACH_Z + 0.45) continue;
 
     const d = Math.hypot(ix - gk.x, iy - gk.y);
     if(!best || d < best.dist){
@@ -68,18 +133,11 @@ export function calculateIntercept(ballVelocity, ballPosition, gk){
     }
   }
 
-  const radius = GK_AI.INTERCEPT_RADIUS ?? GK_INTERCEPTION_RADIUS;
+  const radius = gkCfg().interceptRadius ?? getGkInterceptRadius();
   if(!best || best.dist > radius) return null;
 
-  if(crossing?.inMouth){
-    best.y = crossing.y;
-    best.z = crossing.z;
-    best.t = Math.min(best.t, crossing.t);
-  }
-
-  const diveSide = getDiveSideAnim(gk, best.y);
   const speed = Math.hypot(vx, vy);
-  const response = classifySaveResponse(gk, best, crossing, speed);
+  const response = classifySaveResponse(gk, best, null, speed, best.t);
 
   return {
     targetY: best.y,
@@ -88,104 +146,257 @@ export function calculateIntercept(ballVelocity, ballPosition, gk){
     useCatch: response.save === 'catch',
     saveType: response.save,
     animState: response.animState,
-    diveSide,
+    diveSide: getDiveSideAnim(gk, best.y),
     saveChance: response.parryChance,
+    reachChance: response.reachChance,
     parryMode: response.parryMode,
     forceCatch: response.forceCatch,
+    jumpHeight: response.jumpHeight,
   };
 }
 
-/** Clasifica la intervención: blocaje vs despeje según potencia, ángulo y altura. */
-export function classifySaveResponse(gk, intercept, crossing, speed){
-  const iy = crossing?.y ?? intercept.y;
-  const iz = crossing?.z ?? intercept.z;
-  const distFromCenter = Math.abs(iy - CENTER.y);
-  const goalFrac = distFromCenter / Math.max(GOAL_HALF, 0.01);
-  const isCentral = goalFrac < GK_AI.BODY_CENTER_FRAC + 0.12;
-  const isWide = goalFrac > GK_AI.WIDE_SHOT_FRAC;
-  const isLow = iz <= GK_JUMP_MIN_Z + 0.35;
-  const isGround = iz <= BALL_RADIUS + 0.55;
-  const isHigh = iz >= GK_AI.HIGH_SHOT_Z;
-  const diveSide = getDiveSideAnim(gk, iy);
+/** Y en la línea de gol que biseca el ángulo balón–palo–palo (centra cobertura). */
+export function computeOptimalGkLineY(gk, bx, by){
+  const gx = gk.ownGoalX();
+  const dx = Math.max(Math.abs(bx - gx), 1.0);
+  const dy = by - CENTER.y;
+  const halfW = GOAL_HALF;
+  const shrink = halfW / (halfW + dx * 0.68);
+  const maxShift = halfW - 0.42;
+  return CENTER.y + clamp(dy * shrink, -maxShift, maxShift);
+}
 
-  // Tiro débil/medio centrado y bajo → blocaje
-  if(speed < GK_AI.WEAK_SHOT_SPEED && isCentral && isLow){
-    return {
-      save: 'catch',
-      animState: GK_ANIM_STATE.CATCH,
-      parryChance: 0.94,
-      parryMode: null,
-      forceCatch: true,
-    };
-  }
-  if(speed < GK_AI.HARD_SHOT_SPEED && isCentral && !isHigh && isLow){
-    return {
-      save: 'catch',
-      animState: GK_ANIM_STATE.CATCH,
-      parryChance: 0.82,
-      parryMode: null,
-      forceCatch: false,
-    };
-  }
-
-  // Tiro rasante lateral → estirada baja
-  if(isGround || (isLow && !isCentral)){
-    return {
-      save: 'dive',
-      animState: GK_ANIM_STATE.LOW_DIVE,
-      parryChance: isWide ? GK_AI.CORNER_DIVE_SUCCESS : 0.48,
-      parryMode: isWide ? 'corner' : 'wide',
-      forceCatch: false,
-    };
-  }
-
-  // Tiro alto → salto o despeje
-  if(isHigh){
-    return {
-      save: 'dive',
-      animState: GK_ANIM_STATE.JUMP,
-      parryChance: speed >= GK_AI.HARD_SHOT_SPEED ? 0.30 : 0.42,
-      parryMode: 'corner',
-      forceCatch: false,
-    };
-  }
-
-  // Potente o muy angulado → despeje al córner/lateral
-  if(speed >= GK_AI.HARD_SHOT_SPEED || isWide){
-    return {
-      save: 'dive',
-      animState: diveSide,
-      parryChance: GK_AI.CORNER_DIVE_SUCCESS,
-      parryMode: 'corner',
-      forceCatch: false,
-    };
-  }
-
+/** Posición ideal del arquero para cubrir el arco según bisectriz balón–portería. */
+export function computeIdealGkPosition(gk, ballX, ballY, timeToPlane){
+  const cfg = gkCfg();
+  const goalX = gk.ownGoalX();
+  const dir = gk.attackDir();
+  const flight = timeToPlane ?? 0.65;
+  const h = horizon();
+  const advanceT = clamp(1 - flight / h, 0, 1);
+  const advance = lerp(cfg.minAdvance, cfg.maxAdvance, advanceT * advanceT);
+  const bx = ballX ?? ball.x;
+  const by = ballY ?? ball.y;
   return {
-    save: 'dive',
-    animState: diveSide,
-    parryChance: GK_AI.FIXED_SAVE_CHANCE,
-    parryMode: 'wide',
-    forceCatch: false,
+    x: goalX + dir * advance,
+    y: computeOptimalGkLineY(gk, bx, by),
   };
+}
+
+/** Animación de atajada según altura real del cruce — sin saltos absurdos en tiros rasos/lejanos. */
+function classifySaveAnimation(gk, targetY, predZ, timeToPlane){
+  const cfg = gkCfg();
+  const flight = timeToPlane ?? 0.65;
+  const z = predZ ?? BALL_RADIUS;
+  const diveSide = getDiveSideAnim(gk, targetY);
+  const isLongShot = flight >= cfg.mediumShotTime;
+
+  let effZ = z;
+  if(isLongShot && z < GK_AI.HIGH_SHOT_Z){
+    effZ = Math.min(z, 1.05);
+  }
+
+  const isGround = effZ <= BALL_RADIUS + 0.5;
+  const isLow = effZ <= 1.05;
+  const isMid = effZ <= 1.42;
+  const isTrueHigh = z >= GK_AI.HIGH_SHOT_Z && (!isLongShot || z >= 1.95);
+
+  if(isGround || isLow){
+    return { animState: GK_ANIM_STATE.LOW_DIVE, jumpHeight: 0.1, useCatch: isGround && !isLongShot };
+  }
+  if(isMid){
+    return { animState: diveSide, jumpHeight: 0.18, useCatch: false };
+  }
+  if(isTrueHigh){
+    return { animState: GK_ANIM_STATE.JUMP, jumpHeight: clamp(z - 0.85, 0.3, 0.95), useCatch: false };
+  }
+  return { animState: diveSide, jumpHeight: 0.22, useCatch: false };
 }
 
 /**
- * Posicionamiento inteligente: triángulo arco-centro ↔ pelota + sesgo hacia cruce en el arco.
+ * Fórmula de atajada — combina posicionamiento, distancia, colocación y potencia.
+ * Devuelve reachChance (llegar a tocar) y parryChance (blocar limpio vs despejar).
+ */
+export function evaluateSaveAttempt(gk, targetY, targetZ, speed, timeToPlane){
+  const cfg = gkCfg();
+  const ideal = computeIdealGkPosition(gk, ball.x, ball.y, timeToPlane);
+  const posError = dist2D(gk, ideal);
+  const posErrorNorm = posError / Math.max(GOAL_HALF * cfg.positionErrorScale, 0.01);
+
+  const lateralNeed = Math.abs(gk.y - targetY);
+  const lateralReach = GOAL_HALF * cfg.lateralReachFrac;
+  const placement = clamp(Math.abs(targetY - CENTER.y) / Math.max(GOAL_HALF, 0.01), 0, 1);
+  const power = clamp(
+    (speed - cfg.weakShotSpeed) / Math.max(cfg.hardShotSpeed - cfg.weakShotSpeed, 0.01),
+    0, 1,
+  );
+  const flight = timeToPlane ?? 0.65;
+  const distanceNorm = clamp(flight / cfg.farShotTime, 0, 1);
+
+  const diveTimeNeeded = lateralNeed / Math.max(cfg.diveSpeed, 0.01);
+  const timeMargin = flight - cfg.reactionDelay - diveTimeNeeded;
+  const lateralMargin = lateralReach - lateralNeed;
+
+  let reachScore = cfg.reachBase;
+  reachScore += clamp(lateralMargin / Math.max(lateralReach, 0.01), -0.55, 0.42) * 0.48;
+  reachScore -= clamp(posErrorNorm, 0, 1.25) * 0.40;
+  reachScore -= placement * placement * 0.42;
+  reachScore -= power * 0.36;
+  reachScore += distanceNorm * 0.11;
+  if(flight < cfg.closeShotTime) reachScore -= 0.18 + power * 0.14;
+  reachScore += clamp(timeMargin, -0.55, 0.38) * 0.42;
+
+  const maxZ = cfg.maxReachZ ?? GK_MAX_REACH_Z;
+  const heightMargin = maxZ - targetZ;
+  if(heightMargin < 0) reachScore -= 0.58;
+  else if(heightMargin < 0.35) reachScore -= 0.14;
+
+  const reachChance = clamp(reachScore, 0.04, 0.90);
+
+  let holdScore = reachScore;
+  holdScore *= (1 - power * 0.90);
+  holdScore *= (1 - placement * 0.78);
+  if(targetZ > GK_JUMP_MIN_Z + 0.35) holdScore *= 0.42;
+  if(posErrorNorm > 0.55) holdScore *= 0.72;
+  const parryChance = clamp(holdScore, 0.05, 0.75);
+
+  const isCentral = placement < GK_AI.BODY_CENTER_FRAC + 0.1;
+  const isLow = targetZ <= GK_JUMP_MIN_Z + 0.35;
+  const isGround = targetZ <= BALL_RADIUS + 0.55;
+  const isHigh = targetZ >= GK_AI.HIGH_SHOT_Z;
+  const diveSide = getDiveSideAnim(gk, targetY);
+
+  let parryMode = 'wide';
+  if(power >= 0.72 || placement > GK_AI.WIDE_SHOT_FRAC) parryMode = 'long_rebound';
+  else if(placement > GK_AI.CORNER_FRAC) parryMode = 'corner';
+
+  const forceCatch = power < 0.18 && isCentral && isLow && reachChance > 0.62 && posErrorNorm < 0.35;
+  const animPick = classifySaveAnimation(gk, targetY, targetZ, timeToPlane);
+
+  if(power < 0.22 && isCentral && isLow && reachChance > 0.55 && animPick.useCatch){
+    return {
+      save: 'catch',
+      animState: GK_ANIM_STATE.CATCH,
+      parryChance,
+      reachChance,
+      parryMode,
+      forceCatch,
+      jumpHeight: 0.12,
+      reachScore,
+      placement,
+      power,
+      posErrorNorm,
+    };
+  }
+  if(isGround || isLow){
+    return {
+      save: 'dive',
+      animState: GK_ANIM_STATE.LOW_DIVE,
+      parryChance,
+      reachChance,
+      parryMode,
+      forceCatch: false,
+      jumpHeight: animPick.jumpHeight,
+      reachScore,
+      placement,
+      power,
+      posErrorNorm,
+    };
+  }
+  if(isTrueHigh(animPick)){
+    return {
+      save: 'dive',
+      animState: animPick.animState,
+      parryChance,
+      reachChance: reachChance * 0.94,
+      parryMode,
+      forceCatch: false,
+      jumpHeight: animPick.jumpHeight,
+      reachScore,
+      placement,
+      power,
+      posErrorNorm,
+    };
+  }
+  return {
+    save: 'dive',
+    animState: animPick.animState,
+    parryChance,
+    reachChance,
+    parryMode,
+    forceCatch: false,
+    jumpHeight: animPick.jumpHeight,
+    reachScore,
+    placement,
+    power,
+    posErrorNorm,
+  };
+}
+
+function isTrueHigh(animPick){
+  return animPick.animState === GK_ANIM_STATE.JUMP;
+}
+
+/** Resuelve contacto físico: ¿el arquero llegó con mérito al balón? */
+export function resolveGkSaveContact(gk, ballY, ballDist, dive){
+  if(!dive) return true;
+  const cfg = gkCfg();
+  const targetY = dive.targetY ?? gk.y;
+  const yErr = Math.abs(ballY - targetY);
+  const lateralReach = GOAL_HALF * cfg.lateralReachFrac;
+  const reachRadius = dive.reachRadius ?? lateralReach * 0.55;
+
+  const lateralQ = clamp(1 - yErr / Math.max(lateralReach * 0.92, 0.01), 0, 1);
+  const distQ = clamp(1 - ballDist / Math.max(reachRadius, 0.01), 0, 1);
+  const contactQ = lateralQ * distQ;
+  const needQ = 1 - (dive.reachChance ?? cfg.reachBase);
+  const variance = (Math.random() - 0.5) * cfg.reachVariance * 2;
+  return contactQ + variance >= needQ * 0.88;
+}
+
+/** Perfil de intervención — delega a evaluateSaveAttempt. */
+function computeShotSaveProfile(gk, iy, iz, speed, timeToPlane){
+  return evaluateSaveAttempt(gk, iy, iz, speed, timeToPlane);
+}
+
+/** Clasifica la intervención: blocaje vs despeje según potencia, ángulo y altura. */
+export function classifySaveResponse(gk, intercept, crossing, speed, timeToPlane){
+  const iy = crossing?.y ?? intercept.y;
+  const iz = crossing?.z ?? intercept.z;
+  return computeShotSaveProfile(gk, iy, iz, speed, timeToPlane ?? intercept.t);
+}
+
+/**
+ * Posicionamiento: triángulo arco ↔ pelota; ante tiro, cubrir el palo según cruce previsto.
  */
 export function computeTrianglePosition(gk, b){
+  const cfg = gkCfg();
   const gc = goalMouthCenter(gk);
   const goalX = gk.ownGoalX();
   const dir = gk.attackDir();
 
+  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz);
+  if(crossing && isShotMovingTowardGoal(b, gk)){
+    const h = horizon();
+    const flight = crossing.t;
+    let advance;
+    if(flight >= cfg.farShotTime){
+      advance = lerp(cfg.minAdvance + 0.5, cfg.maxAdvance * 0.72, clamp(1 - flight / h, 0, 1));
+    } else if(flight >= (cfg.mediumShotTime ?? 0.75)){
+      advance = lerp(cfg.maxAdvance * 0.55, cfg.maxAdvance * 0.85, 1 - (flight - cfg.mediumShotTime) / (cfg.farShotTime - cfg.mediumShotTime + 0.01));
+    } else if(flight < 0.55){
+      advance = lerp(cfg.maxAdvance, cfg.minAdvance + 0.4, flight / 0.55);
+    } else {
+      advance = lerp(cfg.minAdvance + 0.6, cfg.maxAdvance * 0.65, clamp(1 - flight / h, 0, 1));
+    }
+    return {
+      x: goalX + dir * clamp(advance, cfg.minAdvance, cfg.maxAdvance),
+      y: computeOptimalGkLineY(gk, b.x, b.y),
+    };
+  }
+
   let aimX = b.x;
   let aimY = b.y;
-
-  const crossing = predictGoalMouthCrossing(gk, b.x, b.y, b.z, b.vx, b.vy, b.vz);
-  if(crossing?.inMouth && isShotMovingTowardGoal(b, gk)){
-    aimX = goalX + dir * 0.15;
-    aimY = crossing.y;
-  }
 
   const toX = aimX - gc.x;
   const toY = aimY - gc.y;
@@ -193,40 +404,229 @@ export function computeTrianglePosition(gk, b){
   const ux = toX / dist;
   const uy = toY / dist;
 
-  const closeDist = GK_AI.CLOSE_DIST;
+  const closeDist = cfg.closeDist;
   const advanceT = clamp(1 - dist / closeDist, 0, 1);
-  const advance = lerp(GK_AI.MIN_ADVANCE, GK_AI.MAX_ADVANCE, advanceT * advanceT);
+  const advance = lerp(cfg.minAdvance, cfg.maxAdvance, advanceT * advanceT);
 
   let targetX = gc.x + ux * advance;
-  let targetY = gc.y + uy * advance;
+  let targetY = computeOptimalGkLineY(gk, aimX, aimY);
 
   const boxMinX = dir > 0 ? gc.x + dir * 0.8 : gc.x + dir * PBOX_D;
   const boxMaxX = dir > 0 ? gc.x + dir * PBOX_D : gc.x + dir * 0.8;
   targetX = clamp(targetX, Math.min(boxMinX, boxMaxX), Math.max(boxMinX, boxMaxX));
-  targetY = clamp(targetY, CENTER.y - GOAL_HALF - 1.0, CENTER.y + GOAL_HALF + 1.0);
+  targetY = clamp(targetY, CENTER.y - GOAL_HALF - 0.5, CENTER.y + GOAL_HALF + 0.5);
 
   return { x: targetX, y: targetY };
-}
-
-function isShotMovingTowardGoal(b, gk){
-  const goalX = gk.ownGoalX();
-  const toward = gk.team === 'away' ? b.vx < -0.35 : b.vx > 0.35;
-  if(!toward) return false;
-  const sp = ballHorizSpeed(b);
-  if(sp < GK_MIN_SHOT_SPEED * 0.55) return false;
-  const t = (goalX - b.x) / b.vx;
-  return t > 0 && t < GK_AI.SHOT_HORIZON;
 }
 
 function isActiveShotEvent(b){
   if(b.owner) return false;
   if(b.state !== BALL_STATE.FREE && b.state !== BALL_STATE.LOOSE_BALL) return false;
-  return b.lastKickType === 'shot' || ballHorizSpeed(b) >= GK_MIN_SHOT_SPEED * 0.85;
+  return b.lastKickType === 'shot' || ballHorizSpeed(b) >= GK_MIN_SHOT_SPEED * 0.55;
 }
 
-/** Detecta situación 1v1: delantero con balón, sin defensores cercanos, dentro del área. */
+function isGkLooseBallClaimable(b){
+  if(!b || b.owner) return false;
+  if(b.isReadyToKick || b.state === BALL_STATE.PLACED) return false;
+  if(b.state === BALL_STATE.DEAD_BALL || b.state === BALL_STATE.WAITING_FOR_RETRIEVAL) return false;
+  if(b.state === BALL_STATE.GOAL_CELEBRATION || b.state === BALL_STATE.OUT_OF_BOUNDS) return false;
+  if(b.z - BALL_RADIUS > GK_MAX_REACH_Z + 0.15) return false;
+  return b.state === BALL_STATE.FREE || b.state === BALL_STATE.LOOSE_BALL || b.state === BALL_STATE.IN_AIR;
+}
+
+/** ¿La pelota está dentro del área grande que defiende este arquero? */
+export function isBallInGkPenaltyBox(gk, bx, by){
+  if(!gk) return false;
+  const goalX = gk.ownGoalX();
+  const dir = gk.attackDir();
+  const depth = (bx - goalX) * dir;
+  if(depth < -0.35 || depth > PBOX_D + 0.55) return false;
+  return Math.abs(by - CENTER.y) <= PBOX_HALFW + 0.55;
+}
+
+function nearestRivalToBallInBox(gk, allPlayers){
+  let best = null;
+  let bestD = Infinity;
+  for(const p of allPlayers){
+    if(!p || p.team === gk.team || p.role === 'GK') continue;
+    if(!isBallInGkPenaltyBox(gk, p.x, p.y) && dist2D(p, ball) > 4) continue;
+    const d = dist2D(p, ball);
+    if(d < bestD){
+      bestD = d;
+      best = p;
+    }
+  }
+  return best;
+}
+
+/** ¿La pelota está en el área chica que defiende este arquero? */
+export function isBallInGkSixYardBox(gk, bx, by){
+  if(!gk) return false;
+  const goalX = gk.ownGoalX();
+  const dir = gk.attackDir();
+  const depth = (bx - goalX) * dir;
+  if(depth < -0.25 || depth > SBOX_D + 0.45) return false;
+  return Math.abs(by - CENTER.y) <= SBOX_HALFW + 0.45;
+}
+
+/** Activa persecución agresiva de balones sueltos en el área (rebotes, desvíos, etc.). */
+export function triggerGkProactiveClaim(gk, reason = 'loose'){
+  if(!gk) return;
+  const cfg = gkCfg();
+  gk.gkProactiveClaim = {
+    t: cfg.proactiveClaimDuration ?? 3.2,
+    reason,
+  };
+  gk.gkShotReaction = null;
+}
+
+export function tickGkProactiveClaim(gk, dt){
+  const pc = gk.gkProactiveClaim;
+  if(!pc) return;
+  pc.t -= dt;
+  if(pc.t <= 0) gk.gkProactiveClaim = null;
+}
+
+function predictBallGroundPoint(b){
+  const z0 = b.z;
+  if(z0 <= BALL_RADIUS + 0.12) return { x: b.x, y: b.y };
+  const vz = b.vz ?? 0;
+  const a = -0.5 * GRAVITY;
+  const disc = vz * vz - 4 * a * (z0 - BALL_RADIUS);
+  let tLand = 0.25;
+  if(disc >= 0){
+    const t = (-vz - Math.sqrt(disc)) / (2 * a);
+    if(t > 0.02) tLand = Math.min(t, 1.35);
+  }
+  return { x: b.x + b.vx * tLand, y: b.y + b.vy * tLand };
+}
+
+function isGkProactiveLooseBallContext(gk, inSix){
+  if(gk.gkProactiveClaim?.t > 0) return true;
+  if(ball.lastTouchedBy === gk.id) return true;
+  if(inSix) return true;
+  return false;
+}
+
+/** Zambullida al suelo para atrapar un balón suelto antes que el delantero. */
+function evaluateLooseBallPounce(gk, allPlayers, distToBall, proactive){
+  const cfg = gkCfg();
+  const pounceDist = cfg.boxPounceDist ?? 3.35;
+  if(distToBall > pounceDist) return null;
+
+  const lowBall = ball.z <= GK_JUMP_MIN_Z + 0.5;
+  const reachableAir = ball.z <= GK_MAX_REACH_Z + 0.12 && distToBall <= pounceDist * 0.82;
+  if(!lowBall && !reachableAir) return null;
+
+  const rival = nearestRivalToBallInBox(gk, allPlayers);
+  const rivalDist = rival ? dist2D(rival, ball) : Infinity;
+  const racingRival = rivalDist < distToBall + (cfg.boxPounceRivalMargin ?? 1.0);
+  const urgentDist = cfg.boxPounceUrgentDist ?? 2.05;
+
+  if(distToBall > urgentDist && !racingRival && !proactive) return null;
+
+  const useCatch = lowBall && ball.z <= BALL_RADIUS + 0.42;
+  return {
+    save: 'pounce',
+    targetX: ball.x,
+    targetY: ball.y,
+    predZ: Math.max(BALL_RADIUS, ball.z),
+    timeToPlane: clamp(distToBall / cfg.diveSpeed, GK_DIVE_MIN_DUR, 0.36),
+    animState: useCatch ? GK_ANIM_STATE.CATCH : GK_ANIM_STATE.LOW_DIVE,
+    useCatch,
+    reachChance: racingRival ? 0.78 : 0.68,
+    parryChance: useCatch ? 0.62 : 0.48,
+    jumpHeight: 0.08,
+    forceCatch: racingRival && lowBall,
+    danger: racingRival,
+  };
+}
+
+/**
+ * Salida decisiva a balones sueltos/divididos en área chica y grande.
+ * Manos si es seguro; zambullida o despeje con pie bajo presión rival.
+ */
+/** Cancela estirada/reacción estática para priorizar salida a balón suelto. */
+export function cancelGkDiveForLooseClaim(gk, reason = 'loose_interrupt'){
+  if(!gk) return;
+  if(gk.diveAnim || gk.gkShotReaction){
+    gk.diveAnim = null;
+    gk.gkShotReaction = null;
+    gk.gkAnimState = null;
+    triggerGkProactiveClaim(gk, reason);
+  }
+}
+
+export function evaluateLooseBallClaim(gk, allPlayers, opts = {}){
+  if(!gk || gk.gkKickAnim) return null;
+  if(!opts.ignoreDive && gk.diveAnim) return null;
+  if(isGkGrabBlockedForSetPiece(gk)) return null;
+  if(!isGkLooseBallClaimable(ball)) return null;
+  if(!isBallInGkPenaltyBox(gk, ball.x, ball.y)) return null;
+
+  const cfg = gkCfg();
+  const inSix = isBallInGkSixYardBox(gk, ball.x, ball.y);
+  const proactive = isGkProactiveLooseBallContext(gk, inSix);
+  const distToBall = dist2D(gk, ball);
+  const rival = nearestRivalToBallInBox(gk, allPlayers);
+  const rivalDist = rival ? dist2D(rival, ball) : Infinity;
+  const ballSpeed = Math.hypot(ball.vx, ball.vy);
+  const lowBall = ball.z <= GK_JUMP_MIN_Z + 0.35;
+  const slowBall = ballSpeed < 5.5;
+  const gkJustTouched = ball.lastTouchedBy === gk.id;
+  const shotThreat = !gkJustTouched && !proactive
+    && ball.lastKickType === 'shot' && ballSpeed > GK_MIN_SHOT_SPEED * 0.45;
+  const danger = shotThreat
+    || rivalDist < (cfg.boxRivalThreatDist ?? 3.2)
+    || (ballSpeed > 10.5 && !gkJustTouched)
+    || (ball.isContested && rival && !proactive);
+
+  const pounce = evaluateLooseBallPounce(gk, allPlayers, distToBall, proactive);
+  if(pounce) return pounce;
+
+  const groundPt = predictBallGroundPoint(ball);
+  let targetX = groundPt.x;
+  let targetY = groundPt.y;
+  if(ballSpeed > 0.5){
+    const urgency = proactive ? 1.18 : 1.0;
+    const tMeet = clamp(distToBall / Math.max(cfg.positionMaxSpeed * cfg.boxClaimSpeedMult * urgency, 0.01), 0.04, 0.62);
+    targetX = ball.x + ball.vx * tMeet;
+    targetY = ball.y + ball.vy * tMeet;
+  }
+  const goalX = gk.ownGoalX();
+  const dir = gk.attackDir();
+  targetX = clamp(targetX, goalX + dir * 0.4, goalX + dir * (PBOX_D - 0.35));
+  targetY = clamp(targetY, CENTER.y - PBOX_HALFW + 0.4, CENTER.y + PBOX_HALFW - 0.4);
+
+  const useHands = lowBall && (!danger || proactive || gkJustTouched)
+    && (slowBall || distToBall < 3.6 || proactive);
+  const urgencyMult = (proactive || inSix || rivalDist < distToBall + 1.2)
+    ? (cfg.boxClaimUrgencyMult ?? 1.22) : 1.0;
+
+  return {
+    claim: true,
+    move: { x: targetX, y: targetY },
+    sprint: true,
+    rush: true,
+    moveSpeedCap: cfg.positionMaxSpeed * (cfg.boxClaimSpeedMult ?? 1.4) * urgencyMult,
+    facing: Math.atan2(ball.y - gk.y, ball.x - gk.x),
+    useHands,
+    danger,
+    rivalId: rival?.id ?? null,
+    proactive,
+  };
+}
+
+/** @deprecated alias — usar evaluateLooseBallClaim */
+export function evaluateBoxClaim(gk, allPlayers){
+  return evaluateLooseBallClaim(gk, allPlayers);
+}
+
+/** Detecta situación 1v1 / achique: delantero con balón acercándose al arco. */
 export function detectOneVsOne(gk, allPlayers){
   if(!gk || gk.diveAnim || gk.gkKickAnim) return null;
+  const cfg = gkCfg();
+  const boxDist = cfg.oneVsOneBoxDist ?? GK_AI.ONE_V_ONE_BOX_DIST;
 
   const goalX = gk.ownGoalX();
   const dir = gk.attackDir();
@@ -238,20 +638,23 @@ export function detectOneVsOne(gk, allPlayers){
     if(ball.owner !== p) continue;
 
     const distToGoal = Math.abs(p.x - goalX);
-    if(distToGoal > GK_AI.ONE_V_ONE_BOX_DIST) continue;
-    if(Math.abs(p.y - CENTER.y) > PBOX_HALFW + 1.5) continue;
+    if(distToGoal > boxDist) continue;
+    if(Math.abs(p.y - CENTER.y) > PBOX_HALFW + 2.2) continue;
 
-    let blocked = false;
+    // Debe estar avanzando hacia el arco (o muy cerca)
+    const toGoal = (goalX - p.x) * dir;
+    const closing = (p.vx ?? 0) * dir;
+    if(toGoal < -1.5 && closing < 0.4 && distToGoal > 8) continue;
+
+    // Solo descartar si hay cobertura densa encima del delantero
+    let tightMarkers = 0;
     for(const mate of allPlayers){
       if(mate === p || mate.team !== gk.team || mate.role === 'GK') continue;
-      if(dist2D(mate, p) < GK_AI.ONE_V_ONE_CLEAR_RADIUS){
-        blocked = true;
-        break;
-      }
+      if(dist2D(mate, p) < 2.8) tightMarkers++;
     }
-    if(blocked) continue;
+    if(tightMarkers >= 2) continue;
 
-    const threat = distToGoal + dist2D(gk, p) * 0.35;
+    const threat = distToGoal + dist2D(gk, p) * 0.25;
     if(threat < bestThreat){
       bestThreat = threat;
       best = p;
@@ -261,54 +664,163 @@ export function detectOneVsOne(gk, allPlayers){
   return best;
 }
 
+/** Evalúa achique / smother: no infalible — amague, gambeta y timing ofensivo reducen éxito. */
+export function evaluateSmotherAttempt(gk, striker, distStriker){
+  const cfg = gkCfg();
+  const smotherDist = cfg.oneVsOneSmotherDist ?? GK_AI.ONE_V_ONE_SMOTHER_DIST;
+  const speed = Math.hypot(striker.vx ?? 0, striker.vy ?? 0);
+  const toStriker = norm({ x: striker.x - gk.x, y: striker.y - gk.y });
+  const vel = speed > 0.15 ? norm({ x: striker.vx, y: striker.vy }) : toStriker;
+  const closingDot = vel.x * toStriker.x + vel.y * toStriker.y;
+  const lateralDot = Math.abs(vel.x * (-toStriker.y) + vel.y * toStriker.x);
+
+  let beatScore = 0;
+  if(striker.feint || striker.dragBack) beatScore += 0.42;
+  if(striker.isFakeShooting || ball.feintDetach?.ownerId === striker.id) beatScore += 0.38;
+  if(striker.touchAnim && ball.lastAction === 'feint') beatScore += 0.28;
+  if(isPlayerSprintChasing(striker) || striker.isEffortSprinting) beatScore += 0.20;
+  if(speed > 5.2 && closingDot < -0.2) beatScore += 0.30;
+  if(lateralDot > 0.5 && speed > 3.8) beatScore += 0.26;
+  if(striker.kickAnim || striker.pendingKick) beatScore += 0.18;
+  beatScore = clamp(beatScore, 0, 0.95);
+
+  const distFactor = clamp(1 - distStriker / (smotherDist * 1.25), 0, 1);
+  let reachChance = (cfg.smotherReachBase ?? 0.54) + 0.12;
+  reachChance *= 0.72 + distFactor * 0.38;
+  reachChance -= beatScore * 0.42;
+  reachChance = clamp(reachChance, 0.22, 0.88);
+
+  const claimChance = clamp(reachChance * (0.62 - beatScore * 0.22), 0.18, 0.78);
+
+  return {
+    shouldAttempt: distStriker <= smotherDist * 1.45,
+    reachChance,
+    claimChance,
+    beatScore,
+  };
+}
+
+/** ¿El arquero conecta el achique ante el delantero? */
+export function resolveGkSmotherContact(gk, striker, dive){
+  if(!dive || dive.saveMode !== 'smother') return resolveGkSaveContact(gk, ball.y, dist2D(gk, ball), dive);
+  if(!striker) return false;
+
+  const cfg = gkCfg();
+  const dist = dist2D(gk, striker);
+  const smotherReach = (dive.reachRadius ?? getGkSaveRadius() * cfg.saveRadiusMult) * (cfg.smotherRadiusMult ?? 1.05);
+  if(dist >= smotherReach) return false;
+
+  const evalSmother = evaluateSmotherAttempt(gk, striker, dist);
+  const variance = (Math.random() - 0.5) * cfg.reachVariance * 2;
+  const need = 0.18 + evalSmother.beatScore * 0.32;
+  return evalSmother.reachChance + variance >= need;
+}
+
 function planOneVsOne(gk, striker){
+  const cfg = gkCfg();
   const gc = goalMouthCenter(gk);
   const dir = gk.attackDir();
   const distStriker = dist2D(gk, striker);
   const distGoal = Math.abs(striker.x - gk.ownGoalX());
+  const boxDist = cfg.oneVsOneBoxDist ?? GK_AI.ONE_V_ONE_BOX_DIST;
+  const smotherDist = cfg.oneVsOneSmotherDist ?? GK_AI.ONE_V_ONE_SMOTHER_DIST;
+  const rushAdvance = cfg.oneVsOneRushAdvance ?? GK_AI.ONE_V_ONE_RUSH_ADVANCE;
 
-  if(distStriker <= GK_AI.ONE_V_ONE_SMOTHER_DIST && distGoal < GK_AI.ONE_V_ONE_BOX_DIST * 0.85){
-    const toStriker = norm({ x: striker.x - gk.x, y: striker.y - gk.y });
+  const rushFactor = clamp(1 - distGoal / boxDist, 0.45, 1);
+  const smotherEval = evaluateSmotherAttempt(gk, striker, distStriker);
+
+  // Achique / zambullida al delantero cuando está cerca
+  if(smotherEval.shouldAttempt && distGoal < boxDist){
     return {
       save: 'smother',
-      targetX: striker.x - dir * 0.4,
+      targetX: striker.x - dir * 0.28,
       targetY: striker.y,
       predZ: BALL_RADIUS + 0.08,
-      timeToPlane: clamp(distStriker / 6.5, GK_AI.REACTION_DELAY, 0.42),
+      timeToPlane: clamp(distStriker / Math.max(cfg.diveSpeed, 1), GK_DIVE_MIN_DUR, 0.42),
       animState: GK_ANIM_STATE.SMOTHER,
-      forceCatch: true,
-      parryChance: 1,
+      forceCatch: smotherEval.claimChance >= 0.28 || distStriker < smotherDist * 0.85,
+      parryChance: Math.max(smotherEval.claimChance, 0.45),
+      reachChance: Math.max(smotherEval.reachChance, 0.55),
       strikerId: striker.id,
     };
   }
 
+  // Salida activa de la línea: achicar ángulo y distancia
+  const meetX = lerp(gk.x, striker.x - dir * 0.55, 0.55 + rushFactor * 0.35);
+  const maxRush = Math.min(rushAdvance * 1.15, PBOX_D - 0.45);
   const rushX = clamp(
-    gc.x + dir * GK_AI.ONE_V_ONE_RUSH_ADVANCE,
-    gc.x + dir * 1.2,
-    gc.x + dir * (PBOX_D - 1.5),
+    lerp(gc.x + dir * 1.15, meetX, rushFactor),
+    gc.x + dir * 0.85,
+    gc.x + dir * maxRush,
   );
-  const rushY = lerp(gk.y, striker.y, 0.55);
+  const rushY = lerp(gk.y, striker.y, 0.72 + rushFactor * 0.12);
 
   return {
-    move: { x: rushX, y: clamp(rushY, CENTER.y - PBOX_HALFW + 1, CENTER.y + PBOX_HALFW - 1) },
+    move: { x: rushX, y: clamp(rushY, CENTER.y - PBOX_HALFW + 0.6, CENTER.y + PBOX_HALFW - 0.6) },
     sprint: true,
     facing: Math.atan2(striker.y - gk.y, striker.x - gk.x),
     rush: true,
+    moveSpeedCap: cfg.positionMaxSpeed * (1.28 + rushFactor * 0.22),
   };
 }
 
-function registerShotReaction(gk, intercept){
-  if(gk.diveAnim || gk.gkShotReaction) return;
+function computeReactionDelay(timeToPlane, immediate = false){
+  const cfg = gkCfg();
+  const lead = estimateDiveLeadTime(timeToPlane);
+  const scheduled = (timeToPlane ?? 0.5) - lead;
+
+  if(immediate){
+    return clamp(scheduled, 0.04, cfg.reactionDelay + 0.10);
+  }
+  if(timeToPlane <= cfg.closeShotTime){
+    return clamp(scheduled, 0.04, cfg.reactionDelay * 0.55);
+  }
+  if(timeToPlane <= cfg.farShotTime){
+    return clamp(scheduled, 0.06, cfg.reactionDelay + 0.14);
+  }
+  return clamp(scheduled, 0.10, timeToPlane - GK_DIVE_MIN_DUR - 0.05);
+}
+
+/** Punto de estirada: deriva determinista si está mal posicionado o el tiro es sorprendente. */
+function computeDiveTargetY(gk, targetY, timeToPlane, speed){
+  const cfg = gkCfg();
+  const ideal = computeIdealGkPosition(gk, ball.x, ball.y, timeToPlane);
+  const posError = dist2D(gk, ideal);
+  const posErrorNorm = posError / Math.max(GOAL_HALF * cfg.positionErrorScale, 0.01);
+  const power = clamp(
+    (speed - cfg.weakShotSpeed) / Math.max(cfg.hardShotSpeed - cfg.weakShotSpeed, 0.01),
+    0, 1,
+  );
+  const placement = Math.abs(targetY - CENTER.y) / Math.max(GOAL_HALF, 0.01);
+  const undershoot = clamp(posErrorNorm * 0.55 + power * 0.22 + placement * 0.12, 0, 0.42);
+  const side = targetY >= gk.y ? 1 : -1;
+  const adjusted = targetY - side * undershoot * GOAL_HALF;
+  return clamp(adjusted, CENTER.y - GOAL_HALF + 0.15, CENTER.y + GOAL_HALF - 0.15);
+}
+
+function registerShotReaction(gk, intercept, immediate = false){
+  if(gk.diveAnim) return;
+  const existing = gk.gkShotReaction;
+  if(existing && !immediate && existing.timeToPlane <= intercept.timeToPlane + 0.05) return;
+
+  const cfg = gkCfg();
+  const speed = ballHorizSpeed(ball);
+  const delay = computeReactionDelay(intercept.timeToPlane, immediate);
+  let reach = intercept.reachChance ?? cfg.reachBase;
+  if(delay > intercept.timeToPlane * 0.42) reach *= 0.48;
+
   gk.gkShotReaction = {
-    delay: GK_AI.REACTION_DELAY,
-    targetY: intercept.targetY,
+    delay,
+    targetY: computeDiveTargetY(gk, intercept.targetY, intercept.timeToPlane, speed),
     predZ: intercept.predZ,
     timeToPlane: intercept.timeToPlane,
     useCatch: intercept.useCatch,
-    saveChance: intercept.saveChance ?? GK_AI.FIXED_SAVE_CHANCE,
+    saveChance: intercept.saveChance ?? reach * 0.65,
+    reachChance: clamp(reach, 0.04, 0.92),
     animState: intercept.animState,
     parryMode: intercept.parryMode,
     forceCatch: intercept.forceCatch,
+    jumpHeight: intercept.jumpHeight,
   };
 }
 
@@ -316,17 +828,20 @@ function consumeGkShotReaction(gk){
   const react = gk.gkShotReaction;
   if(!react || react.delay > 0) return null;
   gk.gkShotReaction = null;
-  if(gk.diveAnim || gk.tackleCooldown > 0) return null;
+  if(gk.diveAnim) return null;
+  const cfg = gkCfg();
 
   return {
     targetY: react.targetY,
     predZ: react.predZ,
     timeToPlane: react.timeToPlane,
     useCatch: react.useCatch,
-    parryChance: react.saveChance ?? GK_AI.FIXED_SAVE_CHANCE,
+    parryChance: react.saveChance ?? cfg.reachBase * 0.65,
+    reachChance: react.reachChance ?? cfg.reachBase,
     animState: react.animState,
     parryMode: react.parryMode,
     forceCatch: react.forceCatch,
+    jumpHeight: react.jumpHeight,
   };
 }
 
@@ -339,15 +854,45 @@ function tickGkShotReactionDelay(gk, dt){
 
 /**
  * Planifica IA de arquero (sin side-effects de animación).
- * @param {object} gk
- * @param {number} dt
- * @param {object[]} [allPlayers]
  */
 export function planGoalkeeperAI(gk, dt, allPlayers){
   if(!gk || gk.role !== 'GK') return null;
-  if(gk.diveAnim || gk.gkKickAnim) return null;
+  if(gk.gkKickAnim) return null;
+
+  tickGkProactiveClaim(gk, dt);
+
+  // Prioridad absoluta: balón suelto/dividido en área anula estirada estática.
+  const loosePlan = evaluateLooseBallClaim(gk, allPlayers, { ignoreDive: true });
+  if(loosePlan){
+    if(gk.diveAnim) cancelGkDiveForLooseClaim(gk, 'loose_interrupt');
+    return loosePlan;
+  }
+
+  if(gk.diveAnim) return null;
+
+  // 1v1 / achique: prioridad sobre reacción a tiro cuando el delantero conduce.
+  if(allPlayers?.length){
+    const striker = detectOneVsOne(gk, allPlayers);
+    if(striker){
+      gk.gkShotReaction = null;
+      const onePlan = planOneVsOne(gk, striker);
+      if(onePlan) return onePlan;
+    }
+  }
 
   tickGkShotReactionDelay(gk, dt);
+
+  const cfg = gkCfg();
+  const pendingReact = gk.gkShotReaction;
+  if(pendingReact && pendingReact.delay > 0){
+    const ideal = computeIdealGkPosition(gk, ball.x, ball.y, pendingReact.timeToPlane);
+    return {
+      move: ideal,
+      sprint: true,
+      moveSpeedCap: cfg.positionMaxSpeed * (pendingReact.timeToPlane > cfg.mediumShotTime ? 1.14 : 1.08),
+      facing: Math.atan2(ball.y - gk.y, ball.x - gk.x),
+    };
+  }
 
   const readySave = consumeGkShotReaction(gk);
   if(readySave){
@@ -360,48 +905,57 @@ export function planGoalkeeperAI(gk, dt, allPlayers){
     };
   }
 
-  // Prioridad: salida 1v1
-  if(allPlayers?.length){
-    const striker = detectOneVsOne(gk, allPlayers);
-    if(striker){
-      const onePlan = planOneVsOne(gk, striker);
-      if(onePlan?.save === 'smother') return onePlan;
-      if(onePlan?.move) return onePlan;
-    }
-  }
-
-  if(isActiveShotEvent(ball) && isShotMovingTowardGoal(ball, gk)){
+  const shotImmediate = ball.lastKickType === 'shot';
+  const incomingShot = ball.owner ? null : evaluateIncomingShot(gk, ball);
+  if(incomingShot){
+    registerShotReaction(gk, incomingShot, shotImmediate);
+  } else if(isActiveShotEvent(ball) && isShotMovingTowardGoal(ball, gk)){
     const intercept = calculateIntercept(
       { vx: ball.vx, vy: ball.vy, vz: ball.vz },
       { x: ball.x, y: ball.y, z: ball.z },
       gk,
     );
-    if(intercept) registerShotReaction(gk, intercept);
+    if(intercept) registerShotReaction(gk, intercept, shotImmediate);
   }
 
   const target = computeTrianglePosition(gk, ball);
   const distToTarget = dist2D(gk, target);
+  const shotThreat = incomingShot || (isActiveShotEvent(ball) && isShotMovingTowardGoal(ball, gk));
 
-  if(!ball.owner && gameState === 'practice'){
-    const inBox = Math.abs(ball.x - gk.ownGoalX()) < PBOX_D &&
-      Math.abs(ball.y - CENTER.y) < PBOX_HALFW;
-    if(inBox && dist2D(gk, ball) < 8){
-      target.x = ball.x;
-      target.y = ball.y;
-    }
-  }
-
+  const cfgMove = gkCfg();
   return {
     move: target,
-    sprint: distToTarget > GK_AI.POSITION_SPRINT_DIST,
-    moveSpeedCap: GK_AI.POSITION_MAX_SPEED,
+    sprint: distToTarget > GK_AI.POSITION_SPRINT_DIST || !!shotThreat,
+    moveSpeedCap: shotThreat
+      ? cfgMove.positionMaxSpeed * (incomingShot?.timeToPlane > cfgMove.mediumShotTime ? 1.12 : 1.08)
+      : cfgMove.positionMaxSpeed,
     facing: Math.atan2(ball.y - gk.y, ball.x - gk.x),
   };
+}
+
+/** Alerta a los arqueros rivales en el mismo frame del disparo (trayectoria anticipada). */
+export function alertGoalkeepersOnShot(shooter, players){
+  if(!shooter || !ball || ball.lastKickType !== 'shot') return;
+  const list = players || [];
+  for(const gk of list){
+    if(!gk || gk.role !== 'GK' || gk.team === shooter.team) continue;
+    if(gk.diveAnim || gk.gkKickAnim) continue;
+    let threat = evaluateIncomingShot(gk, ball);
+    if(!threat){
+      threat = calculateIntercept(
+        { vx: ball.vx, vy: ball.vy, vz: ball.vz },
+        { x: ball.x, y: ball.y, z: ball.z },
+        gk,
+      );
+    }
+    if(threat) registerShotReaction(gk, threat, true);
+  }
 }
 
 /** Reinicia estado de IA del arquero de práctica. */
 export function resetPracticeGoalkeeperAI(gk){
   if(!gk) return;
   gk.gkShotReaction = null;
+  gk.gkProactiveClaim = null;
   gk.diveAnim = null;
 }

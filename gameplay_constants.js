@@ -1,6 +1,7 @@
 "use strict";
 
 import { toGameUnits } from './utils.js';
+import { getGoalWorldScale } from './state.js';
 
 /**
 
@@ -66,7 +67,8 @@ export const MODE_PHYSICS_CONFIG = {
 
     ballDrag: 0.98,
 
-    powerMultiplier: 1.0,
+    /** Potencias de pase / saques / córner / arco al 50%. */
+    powerMultiplier: 0.5,
 
   },
 
@@ -210,43 +212,150 @@ export const RECOVERY_STATE = {
   TACKLE_DURATION: 0.2,
 };
 
-export const GK_AI = {
-  /** Retardo humano antes de lanzarse (s). */
-  REACTION_DELAY: 0.18,
-  /** Probabilidad base de blocaje en tiros medios. */
-  FIXED_SAVE_CHANCE: 0.72,
-  /** Tiros débiles: casi siempre blocaje. */
-  WEAK_SHOT_SPEED: 7.5,
-  /** Por debajo = tiro contenible; por encima = despeje preferente. */
-  HARD_SHOT_SPEED: 13.5,
-  /** Ángulo extremo (fracción del ancho del arco) → despeje. */
-  WIDE_SHOT_FRAC: 0.62,
-  /** Altura complicada (m) → salto o despeje. */
-  HIGH_SHOT_Z: 1.65,
-  CORNER_DIVE_SUCCESS: 0.32,
-  BODY_CENTER_FRAC: 0.35,
-  CORNER_FRAC: 0.55,
-  /** Avance mínimo/máximo desde la línea de gol (m reales → unidades motor). */
-  MIN_ADVANCE: 1.0,
-  MAX_ADVANCE: 5.8,
-  /** Distancia pelota-arco para achicar al máximo. */
-  CLOSE_DIST: 18,
-  /** Horizonte de predicción de trayectoria (s). */
-  SHOT_HORIZON: 2.6,
-  INTERCEPT_RADIUS: 1.35,
-  TRAJECTORY_STEP: 0.035,
-  /** Velocidad máxima de desplazamiento en posicionamiento (unidades/s). */
-  POSITION_MAX_SPEED: 5.2,
-  /** Distancia al objetivo para activar sprint de posicionamiento. */
-  POSITION_SPRINT_DIST: 2.2,
-  /** 1v1: distancia máxima del delantero al arco para salir. */
-  ONE_V_ONE_BOX_DIST: 14,
-  /** 1v1: distancia para lanzarse a los pies (smother). */
-  ONE_V_ONE_SMOTHER_DIST: 2.8,
-  /** 1v1: ningún defensor aliado a esta distancia del delantero. */
-  ONE_V_ONE_CLEAR_RADIUS: 6.5,
-  /** Avance extra en salida 1v1. */
-  ONE_V_ONE_RUSH_ADVANCE: 7.5,
+/** Reglas base de detección de faltas (sin tarjetas). */
+export const FOUL_RULES = {
+  /** Dot producto tackler→víctima vs frente de la víctima; más alto = más estricto “por detrás”. */
+  FROM_BEHIND_DOT: 0.42,
+  VIOLENT_SPEED: 6.2,
+  STAND_NO_BALL_MULT: 0.82,
+  DOGSO_MAX_DIST: 24,
+  DOGSO_FORWARD_DOT: 0.28,
+  DOGSO_BLOCK_RADIUS: 5.5,
+  DOGSO_MAX_BLOCKERS: 1,
+  /** Radio de contacto cuerpo a cuerpo (m). Antes 2.35 cobraba falta sin roce real. */
+  PLAYER_CONTACT_DIST: 1.15,
+  /** En barrida: no cobrar “sin balón” hasta este progreso si el pie aún puede llegar. */
+  SLIDE_FOUL_DEFER_PROG: 0.58,
+  /** Si el balón está a más de esto del hitbox, el contacto con rival sin balón es falta inmediata. */
+  SLIDE_BALL_OUT_OF_REACH: 2.4,
 };
+
+export const GK_AI = {
+  /** Constantes compartidas — parámetros por modo en GK_MODE_PRESETS / getGkAiConfig(). */
+  GOAL_THREAT_Y_MARGIN: 1.6,
+  TRAJECTORY_STEP: 0.03,
+  HIGH_SHOT_Z: 1.65,
+  BODY_CENTER_FRAC: 0.35,
+  WIDE_SHOT_FRAC: 0.58,
+  CORNER_FRAC: 0.72,
+  POSITION_SPRINT_DIST: 2.2,
+  /** Fallbacks si el preset no define valor propio. */
+  ONE_V_ONE_BOX_DIST: 18,
+  ONE_V_ONE_SMOTHER_DIST: 3.2,
+  ONE_V_ONE_CLEAR_RADIUS: 6.5,
+  ONE_V_ONE_RUSH_ADVANCE: 9.0,
+};
+
+/**
+ * Parámetros de arquero por formato — escala de cobertura y movimiento proporcional al arco.
+ * 6v6: arco más chico, reposition más ágil, cobertura lateral ajustada al ancho reducido.
+ * 11v11: arco ampliado (worldScale 1.6), más tiempo de reacción y menor fracción de cobertura.
+ */
+export const GK_MODE_PRESETS = {
+  '6vs6': {
+    reachBase: 0.54,
+    reactionDelay: 0.17,
+    saveRadiusMult: 0.88,
+    interceptRadiusMult: 0.86,
+    lateralReachFrac: 0.44,
+    diveSpeed: 13.6,
+    positionMaxSpeed: 7.1,
+    positionErrorScale: 0.52,
+    weakShotSpeed: 7.5,
+    mediumShotSpeed: 10.2,
+    hardShotSpeed: 13.2,
+    closeShotTime: 0.28,
+    farShotTime: 1.15,
+    mediumShotTime: 0.72,
+    shotHorizon: 4.2,
+    minAdvance: 0.9,
+    maxAdvance: 4.8,
+    closeDist: 13,
+    interceptRadius: 2.0,
+    maxReachZ: 2.55,
+    reachVariance: 0.06,
+    oneVsOneBoxDist: 19,
+    oneVsOneSmotherDist: 3.9,
+    oneVsOneRushAdvance: 10.5,
+    smotherReachBase: 0.64,
+    smotherRadiusMult: 1.18,
+    /** Salida al dueño del área — velocidad y alcance de captura. */
+    boxClaimSpeedMult: 1.48,
+    boxClaimReachMult: 1.85,
+    boxRivalThreatDist: 3.0,
+    boxClaimUrgencyMult: 1.24,
+    proactiveClaimDuration: 3.4,
+    boxPounceDist: 3.35,
+    boxPounceUrgentDist: 2.05,
+    boxPounceRivalMargin: 1.05,
+  },
+  '11vs11': {
+    reachBase: 0.53,
+    reactionDelay: 0.19,
+    saveRadiusMult: 0.94,
+    interceptRadiusMult: 1.0,
+    lateralReachFrac: 0.41,
+    diveSpeed: 17.8,
+    positionMaxSpeed: 9.8,
+    positionErrorScale: 0.58,
+    weakShotSpeed: 8.0,
+    mediumShotSpeed: 12.0,
+    hardShotSpeed: 16.2,
+    closeShotTime: 0.30,
+    farShotTime: 1.48,
+    mediumShotTime: 0.88,
+    shotHorizon: 5.8,
+    minAdvance: 1.35,
+    maxAdvance: 7.6,
+    closeDist: 19,
+    interceptRadius: 3.05,
+    maxReachZ: 2.55,
+    reachVariance: 0.05,
+    oneVsOneBoxDist: 28,
+    oneVsOneSmotherDist: 5.2,
+    oneVsOneRushAdvance: 14.5,
+    smotherReachBase: 0.62,
+    smotherRadiusMult: 1.16,
+    boxClaimSpeedMult: 1.46,
+    boxClaimReachMult: 2.05,
+    boxRivalThreatDist: 3.8,
+    boxClaimUrgencyMult: 1.22,
+    proactiveClaimDuration: 3.2,
+    boxPounceDist: 4.25,
+    boxPounceUrgentDist: 2.45,
+    boxPounceRivalMargin: 1.1,
+  },
+};
+
+/** Ajuste fino si el arco activo difiere del reference 11v11 (1.6×). */
+function scaleGkPreset(base){
+  const g = getGoalWorldScale();
+  if(g <= 1.001) return base;
+  const ref = 1.6;
+  const ratio = g / ref;
+  if(Math.abs(ratio - 1) < 0.02) return base;
+  const kMove = Math.pow(ratio, 0.86);
+  const kReach = Math.pow(ratio, 0.84);
+  const kDist = Math.pow(ratio, 0.82);
+  return {
+    ...base,
+    diveSpeed: base.diveSpeed * kMove,
+    positionMaxSpeed: base.positionMaxSpeed * kMove,
+    interceptRadius: base.interceptRadius * kReach,
+    minAdvance: base.minAdvance * kDist,
+    maxAdvance: base.maxAdvance * kDist,
+    closeDist: base.closeDist * kDist,
+    oneVsOneBoxDist: base.oneVsOneBoxDist * kDist,
+    oneVsOneSmotherDist: base.oneVsOneSmotherDist * kReach,
+    oneVsOneRushAdvance: base.oneVsOneRushAdvance * kDist,
+    boxPounceDist: (base.boxPounceDist ?? 3.65) * kReach,
+    boxPounceUrgentDist: (base.boxPounceUrgentDist ?? 2.2) * kReach,
+  };
+}
+
+export function getGkAiConfig(matchFormat){
+  const base = GK_MODE_PRESETS[matchFormat === '11vs11' ? '11vs11' : '6vs6'];
+  return matchFormat === '11vs11' ? scaleGkPreset(base) : base;
+}
 
 

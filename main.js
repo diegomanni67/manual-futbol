@@ -2,12 +2,13 @@
 
 import {
   GLOBAL_TIME_SCALE, Game, gameState, isPaused,
-  ball, CAM, PCAM, FIELD_L, lastTs, lastDt, practicePlayer,
+  ball, CAM, PCAM, FIELD_L, lastTs, lastDt, practicePlayer, practiceGK, allPlayers,
   clamp, lerp, updateMatchCameraFollow,
   resetMatchForStart, setupPractice, resetPractice, updateClock, endMatch, bindBallBeforeRender,
   setLastTs, setLastDt, setGameState, setIsPaused, setGameMode,
   setControlled, setControlled2, nearestToBall, controlledPlayer, controlledPlayer2,
 } from './state.js';
+import { shouldOverrideMatchCamera, updateSetPieceSceneCamera, startPracticePenalty, startPracticeFreeKick, restartActivePracticeSetPiece, isPracticeOpenPlay, clearSetPieceSceneFlags, endSetPieceScene } from './setPieceScene.js';
 
 import {
   UI_MENU, initInputRouter, setUIMenu, routeInput, tickMenuScreenLoop,
@@ -162,6 +163,7 @@ function startPracticeFromMenu() {
   resetMenuScreenLoopClock();
   flushInputEvents();
   setupPractice();
+  updatePracticeModeButtons();
 }
 
 function returnToMainMenu() {
@@ -239,8 +241,57 @@ function initAppChrome() {
   pauseOptionEls.forEach((btn, i) => {
     btn.addEventListener('mouseenter', () => { menuFocusIndex = i; updatePauseMenuSelectionVisual(); });
   });
-  document.getElementById('practiceResetBtn').addEventListener('click', () => { if (gameState === 'practice') resetPractice(); });
+  document.getElementById('practiceResetBtn').addEventListener('click', () => {
+    if (gameState !== 'practice') return;
+    if (Game.practiceMode === 'penalty') startPracticePenalty();
+    else if (Game.practiceMode === 'free_kick') startPracticeFreeKick();
+    else resetPractice();
+  });
   document.getElementById('practiceMenuBtn').addEventListener('click', () => returnToMainMenu());
+  document.getElementById('practiceShotsBtn')?.addEventListener('click', () => {
+    if (gameState !== 'practice') return;
+    Game.practiceMode = 'shots';
+    clearPracticeSetPieceForShots();
+    resetPractice();
+    updatePracticeModeButtons();
+  });
+  document.getElementById('practicePenaltyBtn')?.addEventListener('click', () => {
+    if (gameState !== 'practice') return;
+    startPracticePenalty();
+    updatePracticeModeButtons();
+  });
+  document.getElementById('practiceFreeKickBtn')?.addEventListener('click', () => {
+    if (gameState !== 'practice') return;
+    startPracticeFreeKick();
+    updatePracticeModeButtons();
+  });
+}
+
+function updatePracticeModeButtons(){
+  const mode = Game.practiceMode || 'shots';
+  const map = {
+    shots: 'practiceShotsBtn',
+    penalty: 'practicePenaltyBtn',
+    free_kick: 'practiceFreeKickBtn',
+  };
+  for(const [key, id] of Object.entries(map)){
+    document.getElementById(id)?.classList.toggle('active', key === mode);
+  }
+}
+
+function clearPracticeSetPieceForShots(){
+  endSetPieceScene();
+  clearSetPieceSceneFlags();
+  Game.setPieceMode = false;
+  Game.setPiece = null;
+  for(const pl of allPlayers){
+    if(pl === practicePlayer || pl === practiceGK) continue;
+    pl.x = -60; pl.y = -60; pl.vx = 0; pl.vy = 0;
+    pl.canMove = false;
+    pl.aiMode = 'parked';
+  }
+  if(practicePlayer) practicePlayer.canMove = true;
+  if(practiceGK) practiceGK.canMove = true;
 }
 
 function getEffortCameraFocusPlayer() {
@@ -297,9 +348,17 @@ function tick(ts) {
   }
 
   if (Game.running) {
-    if (gameState === 'practice') {
+    if (Game._practiceSetPieceNeedsRestart) {
+      Game._practiceSetPieceNeedsRestart = false;
+      restartActivePracticeSetPiece();
+    }
+    if (shouldOverrideMatchCamera()) {
+      updateSetPieceSceneCamera();
+    } else if (gameState === 'practice' && isPracticeOpenPlay()) {
       PCAM.x = lerp(PCAM.x, practicePlayer.x - PCAM.behind, PCAM_PAN_LERP);
       PCAM.laneY = lerp(PCAM.laneY, practicePlayer.y, PCAM_PAN_LERP);
+    } else if (gameState === 'practice') {
+      updateMatchCameraFollow();
     } else if (gameState === 'celebration_run' && Game.celebrationRun?.scorer) {
       const scorer = Game.celebrationRun.scorer;
       CAM.x = lerp(CAM.x, clamp(scorer.x, 10, FIELD_L - 10), CAM_CELEB_PAN_LERP);

@@ -9,6 +9,10 @@ import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T,
 import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, controlledPlayer, controlledPlayer2, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallKickPowerMult, getChaseInterceptTarget, getKickoffTaker, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getPressureCursorId, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isEffortTouchDefenderFrozen, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerPerformingSkill, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
 
 import { clampPlayerVelocity, setRupturaRunVelocity, getRupturaRunMaxSpeed } from './physics.js';
+import { alertGoalkeepersOnShot } from './gkAi.js';
+import { evaluatePassOffside } from './offsideSystem.js';
+import { isSetPieceSceneActive, updateSetPieceSceneInput } from './setPieceScene.js';
+import { enterDeadBallState } from './physics.js';
 import {
   getArchetypeAerialPowerMult,
   getArchetypeEffortTouchAnimMult,
@@ -934,6 +938,7 @@ function isStickAimedAtTeammate(p, move){
 
 function remapMoveForCamera(move){
   if(gameState!=='practice') return move;
+  if(Game.practiceMode === 'penalty' || Game.practiceMode === 'free_kick') return move;
   return {x: move.y, y: move.x};
 }
 
@@ -1858,8 +1863,14 @@ function executeKickContact(p, type, aimDir, power, curve, impulseFn){
   handleKickCursorSwitch(p, power, dir, type);
   assignPassTargetFromKick(p, dir, type, power);
   if(type !== 'shot' || curve) setupCurvePassTracking(p, type, dir, curve, ball.initialSpeed);
+  if(type === 'shot') alertGoalkeepersOnShot(p, allPlayers);
   if(Game.setPieceMode) onSetPieceBallReleased();
   if(isKickoffWaiting()) cleanupKickoffState(p);
+
+  if(type !== 'shot'){
+    const offInfo = evaluatePassOffside(p, dir, type);
+    if(offInfo) enterDeadBallState(offInfo);
+  }
 }
 
 function executeKick(p, type, aimDir, power, curve){
@@ -3183,6 +3194,7 @@ function handleAerialContact(p, ball, actionButton, power, curve, manualL2){
     ball.groundFrictionMult = vel.curvePhys.groundFrictionMult || 1;
     clearCurvePassTracking(ball);
     resetBallKickFriction(ball, 'shot');
+    alertGoalkeepersOnShot(p, allPlayers);
 
     const animType = contact.type === 'volley' ? 'volley' : contact.type;
     const jumpDur = contact.type === 'header' ? (physicsConfig.airTime ?? contact.cfg.dur) : contact.cfg.dur;
@@ -3422,6 +3434,10 @@ function updateHumanControlBody(dt, input, team, padIndex, scheme){
 
   // --- Pelota parada / saque de centro: potencia + direccion estricta del stick ---
   if(isManualRestartAwaiting(p)){
+    if(isSetPieceSceneActive()){
+      updateSetPieceSceneInput(input);
+      return;
+    }
     handleManualRestartKickInput(p, input);
     updateHumanMovement(p, dt, input, team);
     return;
