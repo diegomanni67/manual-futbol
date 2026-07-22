@@ -1,3 +1,4 @@
+```javascript
 const express = require('express');
 const http = require('http');
 const path = require('path');
@@ -7,7 +8,6 @@ const app = express();
 const server = http.createServer(app);
 
 // 1. SERVIR ARCHIVOS ESTÁTICOS Y PÁGINA PRINCIPAL
-// Sirve automáticamente index.html, main.js, imágenes, etc.
 app.use(express.static(__dirname));
 
 app.get('/', (req, res) => {
@@ -73,7 +73,6 @@ io.on('connection', (socket) => {
     // SINCRONIZACIÓN DE MOVIMIENTOS Y PELOTA
     socket.on('player_update', (data) => {
         if (socket.roomId) {
-            // Reenviar los datos del jugador a su rival en la misma sala
             socket.to(socket.roomId).emit('opponent_update', data);
         }
     });
@@ -82,10 +81,8 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log(`Jugador desconectado: ${socket.id}`);
 
-        // Si estaba en la cola de espera, lo sacamos
         waitingQueue = waitingQueue.filter(s => s.id !== socket.id);
 
-        // Si estaba en un partido, le avisamos al rival
         if (socket.roomId) {
             socket.to(socket.roomId).emit('opponent_disconnected');
         }
@@ -95,5 +92,6 @@ io.on('connection', (socket) => {
 // 4. INICIO DEL SERVIDOR
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
 });
+```[cite: 3]
