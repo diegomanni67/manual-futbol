@@ -1,97 +1,160 @@
-```javascript
+// server.js
+// Servidor de matchmaking y tiempo real para juego de fútbol 2D multijugador
+// Stack: Node.js + Express + Socket.io
+
 const express = require('express');
 const http = require('http');
-const path = require('path');
 const { Server } = require('socket.io');
+const { randomUUID } = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // En producción, restringí esto al dominio de tu cliente
+    methods: ['GET', 'POST'],
+  },
+});
 
-// 1. SERVIR ARCHIVOS ESTÁTICOS Y PÁGINA PRINCIPAL
-app.use(express.static(__dirname));
+const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------------------------------------
+// Estado en memoria
+// ---------------------------------------------------------------------------
+
+// Cola de jugadores esperando partido. Guardamos los sockets directamente.
+const waitingQueue = [];
+
+// Mapa auxiliar: socket.id -> roomId, para saber en qué sala está cada jugador
+// (útil al momento de desconexión durante un partido).
+const socketRoomMap = new Map();
+
+// Mapa auxiliar: roomId -> { home: socketId, away: socketId }
+const rooms = new Map();
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+  res.send('Servidor de matchmaking del juego de fútbol 2D funcionando.');
 });
 
-// 2. CONFIGURACIÓN DE SOCKET.IO Y CORS
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+// ---------------------------------------------------------------------------
+// Lógica de matchmaking
+// ---------------------------------------------------------------------------
+
+function tryCreateMatch() {
+  // Mientras haya al menos 2 jugadores en cola, formamos partidos
+  while (waitingQueue.length >= 2) {
+    const playerHome = waitingQueue.shift();
+    const playerAway = waitingQueue.shift();
+
+    // Por si alguno se desconectó justo antes de emparejarse
+    if (!playerHome.connected) continue;
+    if (!playerAway.connected) {
+      // Devolvemos al jugador válido a la cola y seguimos
+      waitingQueue.unshift(playerHome);
+      continue;
     }
-});
 
-// Cola de espera para el Matchmaking
-let waitingQueue = [];
+    const roomId = `room_${randomUUID()}`;
 
-// 3. CONEXIONES DE SOCKET.IO
+    playerHome.join(roomId);
+    playerAway.join(roomId);
+
+    rooms.set(roomId, {
+      home: playerHome.id,
+      away: playerAway.id,
+    });
+
+    socketRoomMap.set(playerHome.id, roomId);
+    socketRoomMap.set(playerAway.id, roomId);
+
+    playerHome.emit('match_found', {
+      roomId,
+      role: 'home',
+      opponentId: playerAway.id,
+    });
+
+    playerAway.emit('match_found', {
+      roomId,
+      role: 'away',
+      opponentId: playerHome.id,
+    });
+
+    console.log(`[MATCH] Sala creada: ${roomId} (home=${playerHome.id}, away=${playerAway.id})`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Conexión de sockets
+// ---------------------------------------------------------------------------
+
 io.on('connection', (socket) => {
-    console.log(`Jugador conectado: ${socket.id}`);
+  console.log(`[CONNECT] Jugador conectado: ${socket.id}`);
 
-    // EL JUGADOR TOCA "BUSCAR PARTIDO"
-    socket.on('find_match', () => {
-        // Evitar que el mismo jugador se meta dos veces
-        if (waitingQueue.find(s => s.id === socket.id)) return;
+  // 1. Buscar partido
+  socket.on('find_match', () => {
+    // Evitamos duplicados si el jugador toca "Buscar partido" varias veces
+    if (waitingQueue.includes(socket)) return;
 
-        waitingQueue.push(socket);
-        console.log(`Jugador ${socket.id} entró a la cola. En espera: ${waitingQueue.length}`);
+    waitingQueue.push(socket);
+    console.log(`[QUEUE] ${socket.id} entró a la cola. Total en cola: ${waitingQueue.length}`);
 
-        // Si hay al menos 2 jugadores, armamos la sala
-        if (waitingQueue.length >= 2) {
-            const player1 = waitingQueue.shift();
-            const player2 = waitingQueue.shift();
+    tryCreateMatch();
+  });
 
-            const roomId = `room_${player1.id}_${player2.id}`;
+  // Opcional: permitir cancelar la búsqueda manualmente
+  socket.on('cancel_search', () => {
+    removeFromQueue(socket);
+  });
 
-            // Unir a ambos a la sala de Socket.io
-            player1.join(roomId);
-            player2.join(roomId);
+  // 4. Retransmisión de movimientos
+  socket.on('player_move', (data) => {
+    const roomId = socketRoomMap.get(socket.id);
+    if (!roomId) return; // El jugador no está en ninguna sala
 
-            // Guardar el roomId en la propiedad del socket para referencia rápida
-            player1.roomId = roomId;
-            player2.roomId = roomId;
+    const { x, y } = data || {};
+    if (typeof x !== 'number' || typeof y !== 'number') return;
 
-            // Notificar a Player 1 (LOCAL)
-            player1.emit('match_found', {
-                roomId: roomId,
-                role: 'home',
-                opponentId: player2.id
-            });
-
-            // Notificar a Player 2 (VISITA)
-            player2.emit('match_found', {
-                roomId: roomId,
-                role: 'away',
-                opponentId: player1.id
-            });
-
-            console.log(`¡PARTIDO CREADO! Sala: ${roomId}`);
-        }
+    socket.to(roomId).emit('player_move', {
+      playerId: socket.id,
+      x,
+      y,
     });
+  });
 
-    // SINCRONIZACIÓN DE MOVIMIENTOS Y PELOTA
-    socket.on('player_update', (data) => {
-        if (socket.roomId) {
-            socket.to(socket.roomId).emit('opponent_update', data);
-        }
-    });
+  // 5. Manejo de desconexiones
+  socket.on('disconnect', () => {
+    console.log(`[DISCONNECT] Jugador desconectado: ${socket.id}`);
 
-    // MANEJO DE DESCONEXIONES
-    socket.on('disconnect', () => {
-        console.log(`Jugador desconectado: ${socket.id}`);
+    // Caso 1: estaba en la cola esperando partido
+    removeFromQueue(socket);
 
-        waitingQueue = waitingQueue.filter(s => s.id !== socket.id);
+    // Caso 2: estaba jugando una partida
+    const roomId = socketRoomMap.get(socket.id);
+    if (roomId) {
+      socket.to(roomId).emit('opponent_disconnected', {
+        playerId: socket.id,
+      });
 
-        if (socket.roomId) {
-            socket.to(socket.roomId).emit('opponent_disconnected');
-        }
-    });
+      rooms.delete(roomId);
+      socketRoomMap.delete(socket.id);
+
+      console.log(`[ROOM] Sala ${roomId} cerrada por desconexión de ${socket.id}`);
+    }
+  });
 });
 
-// 4. INICIO DEL SERVIDOR
-const PORT = process.env.PORT || 3000;
+function removeFromQueue(socket) {
+  const index = waitingQueue.indexOf(socket);
+  if (index !== -1) {
+    waitingQueue.splice(index, 1);
+    console.log(`[QUEUE] ${socket.id} salió de la cola. Total en cola: ${waitingQueue.length}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Arranque del servidor
+// ---------------------------------------------------------------------------
+
 server.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`Servidor escuchando en el puerto ${PORT}`);
 });
-```[cite: 3]
