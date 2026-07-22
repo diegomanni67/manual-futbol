@@ -8,6 +8,14 @@ export default defineConfig({
     // Minificamos usando Terser/Esbuild para comprimir al máximo
     minify: 'esbuild',
     outDir: 'dist', // Carpeta donde se guardará el juego listo para publicar
+    rollupOptions: {
+      output: {
+        // Fuerza todo a un solo bundle, sin chunks separados por dynamic import().
+        // Esto evita que el obfuscador corrompa las referencias entre chunks
+        // (era la causa del 404 en state.js).
+        inlineDynamicImports: true,
+      },
+    },
   },
   plugins: [
     obfuscator({
