@@ -16,6 +16,12 @@ import {
   enableUINavigationMode, syncMenuGamepadBaseline,
 } from './inputRouter.js';
 
+import * as input from './input.js';
+import * as physics from './physics.js';
+import * as gameplay from './gameplay.js';
+import * as renderMod from './render.js';
+import { initPlayerSelectionHud, refreshPlayerSelectionHud } from './playerSelectionHud.js';
+
 // Variable global de Socket.io
 let socket = null;
 
@@ -367,15 +373,9 @@ function setupOnlineMatchmaking() {
   });
 }
 
-async function boot() {
-  const input = await import('./input.js');
-  const physics = await import('./physics.js');
-  const gameplay = await import('./gameplay.js');
-  const renderMod = await import('./render.js');
-  const playerHud = await import('./playerSelectionHud.js');
-
-  playerHud.initPlayerSelectionHud();
-  _refreshPlayerSelectionHud = playerHud.refreshPlayerSelectionHud;
+function boot() {
+  initPlayerSelectionHud();
+  _refreshPlayerSelectionHud = refreshPlayerSelectionHud;
 
   _runGameplaySim = gameplay.runGameplaySim;
   _renderFn = renderMod.render;
