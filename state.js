@@ -6249,6 +6249,12 @@ export let updatePendingKick = null;
 export let prevButtonsByPad = {};
 export let isFakeShotActive = false;
 export let fakeShotOwnerId = null;
+export function setIsFakeShotActive(value){
+  isFakeShotActive = value;
+}
+export function setFakeShotOwnerId(value){
+  fakeShotOwnerId = value;
+}
 export let lastTs = null;
 export let lastDt = 0.016;
 export let hideGoalOverlay = null;

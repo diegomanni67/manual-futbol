@@ -15,6 +15,9 @@ import {
   enableUINavigationMode, syncMenuGamepadBaseline,
 } from './inputRouter.js';
 
+// Variable global de Socket.io
+let socket = null;
+
 /** Fallbacks en window por si algún módulo de input aún no enlazó state.js. */
 function initInputEngineFallbacks(){
   if(typeof window === 'undefined') return;
@@ -70,33 +73,37 @@ let _refreshPlayerSelectionHud = null;
 function selectMode(twoP) {
   Game.twoPlayerMode = twoP;
   Game.padsLocked = false;
-  mode1pBtn.classList.toggle('active', !twoP);
-  mode2pBtn.classList.toggle('active', twoP);
-  startgridSolo.style.display = twoP ? 'none' : 'flex';
-  startgridDuo.style.display = twoP ? 'flex' : 'none';
+  if (mode1pBtn) mode1pBtn.classList.toggle('active', !twoP);
+  if (mode2pBtn) mode2pBtn.classList.toggle('active', twoP);
+  if (startgridSolo) startgridSolo.style.display = twoP ? 'none' : 'flex';
+  if (startgridDuo) startgridDuo.style.display = twoP ? 'flex' : 'none';
   if (typeof _assignInputSources === 'function') _assignInputSources();
 }
 
 function updateMainMenuSelectionVisual() {
-  mode1pBtn.classList.toggle('selected', currentMenuOption === 0);
-  mode2pBtn.classList.toggle('selected', currentMenuOption === 1);
+  if (mode1pBtn) mode1pBtn.classList.toggle('selected', currentMenuOption === 0);
+  if (mode2pBtn) mode2pBtn.classList.toggle('selected', currentMenuOption === 1);
   if (currentMenuOption === 0) selectMode(false);
   else if (currentMenuOption === 1) selectMode(true);
 }
 
 function updatePauseMenuSelectionVisual() {
   pauseOptionEls.forEach((btn, i) => {
-    const focused = i === menuFocusIndex;
-    btn.classList.toggle('selected', focused);
-    btn.classList.toggle('active', focused);
+    if (btn) {
+      const focused = i === menuFocusIndex;
+      btn.classList.toggle('selected', focused);
+      btn.classList.toggle('active', focused);
+    }
   });
 }
 
 function updateFormatMenuSelectionVisual() {
   formatOptionEls.forEach((btn, i) => {
-    const focused = i === formatMenuOption;
-    btn.classList.toggle('selected', focused);
-    btn.classList.toggle('active', focused);
+    if (btn) {
+      const focused = i === formatMenuOption;
+      btn.classList.toggle('selected', focused);
+      btn.classList.toggle('active', focused);
+    }
   });
 }
 
@@ -120,11 +127,15 @@ function getFirstStandardGamepad() {
 }
 
 function startMatchFromMenu() {
-  document.getElementById('startScreen').style.display = 'none';
+  if (startScreenEl) startScreenEl.style.display = 'none';
   if (formatScreenEl) formatScreenEl.style.display = 'none';
-  document.getElementById('scoreboard').style.display = 'flex';
-  document.getElementById('practiceHud').style.display = 'none';
-  document.getElementById('practiceLabel').style.display = 'none';
+  const scoreboard = document.getElementById('scoreboard');
+  if (scoreboard) scoreboard.style.display = 'flex';
+  const practiceHud = document.getElementById('practiceHud');
+  if (practiceHud) practiceHud.style.display = 'none';
+  const practiceLabel = document.getElementById('practiceLabel');
+  if (practiceLabel) practiceLabel.style.display = 'none';
+  
   setUIMenu(UI_MENU.NONE);
   resetMenuScreenLoopClock();
   Game.padsLocked = true;
@@ -137,16 +148,16 @@ function startMatchFromMenu() {
 }
 
 function showFormatScreen() {
-  document.getElementById('startScreen').style.display = 'none';
-  formatScreenEl.style.display = 'flex';
+  if (startScreenEl) startScreenEl.style.display = 'none';
+  if (formatScreenEl) formatScreenEl.style.display = 'flex';
   formatMenuOption = 0;
   updateFormatMenuSelectionVisual();
   setUIMenu(UI_MENU.FORMAT);
 }
 
 function hideFormatScreen() {
-  formatScreenEl.style.display = 'none';
-  document.getElementById('startScreen').style.display = '';
+  if (formatScreenEl) formatScreenEl.style.display = 'none';
+  if (startScreenEl) startScreenEl.style.display = '';
   setUIMenu(UI_MENU.MAIN);
 }
 
@@ -160,11 +171,14 @@ function returnToMainMenu() {
   setGameState('menu');
   syncPausedState(false);
   hidePauseMenu();
-  document.getElementById('startScreen').style.display = '';
+  if (startScreenEl) startScreenEl.style.display = '';
   if (formatScreenEl) formatScreenEl.style.display = 'none';
-  document.getElementById('practiceLabel').style.display = 'none';
-  document.getElementById('practiceHud').style.display = 'none';
-  document.getElementById('scoreboard').style.display = '';
+  const practiceLabel = document.getElementById('practiceLabel');
+  if (practiceLabel) practiceLabel.style.display = 'none';
+  const practiceHud = document.getElementById('practiceHud');
+  if (practiceHud) practiceHud.style.display = 'none';
+  const scoreboard = document.getElementById('scoreboard');
+  if (scoreboard) scoreboard.style.display = '';
   setUIMenu(UI_MENU.MAIN);
 }
 
@@ -190,7 +204,6 @@ function executePauseMenuOption(index) {
 }
 
 function executeMainMenuOption(index) {
-  // 1P y 2P eligen formato (6vs6 / 11vs11); en 1P la visita es CPU.
   if (index === 0) { selectMode(false); showFormatScreen(); }
   else if (index === 1) { selectMode(true); showFormatScreen(); }
 }
@@ -201,7 +214,7 @@ function executeFormatMenuOption(index) {
 
 function tickMenuInput(ts) {
   const formatVisible = formatScreenEl && formatScreenEl.style.display !== 'none';
-  const mainVisible = startScreenEl.style.display !== 'none';
+  const mainVisible = startScreenEl && startScreenEl.style.display !== 'none';
   if (!mainVisible && !formatVisible) {
     resetMenuScreenLoopClock();
     return;
@@ -213,22 +226,29 @@ function tickMenuInput(ts) {
 }
 
 function initAppChrome() {
-  mode1pBtn.addEventListener('click', () => { currentMenuOption = 0; selectMode(false); updateMainMenuSelectionVisual(); });
-  mode2pBtn.addEventListener('click', () => { currentMenuOption = 1; selectMode(true); updateMainMenuSelectionVisual(); });
-  swapPadBtn.addEventListener('click', () => { Game.padSwap = !Game.padSwap; if (typeof _assignInputSources === 'function') _assignInputSources(); });
-  document.getElementById('startBtn').addEventListener('click', () => executeMainMenuOption(Game.twoPlayerMode ? 1 : 0));
-  format6Btn.addEventListener('click', () => { formatMenuOption = 0; updateFormatMenuSelectionVisual(); startMatchWithFormat('6vs6'); });
-  format11Btn.addEventListener('click', () => { formatMenuOption = 1; updateFormatMenuSelectionVisual(); startMatchWithFormat('11vs11'); });
-  formatBackBtn.addEventListener('click', () => hideFormatScreen());
+  if (mode1pBtn) mode1pBtn.addEventListener('click', () => { currentMenuOption = 0; selectMode(false); updateMainMenuSelectionVisual(); });
+  if (mode2pBtn) mode2pBtn.addEventListener('click', () => { currentMenuOption = 1; selectMode(true); updateMainMenuSelectionVisual(); });
+  if (swapPadBtn) swapPadBtn.addEventListener('click', () => { Game.padSwap = !Game.padSwap; if (typeof _assignInputSources === 'function') _assignInputSources(); });
+  
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn) startBtn.addEventListener('click', () => executeMainMenuOption(Game.twoPlayerMode ? 1 : 0));
+  
+  if (format6Btn) format6Btn.addEventListener('click', () => { formatMenuOption = 0; updateFormatMenuSelectionVisual(); startMatchWithFormat('6vs6'); });
+  if (format11Btn) format11Btn.addEventListener('click', () => { formatMenuOption = 1; updateFormatMenuSelectionVisual(); startMatchWithFormat('11vs11'); });
+  if (formatBackBtn) formatBackBtn.addEventListener('click', () => hideFormatScreen());
+  
   formatOptionEls.forEach((btn, i) => {
-    btn.addEventListener('mouseenter', () => { formatMenuOption = i; updateFormatMenuSelectionVisual(); });
+    if (btn) btn.addEventListener('mouseenter', () => { formatMenuOption = i; updateFormatMenuSelectionVisual(); });
   });
-  pauseContinueBtn.addEventListener('click', () => executePauseMenuOption(0));
-  pauseRestartBtn.addEventListener('click', () => executePauseMenuOption(1));
-  pauseMenuBtn.addEventListener('click', () => executePauseMenuOption(2));
+
+  if (pauseContinueBtn) pauseContinueBtn.addEventListener('click', () => executePauseMenuOption(0));
+  if (pauseRestartBtn) pauseRestartBtn.addEventListener('click', () => executePauseMenuOption(1));
+  if (pauseMenuBtn) pauseMenuBtn.addEventListener('click', () => executePauseMenuOption(2));
+  
   pauseOptionEls.forEach((btn, i) => {
-    btn.addEventListener('mouseenter', () => { menuFocusIndex = i; updatePauseMenuSelectionVisual(); });
+    if (btn) btn.addEventListener('mouseenter', () => { menuFocusIndex = i; updatePauseMenuSelectionVisual(); });
   });
+
   document.getElementById('practiceResetBtn')?.addEventListener('click', () => {
     if (gameState !== 'practice') return;
     resetPractice();
@@ -239,7 +259,7 @@ function initAppChrome() {
 function getEffortCameraFocusPlayer() {
   if (ball.lastAction !== 'effort' && ball.lastAction !== 'feint') return null;
   const owner = ball.owner;
-  if (!owner || owner.effortTouchCooldown <= 0 && owner.dribbleExtendT <= 0) return null;
+  if (!owner || (owner.effortTouchCooldown <= 0 && owner.dribbleExtendT <= 0)) return null;
   return owner;
 }
 
@@ -285,7 +305,6 @@ function tick(ts) {
     }
   } else {
     setLastTs(null);
-    // UI_Controller tiene prioridad aunque el partido no esté corriendo (menú / formato).
     if (getActiveUIMenu() !== UI_MENU.NONE) routeInput(0.016);
   }
 
@@ -319,6 +338,55 @@ function tick(ts) {
 
   if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
   if (typeof _renderFn === 'function') _renderFn();
+}
+
+function setupOnlineMatchmaking() {
+  if (typeof io === 'undefined') return;
+
+  socket = io('http://localhost:3000', { transports: ['websocket', 'polling'] });
+
+  const btnBuscarOnline = document.getElementById('btn-buscar-partido');
+  const estadoBusqueda = document.getElementById('estado-busqueda');
+
+  if (btnBuscarOnline) {
+    btnBuscarOnline.addEventListener('click', () => {
+      socket.emit('find_match');
+      btnBuscarOnline.disabled = true;
+      btnBuscarOnline.innerText = 'BUSCANDO RIVAL...';
+      if (estadoBusqueda) {
+        estadoBusqueda.innerText = 'Encolado. Esperando un oponente...';
+      }
+    });
+  }
+
+  socket.on('match_found', (data) => {
+    console.log('¡PARTIDO ENCONTRADO!', data);
+
+    // 1. Configuramos las banderas del partido online
+    Game.isOnlineMatch = true;
+    Game.onlineRole = data.role; // 'home' (Local) o 'away' (Visita)
+    
+    // 2. Activamos el modo Humano vs Humano (2 Players)
+    selectMode(true);
+
+    if (estadoBusqueda) {
+      estadoBusqueda.innerText = `¡Rival encontrado! Sos ${data.role === 'home' ? 'LOCAL (P1)' : 'VISITA (P2)'} - Iniciando 11vs11...`;
+    }
+
+    // 3. Arrancamos directo el partido 11vs11
+    setTimeout(() => {
+      startMatchWithFormat('11vs11');
+    }, 1500);
+  });
+
+  socket.on('opponent_update', (data) => {
+    // Sincronización de movimientos recibidos del rival
+  });
+
+  socket.on('opponent_disconnected', () => {
+    alert('El rival se ha desconectado de la partida.');
+    window.location.reload();
+  });
 }
 
 async function boot() {
@@ -440,7 +508,9 @@ async function boot() {
   });
 
   initAppChrome();
+  setupOnlineMatchmaking();
   updateMainMenuSelectionVisual();
+  
   if (typeof _bindBallBeforeRender === 'function') _bindBallBeforeRender();
   if (typeof _renderFn === 'function') _renderFn();
   requestAnimationFrame(tick);

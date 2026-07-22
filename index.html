@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Manual Fútbol — Modular</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:3000 http://localhost:3000 https://cdn.socket.io;">
 <style>
   :root {
     --grass-primary: #26B36A;
@@ -18,6 +19,7 @@
     --team-away: #FF4D4D;
     --btn-shadow: #0D4A9E;
     --practice-shadow: #007A99;
+    --online-shadow: #118050;
   }
   html,body{margin:0;padding:0;overflow:hidden;background:#020B1F;font-family:'Segoe UI',Arial,sans-serif;height:100%;}
   #game{display:block;width:100vw;height:100vh;background:#020B1F;}
@@ -96,6 +98,13 @@
     background:linear-gradient(180deg,var(--ui-blue),#1565C0);border:none;border-radius:8px;cursor:pointer;
     box-shadow:0 6px 0 var(--btn-shadow);}
   .startbtn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--btn-shadow);}
+  
+  .onlinebtn{margin-top:14px;padding:14px 34px;font-size:18px;font-weight:700;color:var(--line-white);
+    background:linear-gradient(180deg,var(--grass-primary),var(--grass-secondary));border:none;border-radius:8px;cursor:pointer;
+    box-shadow:0 6px 0 var(--online-shadow);letter-spacing:.5px;}
+  .onlinebtn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--online-shadow);}
+  .onlinebtn:disabled{opacity:0.6;cursor:not-allowed;}
+
   .practicebtn{margin-top:14px;padding:12px 30px;font-size:15px;font-weight:700;color:var(--ui-dark);
     background:linear-gradient(180deg,var(--ui-cyan),#0099BB);border:none;border-radius:8px;cursor:pointer;
     box-shadow:0 6px 0 var(--practice-shadow);letter-spacing:.5px;}
@@ -251,7 +260,9 @@
 
   <p class="modeHint" id="modeHint">Conectá uno o dos mandos antes de jugar. IMPORTANTE: el navegador recién detecta cada mando después de que le apretás algún botón o movés un stick — hacelo con los dos antes de darle a JUGAR y fijate que ambos aparezcan en el panel de arriba.</p>
 
-  <button class="startbtn" id="startBtn">JUGAR</button>
+  <button class="startbtn" id="startBtn">JUGAR OFFLINE</button>
+  <button class="onlinebtn" id="btn-buscar-partido" type="button">🌐 BUSCAR PARTIDO ONLINE</button>
+  <div id="estado-busqueda" style="margin-top: 10px; font-size: 14px; font-weight: bold; color: var(--ui-cyan);"></div>
 </div>
 
 <div class="formatScreen" id="formatScreen">
@@ -273,6 +284,7 @@
   </div>
 </div>
 
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script type="module" src="main.js"></script>
 </body>
 </html>

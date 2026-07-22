@@ -6,7 +6,7 @@ import { AERIAL_PHYSICS, AIR_ACTION_MODS, AIR_AERIAL_HITBOX_MAX_XY, AIR_AERIAL_M
 
 import { GK_DROP_KICK_FORCE, GK_JUMP_MIN_Z, GK_KICK_ANIM_DUR, GK_KICK_RELEASE_T, GK_MANUAL_DIVE_DIST, GK_MANUAL_DIVE_DUR, GK_MANUAL_JUMP_DUR, GK_POSSESS_FREE, GK_THROW_FORCE, GRAVITY, GROUND_FRICTION, Game, GkKickLandingListener, KICK_VELOCITY_MULT, LONGPASS_SWITCH_LOCK_MS, LONG_PASS_SPEED_MULT, PASS_VELOCITY_MULT, PENDING_ACTION_EXECUTE_RADIUS, PENDING_ACTION_PASS, PENDING_ACTION_SHOT, PrivateChaseEvents, SELF_TOUCH_BURST_MULT, SELF_TOUCH_COLLECT_BLOCK, SELF_TOUCH_PLAYER_BRAKE, SET_PIECE, SHOT_PLACED_SPEED_MULT, SHOT_TRIVELA_SPEED_MULT, SHOT_VELOCITY_MULT, STATE_FIXED, STATE_PLAYING, TACKLE_COOLDOWN, ACTION_BUFFER_GROUND_PASS, ACTION_BUFFER_LOBBED_PASS, activateBallLock, activateIgnorePossession, allPlayers, angDiff, applyBallLateralCurve, applyEffortTouchDefenderFreeze, applyExtendedDribbleTouch, applyKickCurvePhysics, assignBallPossession, awayTeam, ball, canApplyEffortTouch, clamp, clampKickoffTakerManeuverPosition, clearBallLock, clearPlayerPendingAction, clearPlayerSetPieceState, effortRsState, getKickoffFacingAttack, getKickoffFacingOwnGoal, isKickoffManeuverActive, CROSS_KICK_MAX_SPEED, PASS_CROSS_DISTANCE_MULT, PASS_GROUND_MAX_SPEED } from './state.js';
 
-import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, computePosturePowerMult, controlledPlayer, controlledPlayer2, CTRL_RADIUS, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallDragFrictionScaleForBall, getBallKickPowerMult, getChaseInterceptTarget, getKickoffTaker, getPlayerBallReachRadius, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getPressureCursorId, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isEffortTouchDefenderFrozen, isFakeShotActive, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerPerformingSkill, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, resolveShotArc, triggerTimeFinishFlash, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
+import { clearChasingState, clearEffortSprintState, clearForcedChaseState, clearGkHandsTimer, clearGkPossessionType, clearPassTargetTeam, clearPlayerAIState, clearPlayerLockAssignment, clearSprintChaseState, clearTeammateInterferenceForTechnicalAction, clearThrowInBlockIfOtherPlayer, computeEffortPassPower, computeKickVerticalSpeed, computePosturePowerMult, controlledPlayer, controlledPlayer2, CTRL_RADIUS, detectEffortTouchInput, dist2D, enablePlayableBallAfterGkKick, ensureChasingState, ensurePlayerBallControlForAction, enterSprintChaseState, fakeShotOwnerId, gameState, getBallAirGravity, getBallDragFrictionScaleForBall, getBallKickPowerMult, getChaseInterceptTarget, getKickoffTaker, getPlayerBallReachRadius, getPlayerById, getPlayerMaxSprintVelocity, getPlayerMoveSpeedBase, getPostTouchRecoverDist, getPressureCursorId, handleManualRestartKickInput, handleThrowInInput, homeTeam, inferGkPossessionSource, interruptForcedChaseForAction, interruptPlayerStateForTechnicalAction, isBallContestedSeekAllowed, isBallFreeForPlayer, isBallLocked, isChaseOwner, isEffortTouchDefenderFrozen, isFakeShotActive, setIsFakeShotActive, setFakeShotOwnerId, isGkHandsPossession, isGoalKickReadyState, isGoalkeeper, isManualAction, isManualRestartAwaiting, isPlayerAssignmentLocked, isPlayerChasing, isPlayerForcedChasing, isPlayerPerformingSkill, isPlayerSprintChasing, isPlayerSwitchLockedForEffort, isUIModeActive, lockPlayerSwitchForEffort, physicsConfig, prevButtonsByPad, resolveShotArc, triggerTimeFinishFlash, updatePlayerJumpZ, applyBallAirHorizontalDrag } from './state.js';
 
 import { clampPlayerVelocity, setRupturaRunVelocity, getRupturaRunMaxSpeed, enterDeadBallState } from './physics.js';
 import { alertGoalkeepersOnShot } from './gkAi.js';
@@ -1149,8 +1149,8 @@ function isFakeShotInputBlocked(p){
 }
 function completeFakeShot(p){
   if(!isFakeShotActive) return;
-  isFakeShotActive = false;
-  fakeShotOwnerId = null;
+  setIsFakeShotActive(false);
+  setFakeShotOwnerId(null);
   Game.isChargingShot = false;
   if(!p) return;
   p.isFakeShooting = false;
@@ -1176,8 +1176,8 @@ function updateFakeShotState(dt){
   if(!isFakeShotActive || !fakeShotOwnerId) return;
   const owner = getPlayerById(fakeShotOwnerId);
   if(!owner){
-    isFakeShotActive = false;
-    fakeShotOwnerId = null;
+    setIsFakeShotActive(false);
+    setFakeShotOwnerId(null);
     return;
   }
   if(ball.owner === owner && owner.fakeShotCooldown <= 0) completeFakeShot(owner);
@@ -1418,8 +1418,8 @@ function fakeShot(p, moveDir){
   if(!p || isFakeShotActive || !canCancelChargeWithFakeShot(p) || isShotFeintBlocked(p)) return false;
 
   console.log('Action Triggered:', 'fakeShot');
-  isFakeShotActive = true;
-  fakeShotOwnerId = p.id;
+  setIsFakeShotActive(true);
+  setFakeShotOwnerId(p.id);
 
   clearChargingShotState(p);
   clearPendingAction(p);
