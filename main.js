@@ -491,4 +491,3 @@ function boot() {
 }
 
 boot();
-```[cite: 3]
