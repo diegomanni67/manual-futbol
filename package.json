@@ -6,12 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "start": "node server.cjs"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "socket.io": "^4.7.5",
     "three": "^0.185.1"
   },
   "devDependencies": {
@@ -21,4 +18,8 @@
     "vite-plugin-javascript-obfuscator": "^3.1.0"
   }
 }
-```[cite: 2]
+```[cite: 1]
+
+> **Nota importante:** Como Vercel solo maneja el diseño visual y el cliente del juego, le sacamos los módulos de Node del servidor (`express` y `socket.io`) para que no se vuelva loco. Esos módulos van exclusivamente en el servidor de Render.
+
+Guardalo, hacé el commit y push por GitHub Desktop y Vercel va a compilar de inmediato.
