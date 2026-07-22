@@ -1,6 +1,16 @@
 "use strict";
 
 import {
+  GLOBAL_TIME_SCALE, Game, gameState, isPaused,
+  ball, CAM, FIELD_L, lastTs,
+  updateMatchCameraFollow, resetMatchForStart, resetPractice,
+  updateClock, endMatch, bindBallBeforeRender,
+  setLastTs, setLastDt, setGameState, setIsPaused, setGameMode,
+  setControlled, setControlled2, nearestToBall, controlledPlayer, controlledPlayer2,
+  wireBridge, isPlayerAssignmentLocked, isPlayerSwitchLockedForEffort,
+} from './state.js';
+
+import {
   UI_MENU, initInputRouter, setUIMenu, routeInput, tickMenuScreenLoop,
   resetMenuScreenLoopClock, flushInputEvents, getActiveUIMenu,
   enableUINavigationMode, syncMenuGamepadBaseline,
@@ -13,17 +23,16 @@ let socket = null;
 function initInputEngineFallbacks(){
   if(typeof window === 'undefined') return;
   if(typeof window.isPlayerAssignmentLocked !== 'function'){
-    window.isPlayerAssignmentLocked = (p) => !!(p && p.lockPlayerAssignment);
+    window.isPlayerAssignmentLocked = isPlayerAssignmentLocked;
   }
   if(typeof window.isPlayerSwitchLockedForEffort !== 'function'){
-    window.isPlayerSwitchLockedForEffort = () => false;
+    window.isPlayerSwitchLockedForEffort = isPlayerSwitchLockedForEffort;
   }
 }
 initInputEngineFallbacks();
 
 const CAM_PAN_LERP = 0.11;
 const CAM_CELEB_PAN_LERP = 0.14;
-const PCAM_PAN_LERP = 0.09;
 
 const MAIN_MENU_OPTION_COUNT = 2;
 const PAUSE_MENU_OPTION_COUNT = 3;
@@ -50,7 +59,7 @@ const format11Btn = document.getElementById('format11Btn');
 const formatBackBtn = document.getElementById('formatBackBtn');
 const formatOptionEls = [format6Btn, format11Btn];
 
-function syncPausedState(v) { window.setIsPaused?.(v); if(window.Game) window.Game.paused = v; }
+function syncPausedState(v) { setIsPaused(v); Game.paused = v; }
 function showPauseMenu() { pauseOverlayEl.style.display = 'flex'; }
 function hidePauseMenu() { pauseOverlayEl.style.display = 'none'; }
 
@@ -62,10 +71,8 @@ let _updateCelebration = null;
 let _refreshPlayerSelectionHud = null;
 
 function selectMode(twoP) {
-  if (window.Game) {
-    window.Game.twoPlayerMode = twoP;
-    window.Game.padsLocked = false;
-  }
+  Game.twoPlayerMode = twoP;
+  Game.padsLocked = false;
   if (mode1pBtn) mode1pBtn.classList.toggle('active', !twoP);
   if (mode2pBtn) mode2pBtn.classList.toggle('active', twoP);
   if (startgridSolo) startgridSolo.style.display = twoP ? 'none' : 'flex';
@@ -100,25 +107,6 @@ function updateFormatMenuSelectionVisual() {
   });
 }
 
-function isPadStandard(pad) { return !!pad && pad.mapping === 'standard'; }
-
-function getFirstMenuGamepad() {
-  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  if (window.Game?.p1PadIndex != null && pads[window.Game.p1PadIndex]) return pads[window.Game.p1PadIndex];
-  for (let i = 0; i < pads.length; i++) {
-    if (pads[i]) return pads[i];
-  }
-  return null;
-}
-
-function getFirstStandardGamepad() {
-  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-  for (let i = 0; i < pads.length; i++) {
-    if (isPadStandard(pads[i])) return pads[i];
-  }
-  return getFirstMenuGamepad();
-}
-
 function startMatchFromMenu() {
   if (startScreenEl) startScreenEl.style.display = 'none';
   if (formatScreenEl) formatScreenEl.style.display = 'none';
@@ -131,11 +119,11 @@ function startMatchFromMenu() {
   
   setUIMenu(UI_MENU.NONE);
   resetMenuScreenLoopClock();
-  if (window.Game) window.Game.padsLocked = true;
-  window.resetMatchForStart?.();
-  if (typeof window.nearestToBall === 'function') window.setControlled?.(window.nearestToBall('home'));
-  if (window.Game?.twoPlayerMode && typeof window.nearestToBall === 'function') window.setControlled2?.(window.nearestToBall('away'));
-  if (window.Game) window.Game.running = true;
+  Game.padsLocked = true;
+  resetMatchForStart();
+  if (typeof nearestToBall === 'function') setControlled(nearestToBall('home'));
+  if (Game.twoPlayerMode && typeof nearestToBall === 'function') setControlled2(nearestToBall('away'));
+  Game.running = true;
   flushInputEvents();
   if (typeof _assignInputSources === 'function') _assignInputSources();
 }
@@ -155,13 +143,13 @@ function hideFormatScreen() {
 }
 
 function startMatchWithFormat(modeId) {
-  window.setGameMode?.(modeId);
+  setGameMode(modeId);
   startMatchFromMenu();
 }
 
 function returnToMainMenu() {
-  if (window.Game) window.Game.running = false;
-  window.setGameState?.('menu');
+  Game.running = false;
+  setGameState('menu');
   syncPausedState(false);
   hidePauseMenu();
   if (startScreenEl) startScreenEl.style.display = '';
@@ -192,7 +180,7 @@ function resumeFromPause() {
 
 function executePauseMenuOption(index) {
   if (index === 0) resumeFromPause();
-  else if (index === 1) { hidePauseMenu(); syncPausedState(false); setUIMenu(UI_MENU.NONE); flushInputEvents(); window.setGameMode?.(window.Game?.matchFormat || '6vs6'); startMatchFromMenu(); }
+  else if (index === 1) { hidePauseMenu(); syncPausedState(false); setUIMenu(UI_MENU.NONE); flushInputEvents(); setGameMode(Game.matchFormat || '6vs6'); startMatchFromMenu(); }
   else returnToMainMenu();
 }
 
@@ -221,10 +209,10 @@ function tickMenuInput(ts) {
 function initAppChrome() {
   if (mode1pBtn) mode1pBtn.addEventListener('click', () => { currentMenuOption = 0; selectMode(false); updateMainMenuSelectionVisual(); });
   if (mode2pBtn) mode2pBtn.addEventListener('click', () => { currentMenuOption = 1; selectMode(true); updateMainMenuSelectionVisual(); });
-  if (swapPadBtn) swapPadBtn.addEventListener('click', () => { if (window.Game) window.Game.padSwap = !window.Game.padSwap; if (typeof _assignInputSources === 'function') _assignInputSources(); });
+  if (swapPadBtn) swapPadBtn.addEventListener('click', () => { Game.padSwap = !Game.padSwap; if (typeof _assignInputSources === 'function') _assignInputSources(); });
   
   const startBtn = document.getElementById('startBtn');
-  if (startBtn) startBtn.addEventListener('click', () => executeMainMenuOption(window.Game?.twoPlayerMode ? 1 : 0));
+  if (startBtn) startBtn.addEventListener('click', () => executeMainMenuOption(Game.twoPlayerMode ? 1 : 0));
   
   if (format6Btn) format6Btn.addEventListener('click', () => { formatMenuOption = 0; updateFormatMenuSelectionVisual(); startMatchWithFormat('6vs6'); });
   if (format11Btn) format11Btn.addEventListener('click', () => { formatMenuOption = 1; updateFormatMenuSelectionVisual(); startMatchWithFormat('11vs11'); });
@@ -243,23 +231,23 @@ function initAppChrome() {
   });
 
   document.getElementById('practiceResetBtn')?.addEventListener('click', () => {
-    if (window.gameState !== 'practice') return;
-    window.resetPractice?.();
+    if (gameState !== 'practice') return;
+    resetPractice();
   });
   document.getElementById('practiceMenuBtn')?.addEventListener('click', () => returnToMainMenu());
 }
 
 function getEffortCameraFocusPlayer() {
-  if (window.ball?.lastAction !== 'effort' && window.ball?.lastAction !== 'feint') return null;
-  const owner = window.ball?.owner;
+  if (ball.lastAction !== 'effort' && ball.lastAction !== 'feint') return null;
+  const owner = ball.owner;
   if (!owner || (owner.effortTouchCooldown <= 0 && owner.dribbleExtendT <= 0)) return null;
   return owner;
 }
 
 function updateCelebrationCamera() {
-  const scorer = window.Game?.celebration?.scorer;
-  if (!scorer || !window.CAM || !window.FIELD_L) return;
-  window.CAM.x = window.lerp?.(window.CAM.x, window.clamp?.(scorer.x, 10, window.FIELD_L - 10), CAM_CELEB_PAN_LERP);
+  const scorer = Game.celebration?.scorer;
+  if (!scorer) return;
+  CAM.x = lerp(CAM.x, clamp(scorer.x, 10, FIELD_L - 10), CAM_CELEB_PAN_LERP);
 }
 
 function tick(ts) {
@@ -267,27 +255,27 @@ function tick(ts) {
 
   tickMenuInput(ts);
 
-  if (window.Game?.running) {
-    if (window.lastTs === null) window.setLastTs?.(ts);
-    let rawDt = (ts - (window.lastTs || ts)) / 1000;
-    window.setLastTs?.(ts);
+  if (Game.running) {
+    if (lastTs === null) setLastTs(ts);
+    let rawDt = (ts - (lastTs || ts)) / 1000;
+    setLastTs(ts);
     rawDt = Math.min(rawDt, 0.033);
-    const dt = rawDt * (window.GLOBAL_TIME_SCALE || 1);
-    window.setLastDt?.(dt);
+    const dt = rawDt * GLOBAL_TIME_SCALE;
+    setLastDt(dt);
 
     routeInput(rawDt);
 
-    if (window.Game?.celebration && typeof _updateCelebration === 'function') _updateCelebration(dt);
+    if (Game.celebration && typeof _updateCelebration === 'function') _updateCelebration(dt);
 
-    if (!window.isPaused && !window.Game?.paused) {
+    if (!isPaused && !Game.paused) {
       try {
-        if (window.gameState === 'practice' || window.gameState === 'celebration_run') {
+        if (gameState === 'practice' || gameState === 'celebration_run') {
           if (typeof _runGameplaySim === 'function') _runGameplaySim(dt, rawDt);
-        } else if (!window.Game?.matchEnded) {
-          window.Game.time -= rawDt;
-          if (window.Game.time < 0) window.Game.time = 0;
-          window.updateClock?.();
-          if (window.Game.time <= 0) window.endMatch?.();
+        } else if (!Game.matchEnded) {
+          Game.time -= rawDt;
+          if (Game.time < 0) Game.time = 0;
+          updateClock();
+          if (Game.time <= 0) endMatch();
           else if (typeof _runGameplaySim === 'function') _runGameplaySim(dt, rawDt);
         }
       } catch (err) {
@@ -297,35 +285,35 @@ function tick(ts) {
       }
     }
   } else {
-    window.setLastTs?.(null);
+    setLastTs(null);
     if (getActiveUIMenu() !== UI_MENU.NONE) routeInput(0.016);
   }
 
-  if (window.Game?.running && window.CAM && window.FIELD_L) {
-    if (window.gameState === 'practice') {
-      window.updateMatchCameraFollow?.();
-    } else if (window.gameState === 'celebration_run' && window.Game?.celebrationRun?.scorer) {
-      const scorer = window.Game.celebrationRun.scorer;
-      window.CAM.x = window.lerp?.(window.CAM.x, window.clamp?.(scorer.x, 10, window.FIELD_L - 10), CAM_CELEB_PAN_LERP);
-    } else if (window.Game?.celebration) {
+  if (Game.running) {
+    if (gameState === 'practice') {
+      updateMatchCameraFollow();
+    } else if (gameState === 'celebration_run' && Game.celebrationRun?.scorer) {
+      const scorer = Game.celebrationRun.scorer;
+      CAM.x = lerp(CAM.x, clamp(scorer.x, 10, FIELD_L - 10), CAM_CELEB_PAN_LERP);
+    } else if (Game.celebration) {
       updateCelebrationCamera();
     } else {
-      window.updateMatchCameraFollow?.();
+      updateMatchCameraFollow();
       const effortFocus = getEffortCameraFocusPlayer();
       if(effortFocus){
-        const marginX = window.FIELD_L * 0.10;
-        window.CAM.x = window.lerp?.(window.CAM.x, window.clamp?.(effortFocus.x, marginX, window.FIELD_L - marginX), CAM_PAN_LERP);
+        const marginX = FIELD_L * 0.10;
+        CAM.x = lerp(CAM.x, clamp(effortFocus.x, marginX, FIELD_L - marginX), CAM_PAN_LERP);
       }
     }
   }
 
-  if(window.Game?.running && typeof _refreshPlayerSelectionHud === 'function'){
+  if(Game.running && typeof _refreshPlayerSelectionHud === 'function'){
     _refreshPlayerSelectionHud({
-      gameState: window.gameState,
-      twoPlayerMode: window.Game?.twoPlayerMode,
-      controlledHome: window.controlledPlayer?.(),
-      controlledAway: window.controlledPlayer2?.(),
-      visible: window.gameState !== 'practice',
+      gameState,
+      twoPlayerMode: Game.twoPlayerMode,
+      controlledHome: controlledPlayer(),
+      controlledAway: controlledPlayer2(),
+      visible: gameState !== 'practice',
     });
   }
 
@@ -355,20 +343,15 @@ function setupOnlineMatchmaking() {
   socket.on('match_found', (data) => {
     console.log('¡PARTIDO ENCONTRADO!', data);
 
-    // 1. Configuramos las banderas del partido online
-    if (window.Game) {
-      window.Game.isOnlineMatch = true;
-      window.Game.onlineRole = data.role; // 'home' (Local) o 'away' (Visita)
-    }
+    Game.isOnlineMatch = true;
+    Game.onlineRole = data.role; // 'home' (Local) o 'away' (Visita)
     
-    // 2. Activamos el modo Humano vs Humano (2 Players)
     selectMode(true);
 
     if (estadoBusqueda) {
       estadoBusqueda.innerText = `¡Rival encontrado! Sos ${data.role === 'home' ? 'LOCAL (P1)' : 'VISITA (P2)'} - Iniciando 11vs11...`;
     }
 
-    // 3. Arrancamos directo el partido 11vs11
     setTimeout(() => {
       startMatchWithFormat('11vs11');
     }, 1500);
@@ -385,7 +368,6 @@ function setupOnlineMatchmaking() {
 }
 
 async function boot() {
-  const state = await import('./state.js');
   const input = await import('./input.js');
   const physics = await import('./physics.js');
   const gameplay = await import('./gameplay.js');
@@ -397,14 +379,9 @@ async function boot() {
 
   _runGameplaySim = gameplay.runGameplaySim;
   _renderFn = renderMod.render;
-  _bindBallBeforeRender = state.bindBallBeforeRender;
+  _bindBallBeforeRender = bindBallBeforeRender;
   _assignInputSources = input.assignInputSources;
   _updateCelebration = gameplay.updateCelebration ?? null;
-
-  if(typeof window !== 'undefined'){
-    window.isPlayerAssignmentLocked = state.isPlayerAssignmentLocked;
-    window.isPlayerSwitchLockedForEffort = state.isPlayerSwitchLockedForEffort;
-  }
 
   initInputRouter({
     getFirstPad: () => input.getFirstNavigationGamepad(),
@@ -439,7 +416,7 @@ async function boot() {
 
   setUIMenu(UI_MENU.MAIN);
 
-  state.wireBridge({
+  wireBridge({
     runGameplaySim: gameplay.runGameplaySim,
     renderFn: renderMod.render,
     assignInputSources: input.assignInputSources,
