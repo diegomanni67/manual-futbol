@@ -330,7 +330,11 @@ function tick(ts) {
 function setupOnlineMatchmaking() {
   if (typeof io === 'undefined') return;
 
-  socket = io('http://localhost:3000', { transports: ['websocket', 'polling'] });
+  const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000' 
+    : 'https://futbol-online-server.onrender.com';
+
+  socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
 
   const btnBuscarOnline = document.getElementById('btn-buscar-partido');
   const estadoBusqueda = document.getElementById('estado-busqueda');
