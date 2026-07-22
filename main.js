@@ -258,7 +258,13 @@ function updateCelebrationCamera() {
 
 function tick(ts) {
   requestAnimationFrame(tick);
+  frameStep(ts);
+}
 
+// Lógica de un frame de juego, separada de la programación del loop (rAF vs. interval)
+// para poder seguir simulando aunque el navegador deje de llamar a requestAnimationFrame
+// (por ejemplo, cuando la pestaña está en segundo plano o minimizada).
+function frameStep(ts) {
   tickMenuInput(ts);
 
   if (Game.running) {
@@ -327,12 +333,64 @@ function tick(ts) {
   if (typeof _renderFn === 'function') _renderFn();
 }
 
+// ---------------------------------------------------------------------------
+// Seguir simulando cuando la pestaña está oculta/minimizada
+// ---------------------------------------------------------------------------
+// Los navegadores frenan requestAnimationFrame por completo cuando la pestaña
+// no está visible (para ahorrar batería/CPU). Mientras está oculta, usamos un
+// setInterval como reemplazo: no da la misma fluidez (el navegador también lo
+// puede "throttlear" a ~1 vez por segundo), pero el partido, el reloj y la
+// física del balón siguen corriendo en vez de quedar congelados.
+const BG_STEP_MS = 33;         // tamaño de cada paso de simulación de respaldo
+const BG_MAX_CATCHUP_MS = 2000; // por las dudas, no intentamos "recuperar" más de 2s de golpe
+let bgIntervalId = null;
+
+function intervalTick() {
+  const now = performance.now();
+  if (lastTs === null) {
+    setLastTs(now);
+    return;
+  }
+  const elapsed = Math.min(now - lastTs, BG_MAX_CATCHUP_MS);
+  const steps = Math.max(1, Math.round(elapsed / BG_STEP_MS));
+  let simTs = lastTs;
+  for (let i = 0; i < steps; i++) {
+    simTs += BG_STEP_MS;
+    frameStep(simTs);
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    if (!bgIntervalId) bgIntervalId = setInterval(intervalTick, 200);
+  } else {
+    if (bgIntervalId) {
+      clearInterval(bgIntervalId);
+      bgIntervalId = null;
+    }
+    // Evita un salto brusco de dt en el próximo frame de rAF al volver.
+    setLastTs(null);
+  }
+}
+
+document.addEventListener('visibilitychange', handleVisibilityChange);
+
 function setupOnlineMatchmaking() {
   if (typeof io === 'undefined') return;
 
   const SERVER_URL = 'https://futbol-online-server.onrender.com';
 
-  socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
+  socket = io(SERVER_URL, {
+    transports: ['websocket', 'polling'],
+    // Reconexión agresiva: si el navegador tira la conexión un ratito
+    // (pestaña en segundo plano, wifi que titila, etc.) el cliente insiste
+    // solo, sin que el jugador tenga que hacer nada.
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+  });
 
   const btnBuscarOnline = document.getElementById('btn-buscar-partido');
   const estadoBusqueda = document.getElementById('estado-busqueda');
@@ -353,7 +411,14 @@ function setupOnlineMatchmaking() {
 
     Game.isOnlineMatch = true;
     Game.onlineRole = data.role; // 'home' (Local) o 'away' (Visita)
-    
+
+    // Si el partido ya estaba en curso y esto es una reconexión, no
+    // reiniciamos nada: seguimos jugando donde estábamos.
+    if (data.resumed) {
+      if (estadoBusqueda) estadoBusqueda.innerText = '';
+      return;
+    }
+
     selectMode(true);
 
     if (estadoBusqueda) {
@@ -365,6 +430,17 @@ function setupOnlineMatchmaking() {
     }, 1500);
   });
 
+  socket.on('opponent_reconnecting', () => {
+    // El rival se cortó momentáneamente (cambió de pestaña, se quedó sin
+    // señal, etc.) — le damos unos segundos para que vuelva antes de avisar
+    // que abandonó de verdad.
+    if (estadoBusqueda) estadoBusqueda.innerText = 'El rival se desconectó momentáneamente... esperando que vuelva.';
+  });
+
+  socket.on('opponent_reconnected', () => {
+    if (estadoBusqueda) estadoBusqueda.innerText = '';
+  });
+
   socket.on('opponent_update', (data) => {
     // Sincronización de movimientos recibidos del rival
   });
@@ -372,6 +448,14 @@ function setupOnlineMatchmaking() {
   socket.on('opponent_disconnected', () => {
     alert('El rival se ha desconectado de la partida.');
     window.location.reload();
+  });
+
+  socket.on('online_count', (data) => {
+    const el = document.getElementById('online-count');
+    if (!el || !data) return;
+    const { online = 0, searching = 0 } = data;
+    el.innerText = `🟢 ${online} conectado${online === 1 ? '' : 's'}` +
+      (searching > 0 ? ` · ${searching} buscando partida` : '');
   });
 }
 
