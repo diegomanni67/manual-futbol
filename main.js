@@ -8,6 +8,7 @@ import {
   setLastTs, setLastDt, setGameState, setIsPaused, setGameMode,
   setControlled, setControlled2, nearestToBall, controlledPlayer, controlledPlayer2,
   wireBridge, isPlayerAssignmentLocked, isPlayerSwitchLockedForEffort,
+  lerp,
 } from './state.js';
 
 import {
