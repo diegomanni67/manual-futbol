@@ -296,7 +296,7 @@ export const TOUCH_ANIM_DUR = 0.22;     // duracion (seg) de la animacion de pun
 export const CONTROL_TOUCH_DUR = 0.3;   // toque de control al ganar posesion (alineado con PREP_MIN_MS de input.js)
 
   // --- Conduccion extendida (FakeShot): offset con lerp; effort touch suelta la pelota ---
-export const DRIBBLE_DIST_R1 = toGameUnits(2.0);           // R1 + stick der.: toque corto / progresion (m reales)
+export const DRIBBLE_DIST_R1 = toGameUnits(1.1);           // R1 + stick der.: toque corto / progresion (m reales)
 export const DRIBBLE_DIST_R2 = toGameUnits(4.0);           // legacy: distancia larga (ya no se usa en effort touch)
 export const DRIBBLE_DIST_FAKE = toGameUnits(2.0);         // FakeShot (X cancela carga): offset hacia adelante
 export const DRIBBLE_DIST_LERP = 0.2;         // suavizado al cambiar de distancia
