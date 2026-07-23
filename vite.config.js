@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import obfuscator from 'vite-plugin-javascript-obfuscator';
 
 export default defineConfig({
+  base: './',
   build: {
     // Apagamos los sourcemaps para que NO se genere la guía del código fuente original
     sourcemap: false,
