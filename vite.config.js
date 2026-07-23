@@ -10,9 +10,8 @@ export default defineConfig({
     outDir: 'dist', // Carpeta donde se guardará el juego listo para publicar
     rollupOptions: {
       output: {
-        // Fuerza todo a un solo bundle, sin chunks separados por dynamic import().
-        // Esto evita que el obfuscador corrompa las referencias entre chunks
-        // (era la causa del 404 en state.js).
+        // Todo en un solo archivo, sin chunks separados por import() dinámico.
+        // Evita que el ofuscador rompa referencias entre archivos (causaba el error 404).
         inlineDynamicImports: true,
       },
     },
@@ -21,17 +20,16 @@ export default defineConfig({
     obfuscator({
       options: {
         compact: true,
-        controlFlowFlattening: true, // Destruye la estructura de los bucles e IFs
+        controlFlowFlattening: false, // DESACTIVADO: rompía el timing del juego (festejos, toque de balón)
         deadCodeInjection: false, // Evita inflar demasiado el tamaño del archivo
-        debugProtection: true, // Si alguien abre las DevTools, les traba la pestaña
-        debugProtectionInterval: 2000,
+        debugProtection: false, // DESACTIVADO: causaba micro-trabas en el juego en producción
         disableConsoleOutput: true, // Desactiva los console.log en producción
         identifierNamesGenerator: 'hexadecimal', // Renombra funciones a cosas como _0x4f2a
         log: false,
         renameGlobals: false,
-        selfDefending: true, // Si intentan formatear el JS, deja de funcionar
+        selfDefending: false, // DESACTIVADO: mismo motivo que debugProtection
         stringArray: true, // Encripta todos los textos e IDs dentro del JS
-        stringArrayThreshold: 0.75,
+        stringArrayThreshold: 0.5,
       },
     }),
   ],
